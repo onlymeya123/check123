@@ -7,6 +7,8 @@ interface AppState {
   setVibe: (v: Vibe) => void;
   budget: number;
   setBudget: (b: number) => void;
+  surpriseMode: boolean;
+  setSurpriseMode: (v: boolean) => void;
   itinerary: Place[];
   setItinerary: (p: Place[]) => void;
   buildItinerary: () => Place[];
@@ -21,6 +23,16 @@ interface AppState {
   totalSpent: number;
   balance: number;
   topUp: (amt: number) => void;
+  // Trip budget management
+  tripBudget: number;
+  setTripBudget: (n: number) => void;
+  tripName: string;
+  setTripName: (s: string) => void;
+  tripDays: number;
+  setTripDays: (n: number) => void;
+  tripDaysRemaining: number;
+  setTripDaysRemaining: (n: number) => void;
+  dailyAllowance: number;
   isNavigating: boolean;
   setIsNavigating: (v: boolean) => void;
   navIndex: number;
@@ -34,6 +46,7 @@ const Ctx = createContext<AppState | null>(null);
 export function AppProvider({ children }: { children: ReactNode }) {
   const [vibe, setVibe] = useState<Vibe>('zen');
   const [budget, setBudget] = useState<number>(500_000);
+  const [surpriseMode, setSurpriseMode] = useState(false);
   const [itinerary, setItinerary] = useState<Place[]>([
     PLACES[0], PLACES[1], PLACES[2], PLACES[3],
   ]);
@@ -43,16 +56,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [navIndex, setNavIndex] = useState(0);
   const [visited, setVisited] = useState<Set<string>>(new Set());
 
+  // Trip budget state
+  const [tripBudget, setTripBudget] = useState<number>(BUDGET_TOTAL);
+  const [tripName, setTripName] = useState<string>('Ubud Trip');
+  const [tripDays, setTripDays] = useState<number>(5);
+  const [tripDaysRemaining, setTripDaysRemaining] = useState<number>(3);
+
   const totalSpent = useMemo(
     () => transactions.filter((t) => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0),
     [transactions],
   );
 
+  const dailyAllowance = useMemo(() => {
+    const remaining = tripBudget - totalSpent;
+    return tripDaysRemaining > 0 ? Math.max(0, remaining / tripDaysRemaining) : 0;
+  }, [tripBudget, totalSpent, tripDaysRemaining]);
+
   const value: AppState = {
     vibe, setVibe,
     budget, setBudget,
+    surpriseMode, setSurpriseMode,
     itinerary, setItinerary,
-    buildItinerary: () => pickItinerary(vibe, budget),
+    buildItinerary: () => pickItinerary(vibe, budget, surpriseMode),
     reorderStop: (from, to) => {
       setItinerary((cur) => {
         const next = cur.slice();
@@ -66,7 +91,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setItinerary((cur) => cur.map((p) => (p.id === id ? withPlace : p))),
     addStop: (p) =>
       setItinerary((cur) => (cur.find((x) => x.id === p.id) ? cur : [...cur, p])),
-    alternatives: (excludeIds) => PLACES.filter((p) => !excludeIds.includes(p.id)).slice(0, 6),
+    alternatives: (excludeIds) => PLACES.filter((p) => !excludeIds.includes(p.id)).slice(0, 8),
     transactions,
     addTransaction: (t) => {
       const txn: Transaction = {
@@ -95,6 +120,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ...cur,
       ]);
     },
+    tripBudget, setTripBudget,
+    tripName, setTripName,
+    tripDays, setTripDays,
+    tripDaysRemaining, setTripDaysRemaining,
+    dailyAllowance,
     isNavigating, setIsNavigating,
     navIndex, setNavIndex,
     visited,
