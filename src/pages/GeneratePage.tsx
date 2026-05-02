@@ -1,16 +1,18 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  ArrowLeft, Check, GripVertical, Plus, RefreshCw, Sparkles, Trash2, X,
-  Clock, Star, DollarSign, Pencil, Search,
+  ArrowLeft, Check, GripVertical, Plus, RefreshCw, Sparkles, X,
+  Clock, Star, DollarSign, Pencil, Search, ChevronUp, ChevronDown, Tag,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import StatusBar from '../components/StatusBar';
 import { useApp } from '../context/AppContext';
 import type { Place } from '../data/places';
 import { PLACES } from '../data/places';
 import { formatRp } from '../lib/format';
 import { useToast } from '../components/Toast';
+import { getCulturalIntel, type CulturalIntel } from '../data/cultural';
+import { getDealsForPlace } from '../data/deals';
 
 const STEPS = [
   'Finding nearby places…',
@@ -19,36 +21,37 @@ const STEPS = [
   'Crafting your perfect journey…',
 ];
 
-// Hours available for scheduling
 const TIME_OPTIONS = Array.from({ length: 28 }, (_, i) => {
-  const h = Math.floor((6 * 60 + i * 30) / 60) % 24;
-  const m = (6 * 60 + i * 30) % 60;
+  const totalMin = 6 * 60 + i * 30;
+  const h = Math.floor(totalMin / 60) % 24;
+  const m = totalMin % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 });
 
-type Mode = 'ai' | 'manual';
-
 export default function GeneratePage() {
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isManualMode = searchParams.get('mode') === 'manual';
+
   const { vibe, budget, buildItinerary, setItinerary, itinerary, removeStop, replaceStop, addStop, reorderStop, alternatives } = useApp();
   const { show } = useToast();
 
-  const [phase, setPhase] = useState<'loading' | 'reveal'>('loading');
+  const [phase, setPhase] = useState<'loading' | 'reveal'>(isManualMode ? 'reveal' : 'loading');
   const [stepIdx, setStepIdx] = useState(0);
   const [replaceFor, setReplaceFor] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [confirmingPulse, setConfirmingPulse] = useState(false);
-  const [mode, setMode] = useState<Mode>('ai');
   const [stopTimes, setStopTimes] = useState<Record<string, string>>({});
   const [editingTimeFor, setEditingTimeFor] = useState<string | null>(null);
+  const [dismissedCultural, setDismissedCultural] = useState<Set<string>>(new Set());
 
-  // Manual itinerary state
-  const [manualStops, setManualStops] = useState<Place[]>([]);
+  // Manual mode state
+  const [manualStops, setManualStops] = useState<Place[]>(isManualMode ? [] : []);
   const [manualSearch, setManualSearch] = useState('');
   const [showCustomForm, setShowCustomForm] = useState(false);
 
   useEffect(() => {
-    setItinerary(buildItinerary());
+    if (!isManualMode) setItinerary(buildItinerary());
   }, []); // eslint-disable-line
 
   useEffect(() => {
@@ -58,28 +61,13 @@ export default function GeneratePage() {
     return () => { clearInterval(t1); clearTimeout(t2); };
   }, [phase]);
 
-  const activeItinerary = mode === 'ai' ? itinerary : manualStops;
+  const activeItinerary = isManualMode ? manualStops : itinerary;
 
-  const totals = useMemo(() => {
-    const cost = activeItinerary.reduce((s, p) => s + p.cost, 0);
-    const time = activeItinerary.reduce((s, p) => s + p.durationMin, 0);
-    const dist = activeItinerary.reduce((s, p) => s + p.distanceKm, 0);
-    return { cost, time, dist };
-  }, [activeItinerary]);
-
-  const onConfirm = () => {
-    if (mode === 'manual') {
-      setItinerary(manualStops);
-    }
-    setConfirmingPulse(true);
-    show('Journey confirmed ✨', 'success');
-    setTimeout(() => nav('/map'), 700);
-  };
-
-  const setTime = (id: string, t: string) => {
-    setStopTimes((prev) => ({ ...prev, [id]: t }));
-    setEditingTimeFor(null);
-  };
+  const totals = useMemo(() => ({
+    cost: activeItinerary.reduce((s, p) => s + p.cost, 0),
+    time: activeItinerary.reduce((s, p) => s + p.durationMin, 0),
+    dist: activeItinerary.reduce((s, p) => s + p.distanceKm, 0),
+  }), [activeItinerary]);
 
   const getTime = (id: string, idx: number) => {
     if (stopTimes[id]) return stopTimes[id];
@@ -87,6 +75,13 @@ export default function GeneratePage() {
     const h = Math.floor(start / 60) % 24;
     const m = start % 60;
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  };
+
+  const onConfirm = () => {
+    if (isManualMode) setItinerary(manualStops);
+    setConfirmingPulse(true);
+    show('Journey confirmed ✨', 'success');
+    setTimeout(() => nav('/map'), 700);
   };
 
   const manualSearchResults = useMemo(() => {
@@ -97,11 +92,10 @@ export default function GeneratePage() {
     ).slice(0, 8);
   }, [manualSearch]);
 
-  const importAiSuggestions = () => {
+  const importAi = () => {
     setManualStops((prev) => {
       const existing = new Set(prev.map((p) => p.id));
-      const toAdd = itinerary.filter((p) => !existing.has(p.id));
-      return [...prev, ...toAdd];
+      return [...prev, ...itinerary.filter((p) => !existing.has(p.id))];
     });
     show('AI suggestions imported', 'success');
   };
@@ -110,44 +104,36 @@ export default function GeneratePage() {
     <div className="absolute inset-0 bg-white overflow-hidden flex flex-col">
       <StatusBar />
       <div className="px-5 py-2 flex items-center justify-between shrink-0">
-        <button onClick={() => nav(-1)} className="w-10 h-10 -ml-2 flex items-center justify-center text-ink-700 press" aria-label="Back">
+        <button onClick={() => nav(-1)} className="w-10 h-10 -ml-2 flex items-center justify-center text-ink-700 press">
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <div className="font-bold text-ink-900 font-display">Your Journey</div>
-        <div className="text-xs text-brand-600 font-semibold capitalize bg-brand-50 px-2 py-1 rounded-full">{vibe} · {formatRp(budget)}</div>
-      </div>
-
-      {/* Mode tabs */}
-      <div className="px-5 pb-2 shrink-0">
-        <div className="flex gap-1 bg-ink-50 p-1 rounded-2xl">
-          {(['ai', 'manual'] as Mode[]).map((m) => (
-            <button
-              key={m}
-              onClick={() => setMode(m)}
-              className={`flex-1 h-9 rounded-xl text-sm font-semibold press transition-colors ${mode === m ? 'bg-white text-ink-900 shadow-soft' : 'text-ink-500'}`}
-            >
-              {m === 'ai' ? '✨ AI Generated' : '📝 Build Manually'}
-            </button>
-          ))}
+        <div className="font-bold text-ink-900 font-display">
+          {isManualMode ? 'Build Your Journey' : 'Your Journey'}
+        </div>
+        <div className="text-xs text-brand-600 font-semibold capitalize bg-brand-50 px-2 py-1 rounded-full">
+          {isManualMode ? 'Manual' : `${vibe} · ${formatRp(budget)}`}
         </div>
       </div>
 
       <AnimatePresence mode="wait">
-        {mode === 'ai' ? (
-          <motion.div key="ai-mode" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex flex-col overflow-hidden">
+        {!isManualMode ? (
+          /* ── AI GENERATED FLOW ── */
+          <motion.div key="ai" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex flex-col overflow-hidden">
             <AnimatePresence mode="wait">
               {phase === 'loading' ? (
                 <LoadingState key="loading" stepIdx={stepIdx} />
               ) : (
                 <motion.div
                   key="reveal"
-                  initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+                  initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
                   transition={{ type: 'spring', stiffness: 280, damping: 28 }}
                   className="flex-1 flex flex-col overflow-hidden"
                 >
-                  {/* Summary */}
-                  <div className="mx-5 mt-2 p-4 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-glow shrink-0">
-                    <div className="flex items-center gap-2 text-sm font-semibold opacity-90"><Sparkles className="w-4 h-4" /> Crafted for your {vibe} day</div>
+                  {/* Summary card */}
+                  <div className="mx-5 mt-2 p-4 rounded-2xl bg-brand-600 text-white shrink-0">
+                    <div className="flex items-center gap-2 text-sm font-semibold opacity-90">
+                      <Sparkles className="w-4 h-4" /> Crafted for your {vibe} day
+                    </div>
                     <div className="grid grid-cols-3 gap-3 mt-3">
                       <SummStat label="Stops" value={String(itinerary.length)} />
                       <SummStat label="Distance" value={`${totals.dist.toFixed(1)} km`} />
@@ -159,30 +145,64 @@ export default function GeneratePage() {
                     </div>
                   </div>
 
-                  {/* Stops */}
-                  <div className="flex-1 overflow-y-auto no-scrollbar mt-4 px-5 pb-32">
+                  {/* Stop list */}
+                  <div className="flex-1 overflow-y-auto no-scrollbar mt-3 px-5 pb-28">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[11px] font-bold tracking-widest text-ink-500">ITINERARY · {itinerary.length} STOPS</span>
                       <button className="text-xs text-brand-600 font-semibold press" onClick={() => setShowAdd(true)}>+ Add stop</button>
                     </div>
-                    <div className="space-y-3">
+
+                    {/* Gesture hint */}
+                    <div className="mb-2 flex items-center gap-1.5 text-[11px] text-ink-400">
+                      <span>←</span>
+                      <span>Swipe left to remove · Use arrows to reorder</span>
+                    </div>
+
+                    <div className="space-y-0">
                       <AnimatePresence>
-                        {itinerary.map((p, i) => (
-                          <StopCard
-                            key={p.id}
-                            index={i}
-                            total={itinerary.length}
-                            place={p}
-                            scheduledTime={getTime(p.id, i)}
-                            onTimeEdit={() => setEditingTimeFor(p.id)}
-                            onRemove={() => removeStop(p.id)}
-                            onReplace={() => setReplaceFor(p.id)}
-                            onMoveUp={() => reorderStop(i, Math.max(0, i - 1))}
-                            onMoveDown={() => reorderStop(i, Math.min(itinerary.length - 1, i + 1))}
-                          />
-                        ))}
+                        {itinerary.map((p, i) => {
+                          const intel = getCulturalIntel(p.id, p.category);
+                          const deals = getDealsForPlace(p.id);
+                          const hasDeal = deals.length > 0;
+                          return (
+                            <div key={p.id}>
+                              <StopCard
+                                index={i} total={itinerary.length} place={p}
+                                scheduledTime={getTime(p.id, i)}
+                                hasDeal={hasDeal}
+                                onTimeEdit={() => setEditingTimeFor(p.id)}
+                                onRemove={() => removeStop(p.id)}
+                                onReplace={() => setReplaceFor(p.id)}
+                                onMoveUp={() => reorderStop(i, Math.max(0, i - 1))}
+                                onMoveDown={() => reorderStop(i, Math.min(itinerary.length - 1, i + 1))}
+                              />
+                              {/* Cultural card */}
+                              {intel && !dismissedCultural.has(p.id) && (
+                                <div className="mb-2">
+                                  <CulturalCard
+                                    intel={intel}
+                                    onDismiss={() => setDismissedCultural((s) => new Set(s).add(p.id))}
+                                  />
+                                </div>
+                              )}
+                              {/* Deal badge */}
+                              {hasDeal && (
+                                <DealInlineRow deals={deals} />
+                              )}
+                              {/* Visual connector */}
+                              {i < itinerary.length - 1 && (
+                                <StopConnector
+                                  distanceKm={itinerary[i + 1].distanceKm}
+                                  fromTime={getTime(p.id, i)}
+                                  durationMin={p.durationMin}
+                                />
+                              )}
+                            </div>
+                          );
+                        })}
                       </AnimatePresence>
                     </div>
+
                     <button
                       onClick={() => { setItinerary(buildItinerary()); show('Re-rolled itinerary', 'info'); }}
                       className="mt-4 mx-auto flex items-center gap-2 text-xs font-semibold text-ink-600 px-4 py-2 rounded-full bg-ink-50 press"
@@ -191,15 +211,15 @@ export default function GeneratePage() {
                     </button>
                   </div>
 
-                  {/* Sticky CTA */}
-                  <div className="absolute inset-x-0 bottom-0 px-5 pt-3 pb-6 bg-gradient-to-t from-white via-white to-transparent">
+                  {/* Sticky CTA — above bottom nav */}
+                  <div className="absolute inset-x-0 bottom-0 px-5 pt-4 pb-24 bg-gradient-to-t from-white via-white/95 to-transparent pointer-events-none">
                     <motion.button
                       whileTap={{ scale: 0.97 }}
-                      animate={confirmingPulse ? { boxShadow: ['0 0 0 0 rgba(59,91,255,0.5)', '0 0 0 24px rgba(59,91,255,0)'] } : {}}
+                      animate={confirmingPulse ? { boxShadow: ['0 0 0 0 rgba(59,91,255,0.4)', '0 0 0 20px rgba(59,91,255,0)'] } : {}}
                       transition={{ duration: 0.7 }}
                       onClick={onConfirm}
                       disabled={itinerary.length === 0}
-                      className="w-full h-14 rounded-2xl bg-brand-500 disabled:bg-ink-300 text-white font-bold text-base shadow-glow flex items-center justify-center gap-2"
+                      className="w-full h-14 rounded-2xl bg-brand-500 disabled:bg-ink-300 text-white font-bold text-base flex items-center justify-center gap-2 pointer-events-auto"
                     >
                       <Check className="w-5 h-5" /> Confirm My Journey
                     </motion.button>
@@ -209,20 +229,18 @@ export default function GeneratePage() {
             </AnimatePresence>
           </motion.div>
         ) : (
-          /* ── MANUAL MODE ── */
-          <motion.div key="manual-mode" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex flex-col overflow-hidden">
-            {/* Manual summary bar */}
+          /* ── MANUAL FLOW ── */
+          <motion.div key="manual" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex flex-col overflow-hidden">
             {manualStops.length > 0 && (
               <div className="mx-5 mb-2 p-3 rounded-2xl bg-ink-50 flex items-center justify-between shrink-0">
                 <div className="text-sm font-semibold text-ink-700">{manualStops.length} stops · {formatRp(totals.cost)}</div>
-                <button onClick={importAiSuggestions} className="text-xs text-brand-600 font-semibold press flex items-center gap-1">
+                <button onClick={importAi} className="text-xs text-brand-600 font-semibold press flex items-center gap-1">
                   <Sparkles className="w-3.5 h-3.5" /> Mix AI
                 </button>
               </div>
             )}
 
-            <div className="flex-1 overflow-y-auto no-scrollbar px-5 pb-32">
-              {/* Search to add */}
+            <div className="flex-1 overflow-y-auto no-scrollbar px-5 pb-28">
               <div className="bg-ink-50 rounded-2xl px-3 py-2.5 flex items-center gap-2 mb-3">
                 <Search className="w-4 h-4 text-ink-400 shrink-0" />
                 <input
@@ -233,14 +251,12 @@ export default function GeneratePage() {
                 />
               </div>
 
-              {/* Search results to pick from */}
               <div className="space-y-2 mb-4">
                 {manualSearchResults.map((p) => {
                   const inPlan = manualStops.some((s) => s.id === p.id);
                   return (
                     <button
-                      key={p.id}
-                      disabled={inPlan}
+                      key={p.id} disabled={inPlan}
                       onClick={() => { setManualStops((prev) => [...prev, p]); show(`${p.name} added`, 'success'); }}
                       className={`w-full flex items-center gap-3 rounded-2xl border p-2.5 text-left press transition-colors ${inPlan ? 'border-brand-200 bg-brand-50 opacity-60' : 'border-ink-100 bg-white hover:border-brand-200'}`}
                     >
@@ -249,7 +265,6 @@ export default function GeneratePage() {
                         <div className="font-semibold text-ink-900 truncate text-sm">{p.name}</div>
                         <div className="flex items-center gap-1.5 text-xs text-ink-500 mt-0.5">
                           <span>{p.category}</span>
-                          <span>·</span>
                           <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
                           <span>{p.rating}</span>
                           <span>·</span>
@@ -268,7 +283,6 @@ export default function GeneratePage() {
                 })}
               </div>
 
-              {/* Custom place form toggle */}
               <button
                 onClick={() => setShowCustomForm((v) => !v)}
                 className="w-full h-10 rounded-2xl border-2 border-dashed border-ink-200 text-ink-500 text-sm font-semibold flex items-center justify-center gap-2 press mb-4"
@@ -279,76 +293,58 @@ export default function GeneratePage() {
               <AnimatePresence>
                 {showCustomForm && (
                   <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mb-4 overflow-hidden">
-                    <CustomPlaceForm
-                      onAdd={(p) => {
-                        setManualStops((prev) => [...prev, p]);
-                        setShowCustomForm(false);
-                        show(`${p.name} added`, 'success');
-                      }}
-                    />
+                    <CustomPlaceForm onAdd={(p) => { setManualStops((prev) => [...prev, p]); setShowCustomForm(false); show(`${p.name} added`, 'success'); }} />
                   </motion.div>
                 )}
               </AnimatePresence>
 
-              {/* Current plan */}
-              {manualStops.length > 0 && (
+              {manualStops.length > 0 ? (
                 <>
                   <div className="text-[11px] font-bold tracking-widest text-ink-500 mb-2">YOUR PLAN · {manualStops.length} STOPS</div>
-                  <div className="space-y-3">
+                  <div className="mb-2 flex items-center gap-1.5 text-[11px] text-ink-400">
+                    <span>←</span><span>Swipe left to remove · Use arrows to reorder</span>
+                  </div>
+                  <div className="space-y-0">
                     <AnimatePresence>
                       {manualStops.map((p, i) => (
-                        <StopCard
-                          key={p.id}
-                          index={i}
-                          total={manualStops.length}
-                          place={p}
-                          scheduledTime={getTime(p.id, i)}
-                          onTimeEdit={() => setEditingTimeFor(p.id)}
-                          onRemove={() => setManualStops((prev) => prev.filter((s) => s.id !== p.id))}
-                          onReplace={() => {}}
-                          onMoveUp={() => {
-                            setManualStops((prev) => {
-                              const next = prev.slice();
-                              const [item] = next.splice(i, 1);
-                              next.splice(Math.max(0, i - 1), 0, item);
-                              return next;
-                            });
-                          }}
-                          onMoveDown={() => {
-                            setManualStops((prev) => {
-                              const next = prev.slice();
-                              const [item] = next.splice(i, 1);
-                              next.splice(Math.min(prev.length - 1, i + 1), 0, item);
-                              return next;
-                            });
-                          }}
-                          isManual
-                        />
+                        <div key={p.id}>
+                          <StopCard
+                            index={i} total={manualStops.length} place={p}
+                            scheduledTime={getTime(p.id, i)}
+                            hasDeal={false}
+                            onTimeEdit={() => setEditingTimeFor(p.id)}
+                            onRemove={() => setManualStops((prev) => prev.filter((s) => s.id !== p.id))}
+                            onReplace={() => {}}
+                            isManual
+                            onMoveUp={() => setManualStops((prev) => { const n = prev.slice(); const [x] = n.splice(i, 1); n.splice(Math.max(0, i - 1), 0, x); return n; })}
+                            onMoveDown={() => setManualStops((prev) => { const n = prev.slice(); const [x] = n.splice(i, 1); n.splice(Math.min(prev.length - 1, i + 1), 0, x); return n; })}
+                          />
+                          {i < manualStops.length - 1 && (
+                            <StopConnector distanceKm={manualStops[i + 1].distanceKm} fromTime={getTime(p.id, i)} durationMin={p.durationMin} />
+                          )}
+                        </div>
                       ))}
                     </AnimatePresence>
                   </div>
                 </>
-              )}
-
-              {manualStops.length === 0 && (
+              ) : (
                 <div className="text-center py-10">
                   <div className="text-4xl mb-3">📝</div>
                   <div className="font-semibold text-ink-700">No stops yet</div>
-                  <div className="text-sm text-ink-500 mt-1">Search above or add a custom place to build your plan</div>
-                  <button onClick={importAiSuggestions} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-brand-50 text-brand-600 text-sm font-semibold press">
+                  <div className="text-sm text-ink-500 mt-1">Search above or add a custom place</div>
+                  <button onClick={importAi} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-brand-50 text-brand-600 text-sm font-semibold press">
                     <Sparkles className="w-4 h-4" /> Import AI suggestions
                   </button>
                 </div>
               )}
             </div>
 
-            {/* CTA */}
-            <div className="absolute inset-x-0 bottom-0 px-5 pt-3 pb-6 bg-gradient-to-t from-white via-white to-transparent">
+            <div className="absolute inset-x-0 bottom-0 px-5 pt-4 pb-24 bg-gradient-to-t from-white via-white/95 to-transparent pointer-events-none">
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 onClick={onConfirm}
                 disabled={manualStops.length === 0}
-                className="w-full h-14 rounded-2xl bg-brand-500 disabled:bg-ink-300 text-white font-bold text-base shadow-glow flex items-center justify-center gap-2"
+                className="w-full h-14 rounded-2xl bg-brand-500 disabled:bg-ink-300 text-white font-bold text-base flex items-center justify-center gap-2 pointer-events-auto"
               >
                 <Check className="w-5 h-5" /> Confirm My Journey ({manualStops.length} stops)
               </motion.button>
@@ -357,7 +353,7 @@ export default function GeneratePage() {
         )}
       </AnimatePresence>
 
-      {/* Time picker overlay */}
+      {/* Time picker */}
       <AnimatePresence>
         {editingTimeFor && (
           <>
@@ -365,17 +361,14 @@ export default function GeneratePage() {
             <motion.div
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
               transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-              className="absolute inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl shadow-card pb-8"
+              className="absolute inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl pb-8"
             >
               <div className="w-12 h-1.5 bg-ink-100 rounded-full mx-auto mt-3" />
               <div className="px-5 pt-3 pb-4 font-bold text-ink-900 font-display">Set arrival time</div>
-              <div className="grid grid-cols-4 gap-2 px-5 max-h-48 overflow-y-auto no-scrollbar">
+              <div className="grid grid-cols-4 gap-2 px-5 max-h-52 overflow-y-auto no-scrollbar">
                 {TIME_OPTIONS.map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setTime(editingTimeFor, t)}
-                    className={`py-2.5 rounded-xl text-sm font-semibold press transition-colors ${stopTimes[editingTimeFor] === t ? 'bg-brand-500 text-white' : 'bg-ink-50 text-ink-700'}`}
-                  >
+                  <button key={t} onClick={() => { setStopTimes((prev) => ({ ...prev, [editingTimeFor]: t })); setEditingTimeFor(null); }}
+                    className={`py-2.5 rounded-xl text-sm font-semibold press transition-colors ${stopTimes[editingTimeFor] === t ? 'bg-brand-500 text-white' : 'bg-ink-50 text-ink-700'}`}>
                     {t}
                   </button>
                 ))}
@@ -386,21 +379,15 @@ export default function GeneratePage() {
       </AnimatePresence>
 
       {/* Replace sheet */}
-      <AlternativesSheet
-        open={!!replaceFor}
-        onClose={() => setReplaceFor(null)}
-        excludeIds={itinerary.map((p) => p.id)}
-        title="Replace stop"
+      <AlternativesSheet open={!!replaceFor} onClose={() => setReplaceFor(null)}
+        excludeIds={itinerary.map((p) => p.id)} title="Replace stop"
         onPick={(p) => { if (replaceFor) replaceStop(replaceFor, p); setReplaceFor(null); show('Stop replaced', 'success'); }}
         alternatives={alternatives}
       />
 
-      {/* Add sheet (AI mode) */}
-      <AlternativesSheet
-        open={showAdd}
-        onClose={() => setShowAdd(false)}
-        excludeIds={itinerary.map((p) => p.id)}
-        title="Add a stop"
+      {/* Add sheet */}
+      <AlternativesSheet open={showAdd} onClose={() => setShowAdd(false)}
+        excludeIds={itinerary.map((p) => p.id)} title="Add a stop"
         onPick={(p) => { addStop(p); setShowAdd(false); show(`${p.name} added`, 'success'); }}
         alternatives={alternatives}
       />
@@ -408,7 +395,8 @@ export default function GeneratePage() {
   );
 }
 
-/* ---- Summary stat ---- */
+/* ── Sub-components ─────────────────────────────── */
+
 function SummStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-white/15 rounded-xl py-2 px-2 text-center">
@@ -418,7 +406,6 @@ function SummStat({ label, value }: { label: string; value: string }) {
   );
 }
 
-/* ---- Loading state ---- */
 function LoadingState({ stepIdx }: { stepIdx: number }) {
   return (
     <motion.div key="loading" initial={{ opacity: 1 }} exit={{ opacity: 0, y: -8 }} className="flex-1 px-5 pt-4 flex flex-col">
@@ -437,9 +424,7 @@ function LoadingState({ stepIdx }: { stepIdx: number }) {
           <div key={i} className="rounded-2xl border border-ink-100 p-3 flex gap-3 items-center">
             <div className="w-16 h-16 rounded-xl shimmer" />
             <div className="flex-1 space-y-2">
-              <div className="h-3 w-2/3 rounded shimmer" />
-              <div className="h-3 w-1/3 rounded shimmer" />
-              <div className="h-3 w-1/4 rounded shimmer" />
+              <div className="h-3 w-2/3 rounded shimmer" /><div className="h-3 w-1/3 rounded shimmer" /><div className="h-3 w-1/4 rounded shimmer" />
             </div>
           </div>
         ))}
@@ -448,130 +433,192 @@ function LoadingState({ stepIdx }: { stepIdx: number }) {
   );
 }
 
-/* ---- Stop Card ---- */
+/* ── Visual connector between stops ── */
+function StopConnector({ distanceKm, fromTime, durationMin }: { distanceKm: number; fromTime: string; durationMin: number }) {
+  const driveMin = Math.round(distanceKm * 3);
+  const [h, m] = fromTime.split(':').map(Number);
+  const arriveMin = h * 60 + m + durationMin + driveMin;
+  const nextH = Math.floor(arriveMin / 60) % 24;
+  const nextM = arriveMin % 60;
+  const nextTime = `${String(nextH).padStart(2, '0')}:${String(nextM).padStart(2, '0')}`;
+
+  return (
+    <div className="flex items-center gap-3 ml-5 my-1">
+      <div className="flex flex-col items-center w-4 shrink-0">
+        <div className="w-px bg-ink-200" style={{ height: 28 }} />
+      </div>
+      <div className="flex items-center gap-2 text-[11px] text-ink-400 py-0.5">
+        <span className="font-medium">{distanceKm} km</span>
+        <span>·</span>
+        <span>~{driveMin} min drive</span>
+        <span>·</span>
+        <Clock className="w-3 h-3" />
+        <span>Arrive {nextTime}</span>
+      </div>
+    </div>
+  );
+}
+
+/* ── Cultural Intelligence Card ── */
+function CulturalCard({ intel, onDismiss }: { intel: CulturalIntel; onDismiss: () => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const visibleTips = expanded ? intel.tips : intel.tips.slice(0, 1);
+  const extraCount = intel.tips.length - 1;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
+      className="mx-0 mb-0 overflow-hidden"
+    >
+      <div className="rounded-2xl border border-ink-100 bg-ink-50/70 overflow-hidden">
+        <div className="flex items-start gap-2.5 p-3">
+          <div className="w-1 self-stretch rounded-full shrink-0" style={{ background: intel.accentColor }} />
+          <div className="flex-1 min-w-0">
+            <div className="text-[11px] font-bold text-ink-500 mb-1.5">{intel.prompt}</div>
+            <div className="space-y-2">
+              {visibleTips.map((tip, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <span className="text-base leading-none mt-0.5 shrink-0">{tip.icon}</span>
+                  <div>
+                    <div className="text-xs font-semibold text-ink-800">{tip.title}</div>
+                    <div className="text-xs text-ink-500 mt-0.5 leading-relaxed">{tip.body}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {!expanded && extraCount > 0 && (
+              <button onClick={() => setExpanded(true)} className="mt-1.5 text-[11px] font-semibold text-brand-600 press">
+                + {extraCount} more tip{extraCount > 1 ? 's' : ''}
+              </button>
+            )}
+            {expanded && (
+              <button onClick={() => setExpanded(false)} className="mt-1.5 text-[11px] font-semibold text-ink-400 press">
+                Show less
+              </button>
+            )}
+          </div>
+          <button onClick={onDismiss} className="shrink-0 w-6 h-6 rounded-full hover:bg-ink-200 flex items-center justify-center press">
+            <X className="w-3 h-3 text-ink-400" />
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+/* ── Deal inline row ── */
+function DealInlineRow({ deals }: { deals: ReturnType<typeof getDealsForPlace> }) {
+  const d = deals[0];
+  return (
+    <div className="flex items-center gap-2 px-2 py-1.5 mb-1">
+      <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-xl px-2.5 py-1.5">
+        <Tag className="w-3.5 h-3.5 text-amber-600" />
+        <span className="text-xs font-bold text-amber-700">{d.discount}</span>
+        <span className="text-xs text-amber-600">· {d.title}</span>
+        <span className="text-[10px] text-amber-500">· {d.validUntil}</span>
+      </div>
+    </div>
+  );
+}
+
+/* ── Stop Card ── */
 function StopCard({
-  index, total, place, scheduledTime, onTimeEdit, onRemove, onReplace, onMoveUp, onMoveDown, isManual,
+  index, total, place, scheduledTime, hasDeal, onTimeEdit, onRemove, onReplace, onMoveUp, onMoveDown, isManual,
 }: {
   index: number; total: number; place: Place;
-  scheduledTime: string; onTimeEdit: () => void;
+  scheduledTime: string; hasDeal: boolean; onTimeEdit: () => void;
   onRemove: () => void; onReplace: () => void; onMoveUp: () => void; onMoveDown: () => void;
   isManual?: boolean;
 }) {
   const [dragX, setDragX] = useState(0);
+
   return (
     <motion.div
       layout
       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, x: -80, height: 0, marginBottom: 0 }}
+      exit={{ opacity: 0, x: -80, height: 0 }}
       transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-      className="relative"
+      className="relative mb-2"
     >
-      <div className="absolute inset-0 bg-red-500 rounded-2xl flex items-center justify-end pr-4">
-        <Trash2 className="w-5 h-5 text-white" />
+      {/* Swipe-to-delete reveal */}
+      <div className="absolute inset-0 bg-red-500 rounded-2xl flex items-center justify-end pr-5">
+        <div className="text-white text-center">
+          <X className="w-5 h-5 mx-auto" />
+          <div className="text-[10px] font-semibold mt-0.5">Remove</div>
+        </div>
       </div>
 
       <motion.div
-        drag="x" dragConstraints={{ left: -80, right: 0 }} dragElastic={0.2}
+        drag="x" dragConstraints={{ left: -90, right: 0 }} dragElastic={0.15}
         onDrag={(_, info) => setDragX(info.offset.x)}
-        onDragEnd={(_, info) => { if (info.offset.x < -60) onRemove(); setDragX(0); }}
-        className="relative bg-white rounded-2xl border border-ink-100 p-3 flex items-start gap-3"
+        onDragEnd={(_, info) => { if (info.offset.x < -55) onRemove(); setDragX(0); }}
+        className="relative bg-white rounded-2xl border border-ink-100 p-3 flex items-start gap-2.5 cursor-grab active:cursor-grabbing"
         style={{ x: dragX }}
       >
-        {/* Reorder + number */}
-        <div className="flex flex-col items-center gap-1 pt-1 shrink-0">
-          <button onClick={onMoveUp} disabled={index === 0} className="text-ink-300 disabled:opacity-20 press">
-            <GripVertical className="w-4 h-4 rotate-90" />
+        {/* Reorder arrows */}
+        <div className="flex flex-col items-center gap-0.5 pt-0.5 shrink-0">
+          <button onClick={onMoveUp} disabled={index === 0} className="p-0.5 text-ink-300 disabled:opacity-20 press hover:text-ink-600">
+            <ChevronUp className="w-4 h-4" />
           </button>
-          <div className="w-6 h-6 rounded-full bg-brand-500 text-white text-xs font-bold flex items-center justify-center">
-            {index + 1}
-          </div>
-          <button onClick={onMoveDown} disabled={index === total - 1} className="text-ink-300 disabled:opacity-20 press">
-            <GripVertical className="w-4 h-4 -rotate-90" />
+          <div className="w-5 h-5 rounded-full bg-brand-500 text-white text-[10px] font-bold flex items-center justify-center">{index + 1}</div>
+          <button onClick={onMoveDown} disabled={index === total - 1} className="p-0.5 text-ink-300 disabled:opacity-20 press hover:text-ink-600">
+            <ChevronDown className="w-4 h-4" />
           </button>
         </div>
 
-        <img src={place.image} alt={place.name} className="w-16 h-16 rounded-xl object-cover shrink-0" />
+        <div className="relative shrink-0">
+          <img src={place.image} alt={place.name} className="w-16 h-16 rounded-xl object-cover" />
+          {hasDeal && (
+            <div className="absolute -top-1.5 -right-1.5 bg-amber-400 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">DEAL</div>
+          )}
+          {isManual && (
+            <div className="absolute -bottom-1.5 -right-1.5 bg-ink-700 text-white text-[9px] font-bold px-1 py-0.5 rounded-full">✎</div>
+          )}
+        </div>
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-1">
-            <div className="font-semibold text-ink-900 truncate text-sm leading-tight">{place.name}</div>
-            {isManual && (
-              <span className="shrink-0 text-[9px] font-bold bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full">Manual</span>
-            )}
-          </div>
+          <div className="font-semibold text-ink-900 text-sm truncate leading-tight">{place.name}</div>
           <div className="flex items-center gap-1.5 text-xs text-ink-500 mt-0.5">
-            <Star className="w-3 h-3 fill-amber-400 text-amber-400" />{place.rating}
-            <span>·</span>
-            <span>{place.category}</span>
+            <Star className="w-3 h-3 fill-amber-400 text-amber-400" /><span>{place.rating}</span>
+            <span className="text-ink-300">·</span><span>{place.category}</span>
           </div>
-
-          {/* Time row */}
-          <button
-            onClick={onTimeEdit}
-            className="mt-1.5 flex items-center gap-1 bg-brand-50 rounded-full px-2 py-1 press"
-          >
+          <button onClick={onTimeEdit} className="mt-1.5 flex items-center gap-1 bg-brand-50 rounded-full px-2 py-1 press">
             <Clock className="w-3 h-3 text-brand-500" />
             <span className="text-xs font-semibold text-brand-600">{scheduledTime}</span>
             <Pencil className="w-2.5 h-2.5 text-brand-400" />
           </button>
-
-          <div className="flex items-center gap-1.5 text-xs mt-1">
+          <div className="flex items-center gap-1.5 text-[11px] mt-1.5">
             <Clock className="w-3 h-3 text-ink-400" />
-            <span className="text-ink-500">{place.openingHours}</span>
+            <span className="text-ink-400">{place.openingHours}</span>
             <span className="text-ink-300">·</span>
             <DollarSign className="w-3 h-3 text-ink-400" />
             <span className="text-brand-600 font-semibold">
-              {formatRp(place.priceRange.min)}{place.priceRange.max !== place.priceRange.min ? `+` : ''}
+              {formatRp(place.priceRange.min)}{place.priceRange.max !== place.priceRange.min ? '+' : ''}
             </span>
           </div>
         </div>
 
-        <div className="flex flex-col gap-1 shrink-0">
-          {!isManual && (
-            <button onClick={onReplace} className="px-2 h-7 rounded-lg bg-brand-50 text-brand-600 text-[11px] font-semibold press">Replace</button>
-          )}
-          <button onClick={onRemove} className="px-2 h-7 rounded-lg bg-red-50 text-red-500 text-[11px] font-semibold press inline-flex items-center justify-center gap-1">
-            <X className="w-3 h-3" /> Remove
+        {!isManual && (
+          <button onClick={onReplace} className="shrink-0 px-2 h-7 rounded-lg bg-ink-50 text-ink-600 text-[11px] font-semibold press">
+            Swap
           </button>
-        </div>
+        )}
+        <GripVertical className="w-4 h-4 text-ink-200 shrink-0 self-center" />
       </motion.div>
     </motion.div>
   );
 }
 
-/* ---- Custom Place Form ---- */
+/* ── Custom Place Form ── */
 function CustomPlaceForm({ onAdd }: { onAdd: (p: Place) => void }) {
   const [name, setName] = useState('');
   const [cost, setCost] = useState('50000');
   const [dur, setDur] = useState('60');
-  const inputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => { inputRef.current?.focus(); }, []);
-
-  const submit = () => {
-    if (!name.trim()) return;
-    const custom: Place = {
-      id: `custom-${Date.now()}`,
-      name: name.trim(),
-      category: 'Hidden Gem',
-      tags: ['Custom'],
-      vibes: ['chill', 'chaos', 'zen', 'luxury'],
-      image: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=800&q=80',
-      cost: Number(cost) || 0,
-      priceRange: { min: Number(cost) || 0, max: Number(cost) || 0 },
-      durationMin: Number(dur) || 60,
-      distanceKm: 1.0,
-      lat: -8.5055, lng: 115.2620,
-      rating: 0,
-      description: 'Custom stop added manually.',
-      openingHours: 'All day',
-    };
-    onAdd(custom);
-    setName(''); setCost('50000'); setDur('60');
-  };
-
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => { ref.current?.focus(); }, []);
   return (
     <div className="bg-ink-50 rounded-2xl p-3 space-y-2">
-      <input ref={inputRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="Place name" className="w-full bg-white rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-300 border border-ink-100" />
+      <input ref={ref} value={name} onChange={(e) => setName(e.target.value)} placeholder="Place name" className="w-full bg-white rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-300 border border-ink-100" />
       <div className="grid grid-cols-2 gap-2">
         <div className="bg-white rounded-xl px-3 py-2 border border-ink-100">
           <div className="text-[10px] text-ink-400">Cost (Rp)</div>
@@ -582,14 +629,16 @@ function CustomPlaceForm({ onAdd }: { onAdd: (p: Place) => void }) {
           <input type="number" value={dur} onChange={(e) => setDur(e.target.value)} className="w-full bg-transparent text-sm font-bold text-ink-900 outline-none" />
         </div>
       </div>
-      <button disabled={!name.trim()} onClick={submit} className="w-full h-10 rounded-xl bg-brand-500 disabled:bg-ink-300 text-white font-semibold press flex items-center justify-center gap-2">
+      <button disabled={!name.trim()} onClick={() => {
+        onAdd({ id: `custom-${Date.now()}`, name: name.trim(), category: 'Hidden Gem', tags: ['Custom'], vibes: ['chill','chaos','zen','luxury'], image: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=800&q=80', cost: Number(cost) || 0, priceRange: { min: Number(cost) || 0, max: Number(cost) || 0 }, durationMin: Number(dur) || 60, distanceKm: 1.0, lat: -8.5055, lng: 115.2620, rating: 0, description: 'Custom stop.', openingHours: 'All day' });
+      }} className="w-full h-10 rounded-xl bg-brand-500 disabled:bg-ink-300 text-white font-semibold press flex items-center justify-center gap-2">
         <Plus className="w-4 h-4" /> Add Custom Stop
       </button>
     </div>
   );
 }
 
-/* ---- Alternatives Sheet ---- */
+/* ── Alternatives Sheet ── */
 function AlternativesSheet({ open, onClose, excludeIds, onPick, title, alternatives }: {
   open: boolean; onClose: () => void; excludeIds: string[]; title: string;
   onPick: (p: Place) => void; alternatives: (ids: string[]) => Place[];
@@ -608,7 +657,7 @@ function AlternativesSheet({ open, onClose, excludeIds, onPick, title, alternati
             <div className="w-12 h-1.5 bg-ink-100 rounded-full mx-auto mt-3" />
             <div className="px-5 pt-3 pb-2 flex items-center justify-between shrink-0">
               <div className="font-bold text-ink-900 font-display">{title}</div>
-              <button onClick={onClose} className="w-8 h-8 rounded-full bg-ink-50 flex items-center justify-center text-ink-700 press"><X className="w-4 h-4" /></button>
+              <button onClick={onClose} className="w-8 h-8 rounded-full bg-ink-50 flex items-center justify-center press"><X className="w-4 h-4" /></button>
             </div>
             <div className="overflow-y-auto px-5 pb-6 space-y-3 no-scrollbar">
               {list.length === 0 && <div className="text-sm text-ink-500 py-10 text-center">No more alternatives nearby.</div>}
@@ -619,11 +668,10 @@ function AlternativesSheet({ open, onClose, excludeIds, onPick, title, alternati
                     <div className="font-semibold text-ink-900 truncate">{p.name}</div>
                     <div className="flex items-center gap-1.5 text-xs text-ink-500 mt-0.5">
                       <span>{p.category}</span>
-                      <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                      <span>{p.rating}</span>
+                      <Star className="w-3 h-3 fill-amber-400 text-amber-400" /><span>{p.rating}</span>
                     </div>
-                    <div className="text-xs text-ink-400 mt-0.5 flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> {p.openingHours}
+                    <div className="text-[11px] text-ink-400 mt-0.5 flex items-center gap-1">
+                      <Clock className="w-3 h-3" />{p.openingHours}
                     </div>
                   </div>
                   <div className="text-right shrink-0">

@@ -319,6 +319,14 @@ export default function HomePage() {
             <><Sparkles className="w-5 h-5" /> Generate My Journey</>
           )}
         </motion.button>
+        <div className="text-center mt-3">
+          <button
+            onClick={() => nav('/generate?mode=manual')}
+            className="text-sm text-ink-500 press"
+          >
+            Prefer to plan yourself? <span className="text-brand-600 font-semibold">Build manually →</span>
+          </button>
+        </div>
       </div>
 
       {/* Today's Plan — full list, no truncation */}

@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, ChevronDown, Crosshair, List, Navigation, X, MapPin, Plus, Smile, Clock, Star, DollarSign } from 'lucide-react';
+import { Bell, ChevronDown, Crosshair, List, Navigation, X, MapPin, Plus, Smile, Clock, Star, DollarSign, Tag, ChevronDown as ChevDown } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StatusBar from '../components/StatusBar';
@@ -7,6 +7,8 @@ import { useApp } from '../context/AppContext';
 import { formatRp } from '../lib/format';
 import { useToast } from '../components/Toast';
 import type { Place } from '../data/places';
+import { getNearbyDeals, getDealsForPlace } from '../data/deals';
+import { getCulturalIntel } from '../data/cultural';
 
 type ViewMode = 'map' | 'list';
 
@@ -98,8 +100,12 @@ function MapStage({ itinerary, onPin }: { itinerary: Place[]; onPin: (p: Place) 
   const positions = [
     { x: 70, y: 18 }, { x: 60, y: 38 }, { x: 48, y: 58 }, { x: 64, y: 75 }, { x: 30, y: 82 },
   ];
+  const dealPositions = [
+    { x: 22, y: 30 }, { x: 44, y: 42 }, { x: 80, y: 50 }, { x: 36, y: 72 }, { x: 58, y: 85 },
+  ];
   const pts = itinerary.map((_, i) => positions[i % positions.length]);
   const path = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+  const nearbyDeals = getNearbyDeals().slice(0, 5);
 
   return (
     <div className="absolute inset-0 map-bg">
@@ -125,12 +131,36 @@ function MapStage({ itinerary, onPin }: { itinerary: Place[]; onPin: (p: Place) 
           transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
         />
       </svg>
+
+      {/* Current location pulse */}
       <div className="absolute" style={{ left: '24%', top: '70%' }}>
         <div className="relative">
           <span className="absolute -inset-3 rounded-full bg-brand-500/30 animate-pulseDot" />
           <span className="block w-4 h-4 rounded-full bg-brand-500 ring-4 ring-white shadow" />
         </div>
       </div>
+
+      {/* Deal pins — yellow */}
+      {nearbyDeals.map((deal, i) => {
+        const pos = dealPositions[i % dealPositions.length];
+        return (
+          <motion.div
+            key={deal.id}
+            initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.6 + i * 0.07, type: 'spring', stiffness: 380, damping: 18 }}
+            className="absolute -translate-x-1/2 -translate-y-1/2 z-10"
+            style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
+          >
+            <div className="flex items-center gap-1 bg-amber-400 text-white rounded-full px-2 py-0.5 shadow-card text-[10px] font-bold whitespace-nowrap">
+              <Tag className="w-2.5 h-2.5" />
+              {deal.discount}
+            </div>
+            <div className="w-2 h-2 bg-amber-400 rotate-45 mx-auto -mt-0.5" />
+          </motion.div>
+        );
+      })}
+
+      {/* Itinerary pins */}
       {itinerary.map((p, i) => {
         const pos = pts[i];
         return (
@@ -139,7 +169,7 @@ function MapStage({ itinerary, onPin }: { itinerary: Place[]; onPin: (p: Place) 
             initial={{ scale: 0, y: -10 }} animate={{ scale: 1, y: 0 }}
             transition={{ delay: 0.1 + i * 0.08, type: 'spring', stiffness: 400, damping: 18 }}
             whileTap={{ scale: 0.92 }}
-            className="absolute -translate-x-1/2 -translate-y-1/2 press"
+            className="absolute -translate-x-1/2 -translate-y-1/2 press z-20"
             style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
           >
             <div className="relative">
@@ -181,15 +211,12 @@ function ItineraryBottomSheet({ itinerary, totals, onStart }: {
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-ink-900 truncate text-sm">{p.name}</div>
                 <div className="flex items-center gap-1.5 text-[10px] text-ink-500">
-                  <Clock className="w-3 h-3" />{p.openingHours}
+                  <Clock className="w-3 h-3 text-brand-500" />
+                  <span className="text-brand-600 font-semibold">{nineColon(i)}</span>
                   <span className="text-ink-300">·</span>
                   <Star className="w-3 h-3 fill-amber-400 text-amber-400" />{p.rating}
                 </div>
-                {i > 0 && (
-                  <div className="text-[10px] text-brand-600 font-medium mt-0.5">
-                    📍 {itinerary[i].distanceKm} km from prev
-                  </div>
-                )}
+                <div className="text-[10px] text-ink-400 mt-0.5">{p.openingHours}</div>
               </div>
               <div className="text-right shrink-0">
                 <div className="text-xs text-brand-600 font-semibold">{formatRp(p.priceRange.min)}</div>
@@ -239,60 +266,69 @@ function ListView({ itinerary, onStart, totals, onPin }: {
         <Block label="Cost" value={formatRp(totals.cost)} />
       </div>
       <div className="space-y-4">
-        {itinerary.map((p, i) => (
-          <div key={p.id}>
-            {/* Distance connector */}
-            {i > 0 && (
-              <div className="flex items-center gap-2 py-1 px-2">
-                <div className="flex-1 h-px bg-ink-100" />
-                <span className="text-[10px] text-ink-400 font-medium shrink-0">
-                  📍 {p.distanceKm} km · ~{Math.round(p.distanceKm * 3)} min drive
-                </span>
-                <div className="flex-1 h-px bg-ink-100" />
-              </div>
-            )}
-            <button
-              onClick={() => onPin(p)}
-              className="w-full rounded-2xl border border-ink-100 overflow-hidden press hover:border-brand-200 transition-colors text-left"
-            >
-              <div className="relative h-28">
-                <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-                <div className="absolute top-2 left-2 w-7 h-7 rounded-full bg-brand-500 text-white text-xs font-bold flex items-center justify-center ring-2 ring-white">
-                  {i + 1}
+        {itinerary.map((p, i) => {
+          const deals = getDealsForPlace(p.id);
+          return (
+            <div key={p.id}>
+              {i > 0 && (
+                <div className="flex items-center gap-2 py-1 px-2">
+                  <div className="flex-1 h-px bg-ink-100" />
+                  <span className="text-[10px] text-ink-400 font-medium shrink-0">
+                    📍 {p.distanceKm} km · ~{Math.round(p.distanceKm * 3)} min drive
+                  </span>
+                  <div className="flex-1 h-px bg-ink-100" />
                 </div>
-                <div className="absolute bottom-2 left-3 right-3 flex items-end justify-between">
-                  <div>
-                    <div className="text-white font-bold text-sm leading-tight">{p.name}</div>
-                    <div className="text-white/80 text-xs">{p.category}</div>
+              )}
+              <button
+                onClick={() => onPin(p)}
+                className="w-full rounded-2xl border border-ink-100 overflow-hidden press hover:border-brand-200 transition-colors text-left"
+              >
+                <div className="relative h-28">
+                  <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+                  <div className="absolute top-2 left-2 w-7 h-7 rounded-full bg-brand-500 text-white text-xs font-bold flex items-center justify-center ring-2 ring-white">
+                    {i + 1}
                   </div>
-                  <div className="flex items-center gap-1 bg-white/20 backdrop-blur-sm rounded-full px-2 py-0.5">
-                    <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                    <span className="text-white text-xs font-semibold">{p.rating}</span>
-                  </div>
-                </div>
-              </div>
-              <div className="p-3">
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div className="flex items-center gap-1 text-ink-600">
-                    <Clock className="w-3.5 h-3.5 text-ink-400" />
-                    <span>{p.openingHours}</span>
-                  </div>
-                  <div className="flex items-center gap-1 text-ink-600">
-                    <DollarSign className="w-3.5 h-3.5 text-ink-400" />
-                    <span>
-                      {formatRp(p.priceRange.min)}{p.priceRange.max !== p.priceRange.min ? ` – ${formatRp(p.priceRange.max)}` : ''}
-                    </span>
-                  </div>
-                  <div className="text-right text-[11px] text-ink-500">
-                    {nineColon(i)} – {nineColon(i, p.durationMin)}
+                  <div className="absolute bottom-2 left-3 right-3 flex items-end justify-between">
+                    <div>
+                      <div className="text-white font-bold text-sm leading-tight">{p.name}</div>
+                      <div className="text-white/80 text-xs">{p.category}</div>
+                    </div>
+                    <div className="flex items-center gap-1 bg-white/20 backdrop-blur-sm rounded-full px-2 py-0.5">
+                      <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                      <span className="text-white text-xs font-semibold">{p.rating}</span>
+                    </div>
                   </div>
                 </div>
-                <div className="text-xs text-ink-500 mt-1.5 line-clamp-2">{p.description}</div>
-              </div>
-            </button>
-          </div>
-        ))}
+                <div className="p-3">
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div className="flex items-center gap-1 text-ink-600">
+                      <Clock className="w-3.5 h-3.5 text-ink-400" />
+                      <span>{p.openingHours}</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-ink-600">
+                      <DollarSign className="w-3.5 h-3.5 text-ink-400" />
+                      <span>
+                        {formatRp(p.priceRange.min)}{p.priceRange.max !== p.priceRange.min ? ` – ${formatRp(p.priceRange.max)}` : ''}
+                      </span>
+                    </div>
+                    <div className="text-right text-[11px] text-brand-600 font-semibold">
+                      {nineColon(i)} – {nineColon(i, p.durationMin)}
+                    </div>
+                  </div>
+                  <div className="text-xs text-ink-500 mt-1.5 line-clamp-2">{p.description}</div>
+                </div>
+                {deals.length > 0 && (
+                  <div className="border-t border-amber-100 bg-amber-50 px-3 py-2 flex items-center gap-2">
+                    <Tag className="w-3 h-3 text-amber-600 shrink-0" />
+                    <span className="text-xs text-amber-700 font-semibold">{deals[0].title}</span>
+                    <span className="ml-auto text-[10px] text-amber-600 font-bold bg-amber-100 rounded-full px-2 py-0.5">{deals[0].discount}</span>
+                  </div>
+                )}
+              </button>
+            </div>
+          );
+        })}
       </div>
       <button onClick={onStart} className="mt-5 w-full h-12 bg-brand-500 text-white font-bold rounded-2xl shadow-glow press flex items-center justify-center gap-2">
         <Navigation className="w-4 h-4" /> Start Navigation
@@ -306,16 +342,20 @@ function ListView({ itinerary, onStart, totals, onPin }: {
 function PlaceCard({ place, index, prevPlace, onClose, onNavigate }: {
   place: Place; index: number; prevPlace?: Place; onClose: () => void; onNavigate: () => void;
 }) {
+  const [culturalExpanded, setCulturalExpanded] = useState(false);
+  const intel = getCulturalIntel(place.id, place.category);
+  const deals = getDealsForPlace(place.id);
+
   return (
     <>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 z-30 bg-ink-900/30" />
       <motion.div
         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="absolute inset-x-0 bottom-0 z-40 bg-white rounded-t-3xl shadow-card overflow-hidden"
+        className="absolute inset-x-0 bottom-0 z-40 bg-white rounded-t-3xl shadow-card overflow-y-auto max-h-[80%]"
       >
         {/* Hero image */}
-        <div className="relative h-40">
+        <div className="relative h-40 shrink-0">
           <img src={place.image} alt={place.name} className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
           <button onClick={onClose} className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center press">
@@ -333,6 +373,11 @@ function PlaceCard({ place, index, prevPlace, onClose, onNavigate }: {
               <span className="flex items-center gap-1 bg-white/20 backdrop-blur-sm rounded-full px-2 py-0.5 text-xs text-white">
                 <Star className="w-3 h-3 fill-amber-400 text-amber-400" /> {place.rating}
               </span>
+              {index >= 0 && (
+                <span className="flex items-center gap-1 bg-brand-500/80 backdrop-blur-sm rounded-full px-2 py-0.5 text-xs text-white font-semibold">
+                  <Clock className="w-3 h-3" /> {nineColon(index)}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -355,21 +400,76 @@ function PlaceCard({ place, index, prevPlace, onClose, onNavigate }: {
             <InfoBlock
               icon={<MapPin className="w-3.5 h-3.5 text-orange-500" />}
               label={prevPlace ? 'From prev' : 'Distance'}
-              value={prevPlace ? `${place.distanceKm} km` : `${place.distanceKm} km`}
+              value={`${place.distanceKm} km`}
               sub={prevPlace ? `from ${prevPlace.name.split(' ')[0]}` : undefined}
             />
           </div>
+
+          {/* Deal badge */}
+          {deals.length > 0 && (
+            <div className="mb-3 flex items-center gap-2 bg-amber-50 rounded-xl px-3 py-2.5 border border-amber-100">
+              <Tag className="w-4 h-4 text-amber-600 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-bold text-amber-700">{deals[0].title}</div>
+                <div className="text-[10px] text-amber-600">{deals[0].validUntil} · Save {formatRp(deals[0].savingsAmount)}</div>
+              </div>
+              <span className="text-xs font-extrabold text-amber-700 bg-amber-200 rounded-full px-2 py-0.5 shrink-0">{deals[0].discount}</span>
+            </div>
+          )}
 
           {/* Description */}
           <p className="text-sm text-ink-600 mb-3 leading-relaxed">{place.description}</p>
 
           {/* Tags */}
-          <div className="flex flex-wrap gap-1.5 mb-4">
+          <div className="flex flex-wrap gap-1.5 mb-3">
             {place.tags.map((tag) => (
               <span key={tag} className="px-2.5 py-1 rounded-full bg-ink-50 text-ink-600 text-xs font-medium">{tag}</span>
             ))}
             <span className="px-2.5 py-1 rounded-full bg-brand-50 text-brand-600 text-xs font-medium">{place.durationMin} min visit</span>
           </div>
+
+          {/* Cultural Intel */}
+          {intel && (
+            <div className="mb-3 rounded-xl border overflow-hidden" style={{ borderColor: intel.accentColor + '40' }}>
+              <button
+                onClick={() => setCulturalExpanded((v) => !v)}
+                className="w-full flex items-center justify-between px-3 py-2.5 text-left"
+                style={{ background: intel.accentColor + '12' }}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-base">{intel.tips[0].icon}</span>
+                  <div>
+                    <div className="text-xs font-bold" style={{ color: intel.accentColor }}>{intel.prompt}</div>
+                    <div className="text-[10px] text-ink-500">{intel.tips.length} tip{intel.tips.length > 1 ? 's' : ''} · tap to {culturalExpanded ? 'collapse' : 'expand'}</div>
+                  </div>
+                </div>
+                <motion.div animate={{ rotate: culturalExpanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                  <ChevDown className="w-4 h-4 text-ink-400" />
+                </motion.div>
+              </button>
+              <AnimatePresence>
+                {culturalExpanded && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="px-3 pb-3 pt-2 space-y-2">
+                      {intel.tips.map((tip, i) => (
+                        <div key={i} className="flex gap-2.5">
+                          <span className="text-base shrink-0 leading-none mt-0.5">{tip.icon}</span>
+                          <div>
+                            <div className="text-xs font-semibold text-ink-900">{tip.title}</div>
+                            <div className="text-[11px] text-ink-500 leading-snug mt-0.5">{tip.body}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-2">
             <button className="h-11 rounded-2xl bg-ink-50 text-ink-800 font-semibold press inline-flex items-center justify-center gap-2">
