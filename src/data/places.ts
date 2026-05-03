@@ -157,29 +157,17 @@ export const PLACES: Place[] = [
   },
 ];
 
-export function pickItinerary(vibe: Vibe, budget: number, surpriseMode = false): Place[] {
-  let candidates: Place[];
+export function pickItinerary(vibe: Vibe, budget: number): Place[] {
+  let candidates = PLACES.filter(
+    (p) => p.vibes.includes(vibe) && p.cost <= budget,
+  ).sort((a, b) => b.rating - a.rating);
 
-  if (surpriseMode) {
-    const pool = [...PLACES];
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [pool[i], pool[j]] = [pool[j], pool[i]];
-    }
-    candidates = pool;
-  } else {
-    candidates = PLACES.filter(
-      (p) => p.vibes.includes(vibe) && p.cost <= budget,
-    ).sort((a, b) => b.rating - a.rating);
-    if (candidates.length < 3) {
-      PLACES.forEach((p) => {
-        if (candidates.length < 3 && !candidates.find((x) => x.id === p.id)) candidates.push(p);
-      });
-    }
+  if (candidates.length < 3) {
+    PLACES.forEach((p) => {
+      if (candidates.length < 3 && !candidates.find((x) => x.id === p.id)) candidates.push(p);
+    });
   }
 
-  const count = surpriseMode
-    ? 3 + Math.floor(Math.random() * 3)
-    : 3 + (vibe === 'chaos' ? 1 : 0);
+  const count = 3 + (vibe === 'chaos' ? 1 : 0);
   return candidates.slice(0, Math.min(count, candidates.length));
 }

@@ -54,7 +54,6 @@ export default function HomePage() {
   const nav = useNavigate();
   const {
     vibe, setVibe, budget, setBudget, itinerary,
-    surpriseMode, setSurpriseMode, setItinerary, buildItinerary,
     savedPlaces, savePlace, removeSavedPlace, isSaved,
     setJourneyStart, authUser, onboardingComplete,
     destinations, activeDestIdx, setActiveDestIdx, addDestination,
@@ -115,16 +114,6 @@ export default function HomePage() {
 
   const displayName = authUser?.name?.split(' ')[0] ?? USER.firstName;
 
-  const handleSurpriseToggle = () => {
-    const next = !surpriseMode;
-    setSurpriseMode(next);
-    if (next) {
-      const randomVibes: Vibe[] = ['chill', 'chaos', 'zen', 'luxury'];
-      setVibe(randomVibes[Math.floor(Math.random() * randomVibes.length)]);
-      show('Surprise mode on — we\'ll pick something unexpected ✨', 'info');
-    }
-  };
-
   const openPlanSheet = (target: 'ai' | 'manual') => {
     setPlanTarget(target);
     setLocalStartDate(null);
@@ -156,7 +145,6 @@ export default function HomePage() {
       : 'today';
     setJourneyStart({ date: dateStr, time: localTime, days: localDays });
     if (planTarget === 'ai') {
-      if (surpriseMode) setItinerary(buildItinerary());
       setPlanSheet(false);
       nav('/generate');
     } else {
@@ -461,7 +449,7 @@ export default function HomePage() {
             <div className="grid grid-cols-2 gap-3">
               <ActionCard
                 icon={<Sparkles className="w-5 h-5 text-white" />}
-                label={surpriseMode ? 'Surprise Me' : 'AI Generate'}
+                label="AI Generate"
                 sub="Let Buddy plan it"
                 variant="primary"
                 onClick={() => openPlanSheet('ai')}
@@ -542,30 +530,17 @@ export default function HomePage() {
       <div className="px-5 mt-6">
         <div className="flex items-center justify-between">
           <h2 className="font-bold text-ink-900 font-display">Pick your vibe</h2>
-          <label className="flex items-center gap-2 text-xs font-semibold" style={{ color: surpriseMode ? '#3B5BFF' : '#6B7280' }}>
-            <span>Surprise me</span>
-            <button
-              onClick={handleSurpriseToggle}
-              className={`relative w-9 h-5 rounded-full transition-colors overflow-hidden ${surpriseMode ? 'bg-brand-500' : 'bg-ink-200'}`}
-            >
-              <motion.span
-                className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow"
-                animate={{ x: surpriseMode ? 18 : 2 }}
-                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-              />
-            </button>
-          </label>
         </div>
         <div className="mt-3 grid grid-cols-4 gap-2">
           {VIBES.map((v) => {
-            const active = v.id === vibe && !surpriseMode;
+            const active = v.id === vibe;
             const Icon = v.id === 'chill' ? Palmtree : v.id === 'chaos' ? Flame : v.id === 'zen' ? Sparkles : Diamond;
             return (
               <motion.button
                 key={v.id}
                 whileTap={{ scale: 0.94 }}
-                onClick={() => { setVibe(v.id); setSurpriseMode(false); }}
-                animate={{ scale: active ? 1.04 : 1, opacity: surpriseMode ? 0.55 : 1 }}
+                onClick={() => setVibe(v.id)}
+                animate={{ scale: active ? 1.04 : 1, opacity: 1 }}
                 className={`relative aspect-square rounded-2xl flex flex-col items-center justify-center gap-1 border-2 transition-colors ${active ? 'border-brand-500 bg-brand-50' : 'border-ink-100 bg-white'}`}
               >
                 <Icon className="w-7 h-7" style={{ color: active ? '#3B5BFF' : v.tint }} strokeWidth={2.2} />
@@ -598,14 +573,14 @@ export default function HomePage() {
           <motion.button
             whileTap={{ scale: 0.96 }} whileHover={{ scale: 1.01 }}
             onClick={() => openPlanSheet('ai')}
-            className={`rounded-2xl p-4 text-left flex flex-col gap-2 press ${surpriseMode ? 'bg-gradient-to-br from-brand-500 via-purple-500 to-orange-400 shadow-glow' : 'bg-brand-500 shadow-glow'}`}
+            className="rounded-2xl p-4 text-left flex flex-col gap-2 press bg-brand-500 shadow-glow"
           >
             <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
               <Sparkles className="w-5 h-5 text-white" />
             </div>
             <div>
               <div className="font-bold text-white text-sm font-display leading-tight">
-                {surpriseMode ? 'Surprise Me' : 'AI Generate'}
+                AI Generate
               </div>
               <div className="text-[11px] text-white/75 mt-0.5 leading-tight">Let Buddy plan it</div>
             </div>

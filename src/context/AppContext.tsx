@@ -31,8 +31,6 @@ interface AppState {
   setVibe: (v: Vibe) => void;
   budget: number;
   setBudget: (b: number) => void;
-  surpriseMode: boolean;
-  setSurpriseMode: (v: boolean) => void;
   itinerary: Place[];
   setItinerary: (p: Place[]) => void;
   buildItinerary: () => Place[];
@@ -109,7 +107,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Vibe & itinerary
   const [vibe, setVibe] = useState<Vibe>('zen');
   const [budget, setBudget] = useState<number>(500_000);
-  const [surpriseMode, setSurpriseMode] = useState(false);
   const [itinerary, setItinerary] = useState<Place[]>([
     PLACES[0], PLACES[1], PLACES[2], PLACES[3],
   ]);
@@ -223,9 +220,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     vibe, setVibe,
     budget, setBudget,
-    surpriseMode, setSurpriseMode,
     itinerary, setItinerary,
-    buildItinerary: () => pickItinerary(vibe, budget, surpriseMode),
+    buildItinerary: () => pickItinerary(vibe, budget),
     reorderStop: (from, to) => {
       setItinerary((cur) => {
         const next = cur.slice();
