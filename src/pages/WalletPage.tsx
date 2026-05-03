@@ -60,7 +60,7 @@ export default function WalletPage() {
       <StatusBar />
 
       {/* Header */}
-      <div className="flex items-center justify-between px-5 pb-2">
+      <div className="flex items-center justify-between px-5 pt-2 pb-3">
         <div className="font-bold text-ink-900 text-lg font-display flex items-center gap-2">
           <Wallet className="w-5 h-5 text-brand-500" /> Trip Budget
         </div>
@@ -758,8 +758,15 @@ function SplitBillEntrySheet({ onScanReceipt, onManual }: { onScanReceipt: () =>
 
 type BillItem = { id: string; name: string; price: number; sharedBy: string[] };
 type SplitStep = 'items' | 'people' | 'assign' | 'summary';
+type SplitType = 'equal' | 'byItem';
 
-const STEPS: { id: SplitStep; label: string }[] = [
+const STEPS_EQUAL: { id: SplitStep; label: string }[] = [
+  { id: 'items', label: 'Items' },
+  { id: 'people', label: 'People' },
+  { id: 'summary', label: 'Summary' },
+];
+
+const STEPS_BYITEM: { id: SplitStep; label: string }[] = [
   { id: 'items', label: 'Items' },
   { id: 'people', label: 'People' },
   { id: 'assign', label: 'Assign' },
@@ -773,6 +780,7 @@ function SplitBillSheet({ open, currency, onClose, onConfirm }: {
   onConfirm: (title: string, myShare: number) => void;
 }) {
   const [step, setStep] = useState<SplitStep>('items');
+  const [splitType, setSplitType] = useState<SplitType>('equal');
   const [billName, setBillName] = useState('Dinner at Hujan Locale');
   const [items, setItems] = useState<BillItem[]>([
     { id: 'i1', name: 'Nasi Goreng Hujan', price: 85000, sharedBy: [] },
@@ -831,6 +839,7 @@ function SplitBillSheet({ open, currency, onClose, onConfirm }: {
     onConfirm(billName, me?.total ?? Math.round(grandTotal / Math.max(1, people.length)));
   };
 
+  const STEPS = splitType === 'equal' ? STEPS_EQUAL : STEPS_BYITEM;
   const stepIdx = STEPS.findIndex((s) => s.id === step);
 
   return (
@@ -939,6 +948,20 @@ function SplitBillSheet({ open, currency, onClose, onConfirm }: {
                 {step === 'people' && (
                   <motion.div key="people" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-3">
                     <div className="text-sm text-ink-500">Who's splitting this bill?</div>
+                    {/* Split type */}
+                    <div className="grid grid-cols-2 gap-2">
+                      {([['equal', '⚖️', 'Equal Split', 'Divide total evenly'], ['byItem', '🍽️', 'By Item', 'Assign each item']] as const).map(([type, icon, label, sub]) => (
+                        <button
+                          key={type}
+                          onClick={() => setSplitType(type)}
+                          className={`flex flex-col items-center gap-1 p-3 rounded-2xl border-2 press transition-colors ${splitType === type ? 'border-brand-500 bg-brand-50' : 'border-ink-100 bg-white'}`}
+                        >
+                          <span className="text-xl">{icon}</span>
+                          <span className={`text-xs font-bold ${splitType === type ? 'text-brand-700' : 'text-ink-800'}`}>{label}</span>
+                          <span className="text-[10px] text-ink-500">{sub}</span>
+                        </button>
+                      ))}
+                    </div>
                     <div className="space-y-2">
                       {people.map((person, idx) => (
                         <div key={person} className="flex items-center gap-3 bg-white border border-ink-100 rounded-2xl px-4 py-3">
@@ -1020,42 +1043,70 @@ function SplitBillSheet({ open, currency, onClose, onConfirm }: {
                         ))}
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      {perPersonBreakdown.map(({ person, myTax, myService, total, items: pItems }) => (
-                        <div key={person} className="bg-white border border-ink-100 rounded-2xl p-3">
-                          <div className="flex items-center justify-between mb-1.5">
-                            <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 rounded-full bg-brand-50 flex items-center justify-center text-xs font-bold text-brand-600">{person[0]}</div>
-                              <span className="font-semibold text-ink-900 text-sm">{person}</span>
+
+                    {splitType === 'equal' ? (
+                      /* Equal split summary */
+                      <div className="space-y-2">
+                        {people.map((person, idx) => {
+                          const share = Math.round(grandTotal / Math.max(1, people.length));
+                          const isMe = idx === 0;
+                          return (
+                            <div key={person} className={`flex items-center gap-3 rounded-2xl p-3 border ${isMe ? 'border-brand-200 bg-brand-50' : 'border-ink-100 bg-white'}`}>
+                              <div className="w-9 h-9 rounded-full bg-white flex items-center justify-center text-sm font-bold text-brand-600 border border-brand-100 shrink-0">{person[0]}</div>
+                              <div className="flex-1">
+                                <div className="font-semibold text-ink-900 text-sm">{isMe ? `${person} (you)` : person}</div>
+                                {payer && payer !== 'Nobody yet' && payer !== person && (
+                                  <div className="text-[10px] text-red-500 font-semibold mt-0.5">owes {payer} · {fmt(share)}</div>
+                                )}
+                                {payer === person && (
+                                  <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">paid · gets back {fmt(grandTotal - share)}</div>
+                                )}
+                              </div>
+                              <div className="font-extrabold text-ink-900">{fmt(share)}</div>
                             </div>
-                            <div className="text-right">
-                              <div className="font-extrabold text-ink-900">{fmt(total)}</div>
-                              {payer && payer !== 'Nobody yet' && payer !== person && (
-                                <div className="text-[10px] text-red-500 font-semibold">owes {payer}</div>
-                              )}
-                              {payer === person && <div className="text-[10px] text-emerald-600 font-semibold">paid · gets back {fmt(grandTotal - total)}</div>}
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      /* By-item split summary */
+                      <div className="space-y-2">
+                        {perPersonBreakdown.map(({ person, myTax, myService, total, items: pItems }, idx) => (
+                          <div key={person} className={`rounded-2xl p-3 border ${idx === 0 ? 'border-brand-200 bg-brand-50' : 'border-ink-100 bg-white'}`}>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-xs font-bold text-brand-600 border border-brand-100">{person[0]}</div>
+                                <span className="font-semibold text-ink-900 text-sm">{idx === 0 ? `${person} (you)` : person}</span>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-extrabold text-ink-900">{fmt(total)}</div>
+                                {payer && payer !== 'Nobody yet' && payer !== person && (
+                                  <div className="text-[10px] text-red-500 font-semibold">owes {payer}</div>
+                                )}
+                                {payer === person && <div className="text-[10px] text-emerald-600 font-semibold">paid · gets back {fmt(grandTotal - total)}</div>}
+                              </div>
                             </div>
+                            {pItems.length > 0 && (
+                              <div className="text-[11px] text-ink-500 pl-10 space-y-0.5">
+                                {pItems.map((i) => (
+                                  <div key={i.id} className="flex justify-between">
+                                    <span className="truncate max-w-[140px]">{i.name}{i.sharedBy.length > 1 ? ` ÷${i.sharedBy.length}` : ''}</span>
+                                    <span>{fmt(Math.round(i.price / i.sharedBy.length))}</span>
+                                  </div>
+                                ))}
+                                {(myTax > 0 || myService > 0) && (
+                                  <div className="flex justify-between text-ink-400">
+                                    <span>Tax + Service</span>
+                                    <span>{fmt(myTax + myService)}</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {pItems.length === 0 && <div className="text-[11px] text-ink-400 pl-10">Even split (unassigned items)</div>}
                           </div>
-                          {pItems.length > 0 && (
-                            <div className="text-[11px] text-ink-500 pl-10 space-y-0.5">
-                              {pItems.map((i) => (
-                                <div key={i.id} className="flex justify-between">
-                                  <span className="truncate max-w-[140px]">{i.name}{i.sharedBy.length > 1 ? ` ÷${i.sharedBy.length}` : ''}</span>
-                                  <span>{fmt(Math.round(i.price / i.sharedBy.length))}</span>
-                                </div>
-                              ))}
-                              {(myTax > 0 || myService > 0) && (
-                                <div className="flex justify-between text-ink-400">
-                                  <span>Tax + Service</span>
-                                  <span>{fmt(myTax + myService)}</span>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          {pItems.length === 0 && <div className="text-[11px] text-ink-400 pl-10">Even split (unassigned items)</div>}
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-2 pt-1">
                       <button onClick={() => setShared(true)} className="h-11 rounded-2xl bg-ink-50 text-ink-800 font-semibold press inline-flex items-center justify-center gap-2">
                         <Share2 className="w-4 h-4" /> {shared ? 'Copied!' : 'Share'}
@@ -1076,7 +1127,10 @@ function SplitBillSheet({ open, currency, onClose, onConfirm }: {
                 </button>
               )}
               {stepIdx < STEPS.length - 1 && (
-                <button onClick={() => setStep(STEPS[stepIdx + 1].id)} className="flex-1 h-11 rounded-2xl bg-brand-500 text-white font-bold press inline-flex items-center justify-center gap-1 shadow-glow">
+                <button
+                  onClick={() => setStep(STEPS[stepIdx + 1].id)}
+                  className="flex-1 h-11 rounded-2xl bg-brand-500 text-white font-bold press inline-flex items-center justify-center gap-1 shadow-glow"
+                >
                   Next: {STEPS[stepIdx + 1].label} <ChevronRight className="w-4 h-4" />
                 </button>
               )}

@@ -70,7 +70,7 @@ export default function ProfilePage() {
   return (
     <div className="absolute inset-0 bg-white overflow-y-auto pb-32 no-scrollbar">
       <StatusBar />
-      <div className="flex items-center justify-between px-5 pb-2">
+      <div className="flex items-center justify-between px-5 pt-2 pb-3">
         <div className="font-bold text-ink-900 text-lg font-display">PROFILE</div>
         <button className="w-9 h-9 rounded-full bg-ink-50 flex items-center justify-center press">
           <Settings className="w-4 h-4 text-ink-700" />
