@@ -1,5 +1,9 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, ChevronDown, Crosshair, List, Navigation, X, MapPin, Smile, Clock, Star, DollarSign, ChevronDown as ChevDown, Bookmark, ChevronUp } from 'lucide-react';
+import {
+  Bell, ChevronDown, Crosshair, List, Navigation, X, MapPin, Smile,
+  Clock, Star, DollarSign, ChevronDown as ChevDown, Bookmark,
+  ChevronUp, Plus,
+} from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StatusBar from '../components/StatusBar';
@@ -13,17 +17,24 @@ type ViewMode = 'map' | 'list';
 
 export default function MapPage() {
   const nav = useNavigate();
-  const { itinerary, setIsNavigating, setNavIndex, savePlace, removeSavedPlace, isSaved } = useApp();
+  const {
+    itinerary, setIsNavigating, setNavIndex,
+    savePlace, removeSavedPlace, isSaved,
+    destinations, activeDestIdx, setActiveDestIdx,
+  } = useApp();
   const { show } = useToast();
   const [view, setView] = useState<ViewMode>('map');
   const [selected, setSelected] = useState<Place | null>(null);
 
+  // Active destination's itinerary: use full itinerary for active tab, empty for others
+  const activeItinerary = itinerary;
+
   const totals = useMemo(() => {
-    const cost = itinerary.reduce((s, p) => s + p.cost, 0);
-    const time = itinerary.reduce((s, p) => s + p.durationMin, 0);
-    const dist = itinerary.reduce((s, p) => s + p.distanceKm, 0);
+    const cost = activeItinerary.reduce((s, p) => s + p.cost, 0);
+    const time = activeItinerary.reduce((s, p) => s + p.durationMin, 0);
+    const dist = activeItinerary.reduce((s, p) => s + p.distanceKm, 0);
     return { cost, time, dist };
-  }, [itinerary]);
+  }, [activeItinerary]);
 
   const startNavigation = () => {
     setIsNavigating(true);
@@ -32,17 +43,23 @@ export default function MapPage() {
     setTimeout(() => nav('/navigate'), 240);
   };
 
+  const hasMultiDest = destinations.length > 1;
+
   return (
     <div className="absolute inset-0 bg-white flex flex-col">
       <StatusBar />
 
       {/* Header */}
-      <div className="px-5 pt-2 pb-3 flex items-center justify-between shrink-0">
+      <div className="px-5 pt-2 pb-2 flex items-center justify-between shrink-0">
         <div>
           <div className="font-bold text-ink-900 text-lg font-display flex items-center gap-1">
             MAP <span className="text-ink-300 font-normal text-base">/</span> ITINERARY
           </div>
-          <div className="text-xs text-ink-500 mt-0.5">Day 1 · Ubud, Bali · {itinerary.length} stops</div>
+          <div className="text-xs text-ink-500 mt-0.5">
+            {destinations.length > 0
+              ? `${destinations[activeDestIdx]?.name ?? 'My Trip'} · ${activeItinerary.length} stops`
+              : `Day 1 · ${activeItinerary.length} stops`}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -57,9 +74,48 @@ export default function MapPage() {
         </div>
       </div>
 
+      {/* ── Destination Switcher ── */}
+      {hasMultiDest && (
+        <div className="px-5 pb-2 shrink-0">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+            {destinations.map((d, i) => (
+              <motion.button
+                key={d.id}
+                whileTap={{ scale: 0.94 }}
+                onClick={() => setActiveDestIdx(i)}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold press transition-colors whitespace-nowrap ${
+                  i === activeDestIdx
+                    ? 'bg-brand-500 text-white shadow-glow'
+                    : 'bg-ink-50 text-ink-700 border border-ink-100'
+                }`}
+              >
+                {i === activeDestIdx && (
+                  <motion.span
+                    layoutId="dest-active"
+                    className="inline-block w-1.5 h-1.5 rounded-full bg-white mr-1.5 mb-0.5"
+                  />
+                )}
+                {d.name.split(',')[0]}
+              </motion.button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {view === 'map' ? (
         <div className="flex-1 relative overflow-hidden">
-          <MapStage itinerary={itinerary} onPin={setSelected} />
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeDestIdx}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              className="absolute inset-0"
+            >
+              <MapStage itinerary={activeItinerary} onPin={setSelected} />
+            </motion.div>
+          </AnimatePresence>
 
           <div className="absolute right-3 top-3 flex flex-col gap-2 z-20">
             <button onClick={() => show('Recentered on you', 'info')} className="w-10 h-10 rounded-full bg-white shadow-card flex items-center justify-center press">
@@ -70,11 +126,26 @@ export default function MapPage() {
             </button>
           </div>
 
-          <ItineraryBottomSheet itinerary={itinerary} totals={totals} onStart={startNavigation} />
+          {activeItinerary.length === 0 ? (
+            <EmptyDestState
+              destName={destinations[activeDestIdx]?.name.split(',')[0] ?? 'this destination'}
+              onGenerate={() => nav('/generate')}
+            />
+          ) : (
+            <ItineraryBottomSheet itinerary={activeItinerary} totals={totals} onStart={startNavigation} />
+          )}
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto px-5 pb-40 no-scrollbar">
-          <ListView itinerary={itinerary} onStart={startNavigation} totals={totals} onPin={setSelected} />
+          {activeItinerary.length === 0 ? (
+            <EmptyDestState
+              destName={destinations[activeDestIdx]?.name.split(',')[0] ?? 'this destination'}
+              onGenerate={() => nav('/generate')}
+              inline
+            />
+          ) : (
+            <ListView itinerary={activeItinerary} onStart={startNavigation} totals={totals} onPin={setSelected} />
+          )}
         </div>
       )}
 
@@ -82,8 +153,8 @@ export default function MapPage() {
         {selected && (
           <PlaceCard
             place={selected}
-            index={itinerary.findIndex((p) => p.id === selected.id)}
-            prevPlace={itinerary[itinerary.findIndex((p) => p.id === selected.id) - 1]}
+            index={activeItinerary.findIndex((p) => p.id === selected.id)}
+            prevPlace={activeItinerary[activeItinerary.findIndex((p) => p.id === selected.id) - 1]}
             onClose={() => setSelected(null)}
             onNavigate={() => { setSelected(null); startNavigation(); }}
             isSaved={isSaved(selected.id)}
@@ -92,6 +163,47 @@ export default function MapPage() {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+/* ── Empty state for a destination with no plan ── */
+function EmptyDestState({
+  destName, onGenerate, inline = false,
+}: {
+  destName: string; onGenerate: () => void; inline?: boolean;
+}) {
+  if (inline) {
+    return (
+      <div className="mt-10 text-center py-12">
+        <div className="text-5xl mb-4">🗺️</div>
+        <div className="font-bold text-ink-900 text-lg font-display">No plan for {destName}</div>
+        <div className="text-sm text-ink-500 mt-1 mb-5">Generate or build an itinerary to see stops here</div>
+        <button
+          onClick={onGenerate}
+          className="inline-flex items-center gap-2 h-12 px-6 rounded-2xl bg-brand-500 text-white font-bold shadow-glow press"
+        >
+          Plan {destName}
+        </button>
+      </div>
+    );
+  }
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+      className="absolute inset-x-0 bottom-0 z-10 bg-white rounded-t-3xl shadow-card p-5 pb-28"
+    >
+      <div className="text-center">
+        <div className="text-4xl mb-3">🗺️</div>
+        <div className="font-bold text-ink-900 font-display">No plan for {destName}</div>
+        <div className="text-sm text-ink-500 mt-1 mb-4">Create an itinerary to see your stops on the map</div>
+        <button
+          onClick={onGenerate}
+          className="w-full h-12 rounded-2xl bg-brand-500 text-white font-bold shadow-glow press flex items-center justify-center gap-2"
+        >
+          <Plus className="w-4 h-4" /> Plan {destName}
+        </button>
+      </div>
+    </motion.div>
   );
 }
 
@@ -106,7 +218,6 @@ function MapStage({ itinerary, onPin }: { itinerary: Place[]; onPin: (p: Place) 
 
   return (
     <div className="absolute inset-0 map-bg isolate">
-      {/* Grid lines */}
       <svg className="absolute inset-0 w-full h-full opacity-30" viewBox="0 0 100 100" preserveAspectRatio="none">
         {Array.from({ length: 10 }).map((_, i) => (
           <line key={`h${i}`} x1="0" y1={i * 10} x2="100" y2={i * 10} stroke="#C7D2FE" strokeWidth="0.05" />
@@ -116,7 +227,6 @@ function MapStage({ itinerary, onPin }: { itinerary: Place[]; onPin: (p: Place) 
         ))}
       </svg>
 
-      {/* Road lines */}
       <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
         <path d="M -5 30 Q 30 35, 60 25 T 110 30" stroke="#FFFFFF" strokeWidth="1.4" fill="none" />
         <path d="M -5 60 Q 30 55, 60 65 T 110 60" stroke="#FFFFFF" strokeWidth="1.2" fill="none" />
@@ -124,17 +234,17 @@ function MapStage({ itinerary, onPin }: { itinerary: Place[]; onPin: (p: Place) 
         <path d="M 70 -5 Q 64 40, 72 60 T 70 110" stroke="#FFFFFF" strokeWidth="1.4" fill="none" />
       </svg>
 
-      {/* Route path */}
-      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-        <motion.path
-          d={path} fill="none" stroke="#3B5BFF" strokeWidth="0.9" strokeLinecap="round"
-          strokeDasharray="2 1.4"
-          initial={{ pathLength: 0 }} animate={{ pathLength: 1 }}
-          transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
-        />
-      </svg>
+      {pts.length > 0 && (
+        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <motion.path
+            d={path} fill="none" stroke="#3B5BFF" strokeWidth="0.9" strokeLinecap="round"
+            strokeDasharray="2 1.4"
+            initial={{ pathLength: 0 }} animate={{ pathLength: 1 }}
+            transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
+          />
+        </svg>
+      )}
 
-      {/* Current location pulse */}
       <div className="absolute" style={{ left: '24%', top: '68%' }}>
         <div className="relative">
           <span className="absolute -inset-3 rounded-full bg-brand-500/30 animate-pulseDot" />
@@ -142,7 +252,6 @@ function MapStage({ itinerary, onPin }: { itinerary: Place[]; onPin: (p: Place) 
         </div>
       </div>
 
-      {/* Itinerary pins — label ABOVE circle, triangle pointer below */}
       {itinerary.map((p, i) => {
         const pos = pts[i];
         return (
@@ -154,15 +263,12 @@ function MapStage({ itinerary, onPin }: { itinerary: Place[]; onPin: (p: Place) 
             className="absolute press z-20 flex flex-col items-center"
             style={{ left: `${pos.x}%`, top: `${pos.y}%`, transform: 'translateX(-50%) translateY(-100%)' }}
           >
-            {/* Label above */}
             <div className="mb-1 bg-white/95 backdrop-blur-sm rounded-full px-2.5 py-0.5 text-[10px] font-semibold text-ink-900 shadow-soft whitespace-nowrap border border-white">
               {p.name.split(' ').slice(0, 2).join(' ')}
             </div>
-            {/* Circle */}
             <div className="w-8 h-8 rounded-full bg-brand-500 text-white text-sm font-bold flex items-center justify-center ring-[3px] ring-white shadow-card">
               {i + 1}
             </div>
-            {/* Pointer */}
             <div className="w-2 h-2 rotate-45 bg-brand-500 -mt-1 shadow-sm" />
           </motion.button>
         );
@@ -184,7 +290,6 @@ function ItineraryBottomSheet({ itinerary, totals, onStart }: {
       transition={{ type: 'spring', stiffness: 280, damping: 30 }}
       className="absolute inset-x-0 bottom-0 z-30 bg-white rounded-t-3xl shadow-card pb-28"
     >
-      {/* Drag handle — tap to expand/collapse */}
       <button
         onClick={() => setExpanded((e) => !e)}
         className="w-full flex flex-col items-center pt-3 pb-2 press"
@@ -196,14 +301,12 @@ function ItineraryBottomSheet({ itinerary, totals, onStart }: {
         </div>
       </button>
 
-      {/* Stats row — always visible */}
       <div className="px-5 grid grid-cols-3 text-center mb-3">
         <Block label="Est. Time" value={`${Math.floor(totals.time / 60)}h ${totals.time % 60}m`} />
         <Block label="Distance" value={`${totals.dist.toFixed(1)} km`} />
         <Block label="Est. Cost" value={formatRp(totals.cost)} />
       </div>
 
-      {/* Expandable stop list */}
       <AnimatePresence>
         {expanded && (
           <motion.div
@@ -241,7 +344,6 @@ function ItineraryBottomSheet({ itinerary, totals, onStart }: {
         )}
       </AnimatePresence>
 
-      {/* CTA */}
       <div className="px-5">
         <button onClick={onStart} className="w-full h-12 bg-brand-500 text-white font-bold rounded-2xl flex items-center justify-center gap-2 shadow-glow press">
           <Navigation className="w-4 h-4" /> Start Navigation
@@ -359,7 +461,6 @@ function PlaceCard({ place, index, prevPlace, onClose, onNavigate, isSaved, onSa
       >
         <div className="w-12 h-1.5 bg-ink-200 rounded-full mx-auto mt-3" />
 
-        {/* Hero */}
         <div className="relative h-40 mt-2">
           <img src={place.image} alt={place.name} className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />

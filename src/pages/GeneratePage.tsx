@@ -38,6 +38,38 @@ export default function GeneratePage() {
   const [editingTimeFor, setEditingTimeFor] = useState<string | null>(null);
   const [dismissedCultural, setDismissedCultural] = useState<Set<string>>(new Set());
 
+  // Undo support for stop removal
+  const [undoItem, setUndoItem] = useState<{ place: Place; index: number } | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const removeWithUndo = (place: Place, idx: number, isManual: boolean) => {
+    if (isManual) {
+      setManualStops((prev) => prev.filter((s) => s.id !== place.id));
+    } else {
+      removeStop(place.id);
+    }
+    setUndoItem({ place, index: idx });
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    undoTimerRef.current = setTimeout(() => setUndoItem(null), 4000);
+  };
+
+  const handleUndo = () => {
+    if (!undoItem) return;
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    const restored = undoItem;
+    setUndoItem(null);
+    if (isManualMode) {
+      setManualStops((prev) => {
+        const next = prev.slice();
+        next.splice(Math.min(restored.index, next.length), 0, restored.place);
+        return next;
+      });
+    } else {
+      addStop(restored.place);
+    }
+    show(`${restored.place.name} restored`, 'success');
+  };
+
   // Manual mode state
   const [manualStops, setManualStops] = useState<Place[]>(isManualMode ? [] : []);
   const [manualSearch, setManualSearch] = useState('');
@@ -74,7 +106,7 @@ export default function GeneratePage() {
     if (isManualMode) setItinerary(manualStops);
     setConfirmingPulse(true);
     show('Journey confirmed ✨', 'success');
-    setTimeout(() => nav('/map'), 700);
+    setTimeout(() => nav('/transition'), 700);
   };
 
   const manualSearchResults = useMemo(() => {
@@ -161,7 +193,7 @@ export default function GeneratePage() {
                                 index={i} total={itinerary.length} place={p}
                                 scheduledTime={getTime(p.id, i)}
                                 onTimeEdit={() => setEditingTimeFor(p.id)}
-                                onRemove={() => removeStop(p.id)}
+                                onRemove={() => removeWithUndo(p, i, false)}
                                 onReplace={() => setReplaceFor(p.id)}
                                 onMoveUp={() => reorderStop(i, Math.max(0, i - 1))}
                                 onMoveDown={() => reorderStop(i, Math.min(itinerary.length - 1, i + 1))}
@@ -331,7 +363,7 @@ export default function GeneratePage() {
                             index={i} total={manualStops.length} place={p}
                             scheduledTime={getTime(p.id, i)}
                             onTimeEdit={() => setEditingTimeFor(p.id)}
-                            onRemove={() => setManualStops((prev) => prev.filter((s) => s.id !== p.id))}
+                            onRemove={() => removeWithUndo(p, i, true)}
                             onReplace={() => {}}
                             isManual
                             onMoveUp={() => setManualStops((prev) => { const n = prev.slice(); const [x] = n.splice(i, 1); n.splice(Math.max(0, i - 1), 0, x); return n; })}
@@ -408,6 +440,32 @@ export default function GeneratePage() {
         onPick={(p) => { if (replaceFor) replaceStop(replaceFor, p); setReplaceFor(null); show('Stop replaced', 'success'); }}
         alternatives={alternatives}
       />
+
+      {/* Undo snackbar */}
+      <AnimatePresence>
+        {undoItem && (
+          <motion.div
+            initial={{ y: 80, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 80, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            className="absolute inset-x-4 bottom-28 z-50 flex items-center gap-3 bg-ink-900 text-white rounded-2xl px-4 py-3 shadow-xl"
+          >
+            <div className="flex-1 text-sm font-medium truncate">
+              {undoItem.place.name} removed
+            </div>
+            <button
+              onClick={handleUndo}
+              className="text-brand-300 font-bold text-sm press shrink-0"
+            >
+              Undo
+            </button>
+            <button onClick={() => setUndoItem(null)} className="text-white/50 press">
+              <X className="w-4 h-4" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Add sheet */}
       <AlternativesSheet open={showAdd} onClose={() => setShowAdd(false)}
