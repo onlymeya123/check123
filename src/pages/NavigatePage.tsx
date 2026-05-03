@@ -1,10 +1,9 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, CheckCircle2, Pause, Play, SkipForward, Smile, Plus, ListTree } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Pause, Play, SkipForward, Smile, ListTree } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StatusBar from '../components/StatusBar';
 import { useApp } from '../context/AppContext';
-import { formatRp } from '../lib/format';
 import { useToast } from '../components/Toast';
 
 const PROMPTS = [
@@ -15,7 +14,7 @@ const PROMPTS = [
 
 export default function NavigatePage() {
   const nav = useNavigate();
-  const { itinerary, navIndex, setNavIndex, markVisited, setIsNavigating, addTransaction } = useApp();
+  const { itinerary, navIndex, setNavIndex, markVisited, setIsNavigating } = useApp();
   const { show } = useToast();
 
   const [paused, setPaused] = useState(false);
@@ -59,17 +58,6 @@ export default function NavigatePage() {
     if (!current) return;
     markVisited(current.id);
     show(`Marked ${current.name} as visited 🎉`, 'success');
-  };
-
-  const onAddExpense = () => {
-    if (!current) return;
-    addTransaction({
-      title: current.name,
-      category: current.category === 'Cafe' || current.category === 'Foodie' ? 'Food & Drinks' : 'Attractions',
-      amount: -current.cost,
-      icon: current.category === 'Cafe' ? '☕' : '🛕',
-    });
-    show(`Added ${formatRp(current.cost)} expense`, 'success');
   };
 
   const onNext = () => {
@@ -190,9 +178,8 @@ export default function NavigatePage() {
             >
               <div className="flex items-center gap-2 font-bold text-lg"><CheckCircle2 className="w-5 h-5" /> You've arrived 🎉</div>
               <div className="text-sm opacity-90">{current.name}</div>
-              <div className="grid grid-cols-3 gap-2 mt-3">
+              <div className="grid grid-cols-2 gap-2 mt-3">
                 <button onClick={onArrived} className="bg-white text-emerald-600 rounded-xl py-2 text-xs font-semibold press">Mark visited</button>
-                <button onClick={onAddExpense} className="bg-white/20 rounded-xl py-2 text-xs font-semibold press">+ Expense</button>
                 <button onClick={onNext} className="bg-ink-900 text-white rounded-xl py-2 text-xs font-semibold press">Next stop ›</button>
               </div>
             </motion.div>
@@ -209,11 +196,10 @@ export default function NavigatePage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-4 gap-2 mt-3">
+              <div className="grid grid-cols-3 gap-2 mt-3">
                 <Action icon={<CheckCircle2 className="w-4 h-4" />} label="Visited" onClick={onArrived} />
                 <Action icon={<SkipForward className="w-4 h-4" />} label="Skip" onClick={onSkip} />
-                <Action icon={<Plus className="w-4 h-4" />} label="Expense" onClick={onAddExpense} />
-                <Action icon={<Smile className="w-4 h-4" />} label="Buddy" onClick={() => show('Tap the smiley FAB on Map to chat with Buddy', 'info')} />
+                <Action icon={<Smile className="w-4 h-4" />} label="Buddy" onClick={() => show('Tap the Buddy button to get help', 'info')} />
               </div>
 
               {next && (

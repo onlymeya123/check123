@@ -50,6 +50,16 @@ interface AppState {
   setNavIndex: (i: number) => void;
   visited: Set<string>;
   markVisited: (id: string) => void;
+
+  // Saved places
+  savedPlaces: Place[];
+  savePlace: (p: Place) => void;
+  removeSavedPlace: (id: string) => void;
+  isSaved: (id: string) => boolean;
+
+  // Journey settings
+  journeyStart: { date: string; time: string; days: number };
+  setJourneyStart: (s: { date: string; time: string; days: number }) => void;
 }
 
 const Ctx = createContext<AppState | null>(null);
@@ -64,6 +74,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isNavigating, setIsNavigating] = useState(false);
   const [navIndex, setNavIndex] = useState(0);
   const [visited, setVisited] = useState<Set<string>>(new Set());
+  const [savedPlaces, setSavedPlaces] = useState<Place[]>([]);
+  const [journeyStart, setJourneyStart] = useState({ date: 'today', time: '09:00', days: 1 });
 
   // Multi-trip state
   const [trips, setTrips] = useState<Trip[]>([DEFAULT_TRIP]);
@@ -156,6 +168,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     navIndex, setNavIndex,
     visited,
     markVisited: (id) => setVisited((cur) => new Set(cur).add(id)),
+
+    savedPlaces,
+    savePlace: (p) => setSavedPlaces((cur) => cur.find((x) => x.id === p.id) ? cur : [...cur, p]),
+    removeSavedPlace: (id) => setSavedPlaces((cur) => cur.filter((p) => p.id !== id)),
+    isSaved: (id) => savedPlaces.some((p) => p.id === id),
+    journeyStart,
+    setJourneyStart,
   };
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

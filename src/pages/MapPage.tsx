@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, ChevronDown, Crosshair, List, Navigation, X, MapPin, Plus, Smile, Clock, Star, DollarSign, Tag, ChevronDown as ChevDown } from 'lucide-react';
+import { Bell, ChevronDown, Crosshair, List, Navigation, X, MapPin, Smile, Clock, Star, DollarSign, Tag, ChevronDown as ChevDown, Bookmark } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StatusBar from '../components/StatusBar';
@@ -14,7 +14,7 @@ type ViewMode = 'map' | 'list';
 
 export default function MapPage() {
   const nav = useNavigate();
-  const { itinerary, setIsNavigating, setNavIndex, reorderStop } = useApp();
+  const { itinerary, setIsNavigating, setNavIndex, reorderStop, savePlace, removeSavedPlace, isSaved } = useApp();
   const { show } = useToast();
   const [view, setView] = useState<ViewMode>('map');
   const [selected, setSelected] = useState<Place | null>(null);
@@ -87,6 +87,8 @@ export default function MapPage() {
             prevPlace={itinerary[itinerary.findIndex((p) => p.id === selected.id) - 1]}
             onClose={() => setSelected(null)}
             onNavigate={() => { setSelected(null); startNavigation(); }}
+            isSaved={isSaved(selected.id)}
+            onSave={() => isSaved(selected.id) ? removeSavedPlace(selected.id) : savePlace(selected)}
           />
         )}
       </AnimatePresence>
@@ -339,8 +341,9 @@ function ListView({ itinerary, onStart, totals, onPin }: {
 
 /* ----------------- PLACE CARD ----------------- */
 
-function PlaceCard({ place, index, prevPlace, onClose, onNavigate }: {
+function PlaceCard({ place, index, prevPlace, onClose, onNavigate, isSaved, onSave }: {
   place: Place; index: number; prevPlace?: Place; onClose: () => void; onNavigate: () => void;
+  isSaved: boolean; onSave: () => void;
 }) {
   const [culturalExpanded, setCulturalExpanded] = useState(false);
   const intel = getCulturalIntel(place.id, place.category);
@@ -472,8 +475,12 @@ function PlaceCard({ place, index, prevPlace, onClose, onNavigate }: {
           )}
 
           <div className="grid grid-cols-2 gap-2">
-            <button className="h-11 rounded-2xl bg-ink-50 text-ink-800 font-semibold press inline-flex items-center justify-center gap-2">
-              <Plus className="w-4 h-4" /> Save
+            <button
+              onClick={onSave}
+              className={`h-11 rounded-2xl font-semibold press inline-flex items-center justify-center gap-2 transition-colors ${isSaved ? 'bg-brand-50 text-brand-600 border border-brand-200' : 'bg-ink-50 text-ink-800'}`}
+            >
+              <Bookmark className={`w-4 h-4 ${isSaved ? 'fill-brand-500 text-brand-500' : ''}`} />
+              {isSaved ? 'Saved' : 'Save'}
             </button>
             <button onClick={onNavigate} className="h-11 rounded-2xl bg-brand-500 text-white font-semibold shadow-glow press inline-flex items-center justify-center gap-2">
               <Navigation className="w-4 h-4" /> Navigate

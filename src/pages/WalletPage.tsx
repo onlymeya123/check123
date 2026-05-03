@@ -21,12 +21,14 @@ export default function WalletPage() {
     tripName, setTripName,
     tripDays, tripDaysRemaining, setTripDaysRemaining,
     totalSpent, dailyAllowance,
-    trips, activeTripId, setActiveTripId, createTrip,
+    trips, activeTripId, setActiveTripId, createTrip, deleteTrip,
     currency, setCurrency,
+    isNavigating,
   } = useApp();
   const { show } = useToast();
 
-  const [sheet, setSheet] = useState<null | 'editBudget' | 'addExpense' | 'scan' | 'history' | 'splitBill' | 'newTrip' | 'currencyPicker'>(null);
+  const [sheet, setSheet] = useState<null | 'editBudget' | 'addExpense' | 'scan' | 'history' | 'splitBill' | 'splitBillEntry' | 'newTrip' | 'currencyPicker'>(null);
+  const [confirmDeleteTrip, setConfirmDeleteTrip] = useState<string | null>(null);
 
   const breakdown = useMemo(() => {
     const map = new Map<TxnCategory, number>();
@@ -71,14 +73,24 @@ export default function WalletPage() {
       <div className="px-5 mb-3">
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
           {trips.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setActiveTripId(t.id)}
-              className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold press transition-colors ${t.id === activeTripId ? 'bg-brand-500 text-white shadow-glow' : 'bg-ink-50 text-ink-700 border border-ink-100'}`}
-            >
-              {t.id === activeTripId && <span className="w-1.5 h-1.5 rounded-full bg-white/80" />}
-              {t.name}
-            </button>
+            <div key={t.id} className="shrink-0 flex items-center">
+              <button
+                onClick={() => setActiveTripId(t.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold press transition-colors ${t.id === activeTripId ? 'bg-brand-500 text-white shadow-glow' : 'bg-ink-50 text-ink-700 border border-ink-100'}`}
+              >
+                {t.id === activeTripId && <span className="w-1.5 h-1.5 rounded-full bg-white/80" />}
+                {t.name}
+              </button>
+              {trips.length > 1 && (
+                <button
+                  onClick={() => setConfirmDeleteTrip(t.id)}
+                  className="ml-1 w-5 h-5 rounded-full flex items-center justify-center hover:bg-red-50 press text-ink-400 hover:text-red-500 transition-colors"
+                  aria-label="Delete trip"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
           ))}
           <button
             onClick={() => setSheet('newTrip')}
@@ -189,12 +201,19 @@ export default function WalletPage() {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-4 gap-2 px-5 mt-4">
-        <QuickBtn icon={<Plus />} label="Add Expense" onClick={() => setSheet('addExpense')} />
-        <QuickBtn icon={<Users />} label="Split Bill" onClick={() => setSheet('splitBill')} highlight />
+      <div className={`grid gap-2 px-5 mt-4 ${isNavigating ? 'grid-cols-3' : 'grid-cols-4'}`}>
+        {!isNavigating && <QuickBtn icon={<Plus />} label="Add Expense" onClick={() => setSheet('addExpense')} />}
+        <QuickBtn icon={<Users />} label="Split Bill" onClick={() => setSheet('splitBillEntry')} highlight />
         <QuickBtn icon={<Scan />} label="Scan" onClick={() => setSheet('scan')} />
         <QuickBtn icon={<Clock />} label="History" onClick={() => setSheet('history')} />
       </div>
+      {isNavigating && (
+        <div className="px-5 mt-2">
+          <div className="bg-amber-50 rounded-xl px-3 py-2 text-xs text-amber-700 font-medium flex items-center gap-2">
+            <span>🧭</span> Add expenses after your journey ends
+          </div>
+        </div>
+      )}
 
       {/* Breakdown */}
       <div className="px-5 mt-5">
@@ -265,6 +284,13 @@ export default function WalletPage() {
         <HistorySheet transactions={transactions} currency={currency} />
       </Sheet>
 
+      <Sheet open={sheet === 'splitBillEntry'} title="Split a Bill" onClose={() => setSheet(null)}>
+        <SplitBillEntrySheet
+          onScanReceipt={() => { setSheet(null); setTimeout(() => setSheet('scan'), 80); }}
+          onManual={() => { setSheet(null); setTimeout(() => setSheet('splitBill'), 80); }}
+        />
+      </Sheet>
+
       <Sheet open={sheet === 'newTrip'} title="New Trip" onClose={() => setSheet(null)}>
         <NewTripSheet
           onCreate={(data) => {
@@ -296,6 +322,41 @@ export default function WalletPage() {
           setSheet(null);
         }}
       />
+
+      {/* Delete trip confirmation */}
+      <AnimatePresence>
+        {confirmDeleteTrip && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setConfirmDeleteTrip(null)} className="absolute inset-0 z-60 bg-ink-900/50" />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+              className="absolute inset-x-8 top-1/2 -translate-y-1/2 z-[61] bg-white rounded-2xl p-5 shadow-card"
+            >
+              <div className="text-center mb-1">
+                <div className="text-3xl mb-2">🗑️</div>
+                <div className="font-bold text-ink-900 font-display">Delete trip?</div>
+                <div className="text-sm text-ink-500 mt-1 leading-snug">
+                  "{trips.find((t) => t.id === confirmDeleteTrip)?.name}" and all its expenses will be permanently deleted.
+                </div>
+              </div>
+              <div className="flex gap-2 mt-4">
+                <button onClick={() => setConfirmDeleteTrip(null)} className="flex-1 h-11 rounded-xl bg-ink-50 text-ink-700 font-semibold press">Cancel</button>
+                <button
+                  onClick={() => {
+                    deleteTrip(confirmDeleteTrip);
+                    show('Trip deleted', 'info');
+                    setConfirmDeleteTrip(null);
+                  }}
+                  className="flex-1 h-11 rounded-xl bg-red-500 text-white font-semibold press"
+                >
+                  Delete
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -632,6 +693,61 @@ function CurrencyPickerSheet({ current, onSelect }: { current: Currency; onSelec
           {c.id === current && <Check className="w-4 h-4 text-brand-500" />}
         </button>
       ))}
+    </div>
+  );
+}
+
+/* -------- Split Bill Entry (3-way) -------- */
+
+function SplitBillEntrySheet({ onScanReceipt, onManual }: { onScanReceipt: () => void; onManual: () => void }) {
+  return (
+    <div className="space-y-3 py-2">
+      <p className="text-sm text-ink-500 mb-4">How do you want to split this bill?</p>
+
+      {/* Scan Receipt — primary */}
+      <button
+        onClick={onScanReceipt}
+        className="w-full flex items-center gap-4 p-4 rounded-2xl bg-brand-500 text-white press shadow-glow"
+      >
+        <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+          <Scan className="w-6 h-6" />
+        </div>
+        <div className="text-left">
+          <div className="font-bold text-base">Scan Receipt</div>
+          <div className="text-sm text-white/75 mt-0.5">Auto-detect items and prices</div>
+        </div>
+        <ChevronRight className="w-5 h-5 ml-auto opacity-70" />
+      </button>
+
+      {/* Upload Photo */}
+      <button
+        onClick={onScanReceipt}
+        className="w-full flex items-center gap-4 p-4 rounded-2xl bg-ink-50 border border-ink-100 press hover:border-brand-200 transition-colors"
+      >
+        <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center shrink-0 border border-ink-100">
+          <Receipt className="w-6 h-6 text-ink-600" />
+        </div>
+        <div className="text-left">
+          <div className="font-bold text-sm text-ink-900">Upload Photo</div>
+          <div className="text-xs text-ink-500 mt-0.5">Pick receipt from gallery</div>
+        </div>
+        <ChevronRight className="w-5 h-5 ml-auto text-ink-400" />
+      </button>
+
+      {/* Add Manually */}
+      <button
+        onClick={onManual}
+        className="w-full flex items-center gap-4 p-4 rounded-2xl bg-ink-50 border border-ink-100 press hover:border-brand-200 transition-colors"
+      >
+        <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center shrink-0 border border-ink-100">
+          <Pencil className="w-6 h-6 text-ink-600" />
+        </div>
+        <div className="text-left">
+          <div className="font-bold text-sm text-ink-900">Add Manually</div>
+          <div className="text-xs text-ink-500 mt-0.5">Type items and prices yourself</div>
+        </div>
+        <ChevronRight className="w-5 h-5 ml-auto text-ink-400" />
+      </button>
     </div>
   );
 }
