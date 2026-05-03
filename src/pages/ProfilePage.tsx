@@ -1,9 +1,10 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Settings, Mail, Phone, MapPin, ChevronRight, Bookmark, Clock, CreditCard, HelpCircle, X, Crown,
-  Compass, Sparkles, TrendingDown, Star, Target,
+  Compass, Sparkles, TrendingDown, Star, Target, LogOut,
 } from 'lucide-react';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import StatusBar from '../components/StatusBar';
 import { USER } from '../data/user';
 import { formatRp } from '../lib/format';
@@ -63,9 +64,16 @@ const RECENT_TRIPS = [
 ];
 
 export default function ProfilePage() {
-  const { visited, savedPlaces } = useApp();
+  const { visited, savedPlaces, logout } = useApp();
+  const nav = useNavigate();
   const [statDetail, setStatDetail] = useState<null | string>(null);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const totalPlaces = USER.stats.placesExplored + visited.size;
+
+  const handleLogout = () => {
+    logout();
+    nav('/');
+  };
 
   return (
     <div className="absolute inset-0 bg-white overflow-y-auto pb-32 no-scrollbar">
@@ -231,6 +239,44 @@ export default function ProfilePage() {
         <Row icon={<CreditCard className="w-4 h-4" />} label="Payment Methods" />
         <Row icon={<HelpCircle className="w-4 h-4" />} label="Help & Support" />
       </div>
+
+      {/* Logout */}
+      <div className="px-5 mt-4 mb-2">
+        <button
+          onClick={() => setShowLogoutConfirm(true)}
+          className="w-full bg-red-50 border border-red-100 rounded-2xl px-4 py-3 flex items-center gap-3 press"
+        >
+          <span className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+            <LogOut className="w-4 h-4" />
+          </span>
+          <span className="flex-1 text-left text-sm font-semibold text-red-600">Log Out</span>
+        </button>
+      </div>
+
+      {/* Logout confirmation */}
+      <AnimatePresence>
+        {showLogoutConfirm && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowLogoutConfirm(false)} className="absolute inset-0 z-40 bg-ink-900/50" />
+            <motion.div
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+              className="absolute inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl p-5 shadow-card"
+            >
+              <div className="w-12 h-1.5 bg-ink-100 rounded-full mx-auto mb-4" />
+              <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-3">
+                <LogOut className="w-7 h-7 text-red-500" />
+              </div>
+              <div className="text-center mb-1 font-bold text-ink-900 font-display text-lg">Log out?</div>
+              <div className="text-center text-sm text-ink-500 mb-6">You'll need to go through onboarding again to start a new journey.</div>
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={() => setShowLogoutConfirm(false)} className="h-12 rounded-2xl bg-ink-50 text-ink-700 font-semibold press">Cancel</button>
+                <button onClick={handleLogout} className="h-12 rounded-2xl bg-red-500 text-white font-semibold press shadow-sm">Log Out</button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Stat detail sheet */}
       <AnimatePresence>

@@ -1,8 +1,8 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Search, SlidersHorizontal, Sparkles, CloudSun, Bookmark, Palmtree, Flame,
-  Diamond, X, Star, MapPin, Clock, Link2, Camera, Play, Pencil,
-  Calendar, ChevronRight, DollarSign, ChevronLeft,
+  Search, SlidersHorizontal, Sparkles, CloudSun, Bookmark,
+  Palmtree, Flame, Diamond, X, Star, MapPin, Clock,
+  Link2, Camera, Play, Pencil, DollarSign, ChevronRight,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import StatusBar from '../components/StatusBar';
@@ -22,13 +22,6 @@ const VIBES: { id: Vibe; label: string; icon: string; tint: string }[] = [
 ];
 
 const CATEGORIES: Category[] = ['Cafe', 'Nature', 'Cultural', 'Historic', 'Foodie', 'Hidden Gem', 'Cozy'];
-
-const TIME_OPTIONS = Array.from({ length: 28 }, (_, i) => {
-  const totalMin = 6 * 60 + i * 30;
-  const h = Math.floor(totalMin / 60) % 24;
-  const m = totalMin % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-});
 
 const SOCIAL_MOCK: Record<string, { platform: string; name: string; category: string; desc: string; image: string; cost: number }> = {
   tiktok: {
@@ -53,9 +46,7 @@ export default function HomePage() {
   const nav = useNavigate();
   const {
     vibe, setVibe, budget, setBudget, itinerary,
-    surpriseMode, setSurpriseMode, setItinerary, buildItinerary,
     savedPlaces, savePlace, removeSavedPlace, isSaved,
-    setJourneyStart,
   } = useApp();
   const { show } = useToast();
 
@@ -67,21 +58,7 @@ export default function HomePage() {
   const [socialParsing, setSocialParsing] = useState(false);
   const [socialResult, setSocialResult] = useState<typeof SOCIAL_MOCK[string] | null>(null);
   const socialInputRef = useRef<HTMLInputElement>(null);
-  const [planSheet, setPlanSheet] = useState(false);
-  const [planTarget, setPlanTarget] = useState<'ai' | 'manual'>('ai');
   const [detailPlace, setDetailPlace] = useState<Place | null>(null);
-
-  // Local journey-start form state (mirrors context while editing)
-  const [localStartDate, setLocalStartDate] = useState<Date | null>(null);
-  const [localEndDate, setLocalEndDate] = useState<Date | null>(null);
-  const [localTime, setLocalTime] = useState('09:00');
-  const [localEndTime, setLocalEndTime] = useState('18:00');
-  const [calPhase, setCalPhase] = useState<'start' | 'end'>('start');
-
-  const localDays = useMemo(() => {
-    if (!localStartDate || !localEndDate) return 1;
-    return Math.max(1, Math.round((localEndDate.getTime() - localStartDate.getTime()) / 86400000) + 1);
-  }, [localStartDate, localEndDate]);
 
   const sliderPct = useMemo(() => {
     const min = 50_000, max = 1_000_000;
@@ -101,59 +78,6 @@ export default function HomePage() {
 
   const activeFilters = filterCats.length + (filterMinRating > 0 ? 1 : 0);
 
-  const handleSurpriseToggle = () => {
-    const next = !surpriseMode;
-    setSurpriseMode(next);
-    if (next) {
-      const randomVibes: Vibe[] = ['chill', 'chaos', 'zen', 'luxury'];
-      setVibe(randomVibes[Math.floor(Math.random() * randomVibes.length)]);
-      show('Surprise mode on — we\'ll pick something unexpected ✨', 'info');
-    }
-  };
-
-  const openPlanSheet = (target: 'ai' | 'manual') => {
-    setPlanTarget(target);
-    setLocalStartDate(null);
-    setLocalEndDate(null);
-    setLocalTime('09:00');
-    setLocalEndTime('18:00');
-    setCalPhase('start');
-    setPlanSheet(true);
-  };
-
-  const handleCalSelect = (d: Date) => {
-    if (calPhase === 'start') {
-      setLocalStartDate(d);
-      setLocalEndDate(null);
-      setCalPhase('end');
-    } else {
-      if (localStartDate && d < localStartDate) {
-        setLocalStartDate(d);
-        setLocalEndDate(null);
-      } else if (localStartDate && d.getTime() === localStartDate.getTime()) {
-        // Same day = single-day trip
-        setLocalEndDate(d);
-      } else {
-        setLocalEndDate(d);
-      }
-    }
-  };
-
-  const confirmPlan = () => {
-    const dateStr = localStartDate
-      ? `${localStartDate.getFullYear()}-${String(localStartDate.getMonth() + 1).padStart(2, '0')}-${String(localStartDate.getDate()).padStart(2, '0')}`
-      : 'today';
-    setJourneyStart({ date: dateStr, time: localTime, days: localDays });
-    if (planTarget === 'ai') {
-      if (surpriseMode) setItinerary(buildItinerary());
-      setPlanSheet(false);
-      nav('/generate');
-    } else {
-      setPlanSheet(false);
-      nav('/generate?mode=manual');
-    }
-  };
-
   const parseSocialLink = () => {
     if (!socialUrl.trim()) return;
     setSocialParsing(true);
@@ -170,7 +94,7 @@ export default function HomePage() {
   return (
     <div className="absolute inset-0 overflow-y-auto pb-32 no-scrollbar bg-white">
       {/* Hero */}
-      <div className="relative h-[280px] overflow-hidden">
+      <div className="relative h-[260px] overflow-hidden">
         <motion.img
           src={HERO_IMAGE} alt="Ubud"
           className="absolute inset-0 w-full h-full object-cover"
@@ -187,11 +111,12 @@ export default function HomePage() {
                 {USER.firstName}
                 <motion.span animate={{ rotate: [0, 18, -8, 14, 0] }} transition={{ duration: 1.6, repeat: Infinity, repeatDelay: 2 }}>👋</motion.span>
               </h1>
-              <button className="mt-2 inline-flex items-center gap-1 text-white/90 text-xs font-semibold press drop-shadow">
-                <MapPin className="w-3 h-3" /> {USER.current} <span className="text-white/60">▾</span>
-              </button>
+              {/* Clean location — no pill, no triangle */}
+              <div className="mt-2 inline-flex items-center gap-1 text-white/90 text-xs font-semibold drop-shadow">
+                <MapPin className="w-3 h-3" /> {USER.current}
+              </div>
             </div>
-            <button className="relative w-12 h-12 rounded-full overflow-hidden ring-2 ring-white press">
+            <button onClick={() => nav('/profile')} className="relative w-12 h-12 rounded-full overflow-hidden ring-2 ring-white press">
               <img src={USER.avatar} alt="me" className="w-full h-full object-cover" />
               <span className="absolute bottom-0 right-0 w-3 h-3 bg-brand-500 rounded-full ring-2 ring-white" />
             </button>
@@ -200,11 +125,11 @@ export default function HomePage() {
       </div>
 
       {/* Daily Vibe Card */}
-      <div className="px-5 -mt-12 relative z-20">
+      <div className="px-5 -mt-10 relative z-20">
         <motion.div
           initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1, type: 'spring', stiffness: 280, damping: 28 }}
-          className="bg-white/75 backdrop-blur-xl rounded-2xl shadow-lg p-4 flex items-center gap-4 border border-white/80"
+          className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg p-4 flex items-center gap-4 border border-white/80"
         >
           <div className="text-center shrink-0">
             <CloudSun className="w-8 h-8 text-brand-500 mx-auto" />
@@ -216,11 +141,6 @@ export default function HomePage() {
             <div className="text-[10px] font-bold tracking-widest text-brand-500">TODAY'S VIBE</div>
             <div className="text-ink-900 font-bold leading-snug font-display">Hidden Treasures kind of day ✨</div>
             <div className="text-xs text-ink-500 mt-0.5">3 spots near you · Est. {formatRp(120000)}</div>
-          </div>
-          <div className="shrink-0 text-right">
-            <div className="text-[10px] text-ink-400">Humidity</div>
-            <div className="text-sm font-bold text-ink-700">74%</div>
-            <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">✓ Great day</div>
           </div>
         </motion.div>
       </div>
@@ -271,32 +191,17 @@ export default function HomePage() {
 
       {/* Pick your vibe */}
       <div className="px-5 mt-5">
-        <div className="flex items-center justify-between">
-          <h2 className="font-bold text-ink-900 font-display">Pick your vibe</h2>
-          <label className="flex items-center gap-2 text-xs font-semibold" style={{ color: surpriseMode ? '#3B5BFF' : '#6B7280' }}>
-            <span>Surprise me</span>
-            <button
-              onClick={handleSurpriseToggle}
-              className={`relative w-9 h-5 rounded-full transition-colors overflow-hidden ${surpriseMode ? 'bg-brand-500' : 'bg-ink-200'}`}
-            >
-              <motion.span
-                className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow"
-                animate={{ x: surpriseMode ? 18 : 2 }}
-                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-              />
-            </button>
-          </label>
-        </div>
-        <div className="mt-3 grid grid-cols-4 gap-2">
+        <h2 className="font-bold text-ink-900 font-display mb-3">Pick your vibe</h2>
+        <div className="grid grid-cols-4 gap-2">
           {VIBES.map((v) => {
-            const active = v.id === vibe && !surpriseMode;
+            const active = v.id === vibe;
             const Icon = v.id === 'chill' ? Palmtree : v.id === 'chaos' ? Flame : v.id === 'zen' ? Sparkles : Diamond;
             return (
               <motion.button
                 key={v.id}
                 whileTap={{ scale: 0.94 }}
-                onClick={() => { setVibe(v.id); setSurpriseMode(false); }}
-                animate={{ scale: active ? 1.04 : 1, opacity: surpriseMode ? 0.55 : 1 }}
+                onClick={() => setVibe(v.id)}
+                animate={{ scale: active ? 1.04 : 1 }}
                 className={`relative aspect-square rounded-2xl flex flex-col items-center justify-center gap-1 border-2 transition-colors ${active ? 'border-brand-500 bg-brand-50' : 'border-ink-100 bg-white'}`}
               >
                 <Icon className="w-7 h-7" style={{ color: active ? '#3B5BFF' : v.tint }} strokeWidth={2.2} />
@@ -323,30 +228,26 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* CTA — Two equal-weight options */}
+      {/* CTA */}
       <div className="px-5 mt-5">
         <div className="grid grid-cols-2 gap-3">
-          {/* AI Generate */}
           <motion.button
-            whileTap={{ scale: 0.96 }} whileHover={{ scale: 1.01 }}
-            onClick={() => openPlanSheet('ai')}
-            className={`rounded-2xl p-4 text-left flex flex-col gap-2 press ${surpriseMode ? 'bg-gradient-to-br from-brand-500 via-purple-500 to-orange-400 shadow-glow' : 'bg-brand-500 shadow-glow'}`}
+            whileTap={{ scale: 0.96 }}
+            onClick={() => nav('/generate')}
+            className="rounded-2xl p-4 text-left flex flex-col gap-2 press bg-brand-500 shadow-glow"
           >
             <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
               <Sparkles className="w-5 h-5 text-white" />
             </div>
             <div>
-              <div className="font-bold text-white text-sm font-display leading-tight">
-                {surpriseMode ? 'Surprise Me' : 'AI Generate'}
-              </div>
+              <div className="font-bold text-white text-sm font-display leading-tight">AI Generate</div>
               <div className="text-[11px] text-white/75 mt-0.5 leading-tight">Let Buddy plan it</div>
             </div>
           </motion.button>
 
-          {/* Plan Manually */}
           <motion.button
-            whileTap={{ scale: 0.96 }} whileHover={{ scale: 1.01 }}
-            onClick={() => openPlanSheet('manual')}
+            whileTap={{ scale: 0.96 }}
+            onClick={() => nav('/generate?mode=manual')}
             className="rounded-2xl p-4 text-left flex flex-col gap-2 press bg-white border-2 border-brand-200 hover:border-brand-400 transition-colors"
           >
             <div className="w-9 h-9 rounded-xl bg-brand-50 flex items-center justify-center">
@@ -370,88 +271,61 @@ export default function HomePage() {
         </div>
 
         {itinerary.length === 0 ? (
-          // Empty state
           <motion.div
             initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
             className="bg-brand-50 rounded-2xl p-6 text-center border border-brand-100"
           >
             <div className="text-4xl mb-3">🗺️</div>
-            <div className="font-bold text-ink-900 text-base font-display">No plans yet</div>
-            <div className="text-sm text-ink-500 mt-1 leading-snug">Ready to explore? Start building your day</div>
-            <div className="grid grid-cols-2 gap-2 mt-4">
-              <button
-                onClick={() => openPlanSheet('ai')}
-                className="h-10 rounded-xl bg-brand-500 text-white text-xs font-semibold press flex items-center justify-center gap-1.5 shadow-glow"
-              >
-                <Sparkles className="w-3.5 h-3.5" /> Generate Journey
-              </button>
-              <button
-                onClick={() => openPlanSheet('manual')}
-                className="h-10 rounded-xl bg-white border border-brand-200 text-brand-700 text-xs font-semibold press flex items-center justify-center gap-1.5"
-              >
-                <Pencil className="w-3.5 h-3.5" /> Plan Manually
-              </button>
-            </div>
-            {savedPlaces.length > 0 && (
-              <button className="mt-3 text-xs text-brand-600 font-semibold press flex items-center gap-1 mx-auto">
-                <Bookmark className="w-3 h-3" /> Use saved places
-              </button>
-            )}
+            <div className="font-bold text-ink-900 text-base font-display">No plan yet</div>
+            <div className="text-sm text-ink-500 mt-1 leading-snug">Generate or build your itinerary above</div>
           </motion.div>
         ) : (
-          <div className="relative">
-            {/* Vertical timeline line */}
-            <div className="absolute left-2.5 top-4 bottom-4 w-px bg-ink-200" />
-            <div className="space-y-3">
-              {itinerary.map((p, i) => {
-                const startMin = 10 * 60 + 30 + i * 150;
-                const h = Math.floor(startMin / 60) % 24;
-                const m = startMin % 60;
-                const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-                return (
-                  <motion.div
-                    key={p.id}
-                    initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.05 * i }}
-                    className="relative pl-7"
+          <div className="space-y-3">
+            {itinerary.map((p, i) => {
+              const startMin = 10 * 60 + 30 + i * 150;
+              const h = Math.floor(startMin / 60) % 24;
+              const m = startMin % 60;
+              const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+              return (
+                <div key={p.id} className="relative pl-7">
+                  {/* Connector line between stops (not after last) */}
+                  {i < itinerary.length - 1 && (
+                    <div className="absolute left-[9px] top-9 h-[calc(100%+12px)] w-px bg-ink-200" />
+                  )}
+                  {/* Stop dot */}
+                  <span className="absolute left-0.5 top-4 w-4 h-4 rounded-full bg-brand-500 ring-4 ring-brand-100 flex items-center justify-center z-10">
+                    <span className="text-[8px] text-white font-bold">{i + 1}</span>
+                  </span>
+                  <div className="text-xs font-semibold text-ink-600 mb-1 flex items-center gap-1">
+                    <Clock className="w-3 h-3" /> {timeStr}
+                    {i > 0 && <span className="text-ink-400 font-normal ml-1">· {p.distanceKm} km from prev</span>}
+                  </div>
+                  <button
+                    onClick={() => setDetailPlace(p)}
+                    className="w-full bg-white rounded-2xl border border-ink-100 p-2.5 flex items-center gap-3 press text-left hover:border-brand-200 transition-colors"
                   >
-                    <span className="absolute left-0.5 top-4 w-4 h-4 rounded-full bg-brand-500 ring-4 ring-brand-100 flex items-center justify-center z-10">
-                      <span className="text-[8px] text-white font-bold">{i + 1}</span>
-                    </span>
-                    <div className="text-xs font-semibold text-ink-600 mb-1 flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> {timeStr}
-                      {i > 0 && <span className="text-ink-400 font-normal ml-1">· {itinerary[i].distanceKm} km from prev</span>}
+                    <img src={p.image} alt={p.name} className="w-14 h-14 rounded-xl object-cover shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-ink-900 truncate">{p.name}</div>
+                      <div className="text-xs text-ink-500 flex items-center gap-1.5 mt-0.5">
+                        <span>{p.category}</span>
+                        <span className="text-ink-300">·</span>
+                        <span className="flex items-center gap-0.5"><Star className="w-3 h-3 fill-amber-400 text-amber-400" />{p.rating}</span>
+                      </div>
+                      <div className="text-xs text-brand-600 font-semibold mt-0.5">
+                        {formatRp(p.priceRange.min)}{p.priceRange.max !== p.priceRange.min && ` – ${formatRp(p.priceRange.max)}`}
+                      </div>
                     </div>
                     <button
-                      onClick={() => setDetailPlace(p)}
-                      className="w-full bg-white rounded-2xl border border-ink-100 p-2.5 flex items-center gap-3 press text-left hover:border-brand-200 transition-colors"
+                      className="w-9 h-9 rounded-full hover:bg-ink-50 flex items-center justify-center shrink-0 press"
+                      onClick={(e) => { e.stopPropagation(); isSaved(p.id) ? removeSavedPlace(p.id) : savePlace(p); }}
                     >
-                      <img src={p.image} alt={p.name} className="w-14 h-14 rounded-xl object-cover shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-ink-900 truncate">{p.name}</div>
-                        <div className="text-xs text-ink-500 flex items-center gap-1.5 mt-0.5">
-                          <span>{p.category}</span>
-                          <span className="text-ink-300">·</span>
-                          <span className="flex items-center gap-0.5"><Star className="w-3 h-3 fill-amber-400 text-amber-400" />{p.rating}</span>
-                          <span className="text-ink-300">·</span>
-                          <span className="text-ink-400">{p.openingHours}</span>
-                        </div>
-                        <div className="text-xs text-brand-600 font-semibold mt-0.5">
-                          {formatRp(p.priceRange.min)}{p.priceRange.max !== p.priceRange.min && ` – ${formatRp(p.priceRange.max)}`}
-                        </div>
-                      </div>
-                      <button
-                        className="w-9 h-9 rounded-full hover:bg-ink-50 flex items-center justify-center shrink-0 press"
-                        onClick={(e) => { e.stopPropagation(); isSaved(p.id) ? removeSavedPlace(p.id) : savePlace(p); }}
-                        aria-label={isSaved(p.id) ? 'Unsave' : 'Save'}
-                      >
-                        <Bookmark className={`w-4 h-4 transition-colors ${isSaved(p.id) ? 'fill-brand-500 text-brand-500' : 'text-ink-400'}`} />
-                      </button>
+                      <Bookmark className={`w-4 h-4 transition-colors ${isSaved(p.id) ? 'fill-brand-500 text-brand-500' : 'text-ink-400'}`} />
                     </button>
-                  </motion.div>
-                );
-              })}
-            </div>
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -500,11 +374,9 @@ export default function HomePage() {
         )}
       </AnimatePresence>
 
-      {/* Social Media Parser */}
+      {/* Import from Social */}
       <div className="px-5 mt-8">
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-[11px] font-bold tracking-widest text-ink-500">IMPORT FROM SOCIAL</span>
-        </div>
+        <div className="text-[11px] font-bold tracking-widest text-ink-500 mb-3">IMPORT FROM SOCIAL</div>
         <div className="bg-ink-50 rounded-2xl p-4">
           <div className="flex items-center gap-2 mb-3">
             <div className="flex items-center gap-1.5 bg-white rounded-xl px-2.5 py-1.5 text-xs font-semibold text-ink-700 border border-ink-100">
@@ -574,106 +446,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* ── Journey Planning Sheet ── */}
-      <AnimatePresence>
-        {planSheet && (
-          <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setPlanSheet(false)} className="absolute inset-0 z-40 bg-ink-900/40" />
-            <motion.div
-              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className="absolute inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl shadow-card flex flex-col max-h-[92%]"
-            >
-              <div className="w-12 h-1.5 bg-ink-100 rounded-full mx-auto mt-3 shrink-0" />
-              <div className="px-5 pt-3 pb-2 flex items-center justify-between shrink-0">
-                <div>
-                  <div className="font-bold text-ink-900 font-display flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-brand-500" />
-                    When are you heading out?
-                  </div>
-                  <div className="text-xs text-ink-500 mt-0.5">
-                    {planTarget === 'ai' ? 'AI will plan your journey' : 'You\'ll build it yourself'}
-                  </div>
-                </div>
-                <button onClick={() => setPlanSheet(false)} className="w-8 h-8 rounded-full bg-ink-50 flex items-center justify-center press"><X className="w-4 h-4" /></button>
-              </div>
-
-              <div className="px-5 space-y-4 overflow-y-auto no-scrollbar pb-8">
-                {/* Calendar */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-[10px] font-bold tracking-widest text-ink-500">
-                      {calPhase === 'start' ? 'SELECT START DATE' : 'SELECT END DATE'}
-                    </div>
-                    {localStartDate && (
-                      <button onClick={() => { setCalPhase('start'); setLocalStartDate(null); setLocalEndDate(null); }} className="text-[10px] text-brand-500 font-semibold press">Reset</button>
-                    )}
-                  </div>
-                  {/* Date chips summary */}
-                  {(localStartDate || localEndDate) && (
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className={`flex-1 py-2 px-3 rounded-xl text-center text-xs font-semibold border-2 ${calPhase === 'start' ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-ink-200 bg-ink-50 text-ink-700'}`}>
-                        <div className="text-[10px] text-ink-400">Start</div>
-                        <div>{localStartDate ? localStartDate.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) : '—'}</div>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-ink-400 shrink-0" />
-                      <div className={`flex-1 py-2 px-3 rounded-xl text-center text-xs font-semibold border-2 ${calPhase === 'end' ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-ink-200 bg-ink-50 text-ink-700'}`}>
-                        <div className="text-[10px] text-ink-400">End</div>
-                        <div>{localEndDate ? localEndDate.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) : '—'}</div>
-                      </div>
-                      {localStartDate && localEndDate && (
-                        <div className="bg-brand-50 rounded-xl px-3 py-2 text-center text-xs font-bold text-brand-600 border-2 border-brand-100 shrink-0">
-                          {localDays}d
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  <MiniCalendar
-                    startDate={localStartDate}
-                    endDate={localEndDate}
-                    onSelect={handleCalSelect}
-                  />
-                </div>
-
-                {/* Times row */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-1.5">START TIME</div>
-                    <select
-                      value={localTime} onChange={(e) => setLocalTime(e.target.value)}
-                      className="w-full bg-ink-50 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink-900 outline-none appearance-none"
-                    >
-                      {TIME_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-1.5">END TIME</div>
-                    <select
-                      value={localEndTime} onChange={(e) => setLocalEndTime(e.target.value)}
-                      className="w-full bg-ink-50 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink-900 outline-none appearance-none"
-                    >
-                      {TIME_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  </div>
-                </div>
-
-                <button
-                  onClick={confirmPlan}
-                  className="w-full h-12 rounded-2xl bg-brand-500 text-white font-bold shadow-glow press flex items-center justify-center gap-2"
-                >
-                  {planTarget === 'ai' ? (
-                    <><Sparkles className="w-4 h-4" /> Generate My Journey</>
-                  ) : (
-                    <><Pencil className="w-4 h-4" /> Start Building</>
-                  )}
-                </button>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* ── Place Detail Sheet ── */}
+      {/* Place Detail Sheet */}
       <AnimatePresence>
         {detailPlace && (
           <>
@@ -705,9 +478,7 @@ export default function HomePage() {
                   <InfoChip
                     icon={<DollarSign className="w-3.5 h-3.5 text-emerald-500" />}
                     label="Price"
-                    value={detailPlace.priceRange.min === detailPlace.priceRange.max
-                      ? formatRp(detailPlace.priceRange.min)
-                      : `${formatRp(detailPlace.priceRange.min)}+`}
+                    value={detailPlace.priceRange.min === detailPlace.priceRange.max ? formatRp(detailPlace.priceRange.min) : `${formatRp(detailPlace.priceRange.min)}+`}
                   />
                   <InfoChip icon={<MapPin className="w-3.5 h-3.5 text-orange-500" />} label="Distance" value={`${detailPlace.distanceKm} km`} />
                 </div>
@@ -719,7 +490,7 @@ export default function HomePage() {
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <button
-                    onClick={() => { isSaved(detailPlace.id) ? removeSavedPlace(detailPlace.id) : savePlace(detailPlace); show(isSaved(detailPlace.id) ? 'Removed from saved' : 'Saved ✓', 'success'); }}
+                    onClick={() => { isSaved(detailPlace.id) ? removeSavedPlace(detailPlace.id) : savePlace(detailPlace); show(isSaved(detailPlace.id) ? 'Removed' : 'Saved ✓', 'success'); }}
                     className={`h-11 rounded-2xl font-semibold press inline-flex items-center justify-center gap-2 ${isSaved(detailPlace.id) ? 'bg-brand-50 text-brand-600 border border-brand-200' : 'bg-ink-50 text-ink-800'}`}
                   >
                     <Bookmark className={`w-4 h-4 ${isSaved(detailPlace.id) ? 'fill-brand-500 text-brand-500' : ''}`} />
@@ -787,7 +558,7 @@ export default function HomePage() {
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <button onClick={() => { setFilterCats([]); setFilterMinRating(0); }} className="h-11 rounded-2xl bg-ink-50 text-ink-700 font-semibold press">Clear All</button>
-                  <button onClick={() => { setFilterOpen(false); if (search.trim()) show(`Filters applied (${activeFilters})`, 'success'); }} className="h-11 rounded-2xl bg-brand-500 text-white font-bold shadow-glow press">
+                  <button onClick={() => setFilterOpen(false)} className="h-11 rounded-2xl bg-brand-500 text-white font-bold shadow-glow press">
                     Apply{activeFilters > 0 ? ` (${activeFilters})` : ''}
                   </button>
                 </div>
@@ -805,81 +576,6 @@ function InfoChip({ icon, label, value }: { icon: React.ReactNode; label: string
     <div className="bg-ink-50 rounded-xl p-2.5">
       <div className="flex items-center gap-1 mb-1">{icon}<span className="text-[10px] text-ink-500 font-medium">{label}</span></div>
       <div className="text-xs font-bold text-ink-900 leading-snug">{value}</div>
-    </div>
-  );
-}
-
-function MiniCalendar({ startDate, endDate, onSelect }: {
-  startDate: Date | null;
-  endDate: Date | null;
-  onSelect: (d: Date) => void;
-}) {
-  const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
-  const [viewYear, setViewYear] = useState(() => today.getFullYear());
-  const [viewMonth, setViewMonth] = useState(() => today.getMonth());
-
-  const firstDow = new Date(viewYear, viewMonth, 1).getDay();
-  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-  const monthLabel = new Date(viewYear, viewMonth).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-
-  const cells: (Date | null)[] = [];
-  for (let i = 0; i < firstDow; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(viewYear, viewMonth, d));
-
-  const isSameDay = (a: Date, b: Date) =>
-    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-
-  const prevMonth = () => {
-    if (viewMonth === 0) { setViewMonth(11); setViewYear((y) => y - 1); }
-    else setViewMonth((m) => m - 1);
-  };
-  const nextMonth = () => {
-    if (viewMonth === 11) { setViewMonth(0); setViewYear((y) => y + 1); }
-    else setViewMonth((m) => m + 1);
-  };
-
-  return (
-    <div className="bg-ink-50 rounded-2xl p-3">
-      <div className="flex items-center justify-between mb-2">
-        <button onClick={prevMonth} className="w-8 h-8 rounded-full bg-white flex items-center justify-center press shadow-soft">
-          <ChevronLeft className="w-4 h-4 text-ink-700" />
-        </button>
-        <span className="text-sm font-bold text-ink-900">{monthLabel}</span>
-        <button onClick={nextMonth} className="w-8 h-8 rounded-full bg-white flex items-center justify-center press shadow-soft">
-          <ChevronRight className="w-4 h-4 text-ink-700" />
-        </button>
-      </div>
-      <div className="grid grid-cols-7 mb-1">
-        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
-          <div key={i} className="text-center text-[10px] font-bold text-ink-400 py-1">{d}</div>
-        ))}
-      </div>
-      <div className="grid grid-cols-7 gap-y-0.5">
-        {cells.map((d, i) => {
-          if (!d) return <div key={i} />;
-          const isStart = startDate ? isSameDay(d, startDate) : false;
-          const isEnd = endDate ? isSameDay(d, endDate) : false;
-          const inRange = startDate && endDate ? d > startDate && d < endDate : false;
-          const isPast = d < today;
-          const isToday = isSameDay(d, today);
-          return (
-            <button
-              key={i}
-              onClick={() => !isPast && onSelect(d)}
-              disabled={isPast}
-              className={[
-                'relative aspect-square flex items-center justify-center text-[11px] font-semibold transition-colors',
-                isStart || isEnd ? 'bg-brand-500 text-white rounded-full z-10' : '',
-                inRange ? 'bg-brand-100 text-brand-700 rounded-none' : '',
-                !isStart && !isEnd && !inRange && !isPast ? `rounded-full hover:bg-ink-200 ${isToday ? 'ring-1 ring-brand-400' : ''}` : '',
-                isPast ? 'text-ink-300 cursor-default' : 'text-ink-800',
-              ].filter(Boolean).join(' ')}
-            >
-              {d.getDate()}
-            </button>
-          );
-        })}
-      </div>
     </div>
   );
 }

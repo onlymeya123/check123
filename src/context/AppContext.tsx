@@ -3,13 +3,20 @@ import { PLACES, pickItinerary, type Place, type Vibe } from '../data/places';
 import { DEFAULT_TRIP, BUDGET_TOTAL, type Transaction, type Trip, type Currency } from '../data/wallet';
 
 interface AppState {
+  // Auth / onboarding
+  isOnboarded: boolean;
+  setIsOnboarded: (v: boolean) => void;
+  logout: () => void;
+
+  // Destination
+  destination: string;
+  setDestination: (s: string) => void;
+
   // Vibe & itinerary
   vibe: Vibe;
   setVibe: (v: Vibe) => void;
   budget: number;
   setBudget: (b: number) => void;
-  surpriseMode: boolean;
-  setSurpriseMode: (v: boolean) => void;
   itinerary: Place[];
   setItinerary: (p: Place[]) => void;
   buildItinerary: () => Place[];
@@ -27,7 +34,7 @@ interface AppState {
   createTrip: (data: Omit<Trip, 'id' | 'transactions' | 'createdAt'>) => string;
   deleteTrip: (id: string) => void;
 
-  // Active trip proxies (for backward compat)
+  // Active trip proxies
   transactions: Transaction[];
   addTransaction: (t: Omit<Transaction, 'id' | 'date'> & { date?: string }) => void;
   budgetTotal: number;
@@ -65,19 +72,17 @@ interface AppState {
 const Ctx = createContext<AppState | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  const [isOnboarded, setIsOnboarded] = useState(false);
+  const [destination, setDestination] = useState('Ubud, Bali');
   const [vibe, setVibe] = useState<Vibe>('zen');
-  const [budget, setBudget] = useState<number>(500_000);
-  const [surpriseMode, setSurpriseMode] = useState(false);
-  const [itinerary, setItinerary] = useState<Place[]>([
-    PLACES[0], PLACES[1], PLACES[2], PLACES[3],
-  ]);
+  const [budget, setBudget] = useState<number>(300_000);
+  const [itinerary, setItinerary] = useState<Place[]>([]);
   const [isNavigating, setIsNavigating] = useState(false);
   const [navIndex, setNavIndex] = useState(0);
   const [visited, setVisited] = useState<Set<string>>(new Set());
   const [savedPlaces, setSavedPlaces] = useState<Place[]>([]);
   const [journeyStart, setJourneyStart] = useState({ date: 'today', time: '09:00', days: 1 });
 
-  // Multi-trip state
   const [trips, setTrips] = useState<Trip[]>([DEFAULT_TRIP]);
   const [activeTripId, setActiveTripId] = useState<string>(DEFAULT_TRIP.id);
 
@@ -100,12 +105,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return activeTrip.daysRemaining > 0 ? Math.max(0, remaining / activeTrip.daysRemaining) : 0;
   }, [activeTrip.budget, totalSpent, activeTrip.daysRemaining]);
 
+  const logout = () => {
+    setIsOnboarded(false);
+    setItinerary([]);
+    setVisited(new Set());
+    setSavedPlaces([]);
+    setIsNavigating(false);
+    setNavIndex(0);
+    setVibe('zen');
+    setBudget(300_000);
+    setDestination('Ubud, Bali');
+    setJourneyStart({ date: 'today', time: '09:00', days: 1 });
+  };
+
   const value: AppState = {
+    isOnboarded, setIsOnboarded,
+    logout,
+    destination, setDestination,
     vibe, setVibe,
     budget, setBudget,
-    surpriseMode, setSurpriseMode,
     itinerary, setItinerary,
-    buildItinerary: () => pickItinerary(vibe, budget, surpriseMode),
+    buildItinerary: () => pickItinerary(vibe, budget, false),
     reorderStop: (from, to) => {
       setItinerary((cur) => {
         const next = cur.slice();
@@ -119,9 +139,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setItinerary((cur) => cur.map((p) => (p.id === id ? withPlace : p))),
     addStop: (p) =>
       setItinerary((cur) => (cur.find((x) => x.id === p.id) ? cur : [...cur, p])),
-    alternatives: (excludeIds) => PLACES.filter((p) => !excludeIds.includes(p.id)).slice(0, 8),
+    alternatives: (excludeIds) => PLACES.filter((p) => !excludeIds.includes(p.id)).slice(0, 12),
 
-    // Multi-trip
     trips,
     activeTripId,
     setActiveTripId,
@@ -141,7 +160,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     },
 
-    // Active trip proxies
     transactions: activeTrip.transactions,
     addTransaction: (t) => {
       const txn: Transaction = {
