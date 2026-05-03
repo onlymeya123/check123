@@ -187,8 +187,8 @@ export default function HomePage() {
                 {USER.firstName}
                 <motion.span animate={{ rotate: [0, 18, -8, 14, 0] }} transition={{ duration: 1.6, repeat: Infinity, repeatDelay: 2 }}>👋</motion.span>
               </h1>
-              <button className="mt-2 inline-flex items-center gap-1 bg-white/95 text-ink-800 text-xs font-semibold px-2.5 py-1 rounded-full press">
-                📍 {USER.current} <span className="text-ink-400">▾</span>
+              <button className="mt-2 inline-flex items-center gap-1 text-white/90 text-xs font-semibold press drop-shadow">
+                <MapPin className="w-3 h-3" /> {USER.current} <span className="text-white/60">▾</span>
               </button>
             </div>
             <button className="relative w-12 h-12 rounded-full overflow-hidden ring-2 ring-white press">

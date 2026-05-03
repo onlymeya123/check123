@@ -27,7 +27,7 @@ export default function WalletPage() {
   } = useApp();
   const { show } = useToast();
 
-  const [sheet, setSheet] = useState<null | 'editBudget' | 'addExpense' | 'scan' | 'history' | 'splitBill' | 'splitBillEntry' | 'newTrip' | 'currencyPicker'>(null);
+  const [sheet, setSheet] = useState<null | 'editBudget' | 'addExpense' | 'scan' | 'history' | 'splitBill' | 'newTrip' | 'currencyPicker'>(null);
   const [confirmDeleteTrip, setConfirmDeleteTrip] = useState<string | null>(null);
 
   const breakdown = useMemo(() => {
@@ -203,7 +203,7 @@ export default function WalletPage() {
       {/* Quick Actions */}
       <div className={`grid gap-2 px-5 mt-4 ${isNavigating ? 'grid-cols-3' : 'grid-cols-4'}`}>
         {!isNavigating && <QuickBtn icon={<Plus />} label="Add Expense" onClick={() => setSheet('addExpense')} />}
-        <QuickBtn icon={<Users />} label="Split Bill" onClick={() => setSheet('splitBillEntry')} highlight />
+        <QuickBtn icon={<Users />} label="Split Bill" onClick={() => setSheet('splitBill')} highlight />
         <QuickBtn icon={<Scan />} label="Scan" onClick={() => setSheet('scan')} />
         <QuickBtn icon={<Clock />} label="History" onClick={() => setSheet('history')} />
       </div>
@@ -284,13 +284,6 @@ export default function WalletPage() {
         <HistorySheet transactions={transactions} currency={currency} />
       </Sheet>
 
-      <Sheet open={sheet === 'splitBillEntry'} title="Split a Bill" onClose={() => setSheet(null)}>
-        <SplitBillEntrySheet
-          onScanReceipt={() => { setSheet(null); setTimeout(() => setSheet('scan'), 80); }}
-          onManual={() => { setSheet(null); setTimeout(() => setSheet('splitBill'), 80); }}
-        />
-      </Sheet>
-
       <Sheet open={sheet === 'newTrip'} title="New Trip" onClose={() => setSheet(null)}>
         <NewTripSheet
           onCreate={(data) => {
@@ -316,9 +309,13 @@ export default function WalletPage() {
         open={sheet === 'splitBill'}
         currency={currency}
         onClose={() => setSheet(null)}
-        onConfirm={(title, myShare) => {
-          addTransaction({ title, category: 'Food & Drinks', amount: -myShare, icon: '👥' });
-          show(`Your share: ${fmt(myShare)} added`, 'success');
+        onConfirm={(title, amount, tag) => {
+          if (amount > 0) {
+            addTransaction({ title, category: 'Food & Drinks', amount: -amount, icon: '👥', tag });
+            show(tag === 'owed to you' ? `Tracked · others owe ${fmt(amount)}` : `Your share of ${fmt(amount)} added`, 'success');
+          } else {
+            show('Bill tracked as group expense', 'info');
+          }
           setSheet(null);
         }}
       />
@@ -697,150 +694,163 @@ function CurrencyPickerSheet({ current, onSelect }: { current: Currency; onSelec
   );
 }
 
-/* -------- Split Bill Entry (3-way) -------- */
-
-function SplitBillEntrySheet({ onScanReceipt, onManual }: { onScanReceipt: () => void; onManual: () => void }) {
-  return (
-    <div className="space-y-3 py-2">
-      <p className="text-sm text-ink-500 mb-4">How do you want to split this bill?</p>
-
-      {/* Scan Receipt — primary */}
-      <button
-        onClick={onScanReceipt}
-        className="w-full flex items-center gap-4 p-4 rounded-2xl bg-brand-500 text-white press shadow-glow"
-      >
-        <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-          <Scan className="w-6 h-6" />
-        </div>
-        <div className="text-left">
-          <div className="font-bold text-base">Scan Receipt</div>
-          <div className="text-sm text-white/75 mt-0.5">Auto-detect items and prices</div>
-        </div>
-        <ChevronRight className="w-5 h-5 ml-auto opacity-70" />
-      </button>
-
-      {/* Upload Photo */}
-      <button
-        onClick={onScanReceipt}
-        className="w-full flex items-center gap-4 p-4 rounded-2xl bg-ink-50 border border-ink-100 press hover:border-brand-200 transition-colors"
-      >
-        <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center shrink-0 border border-ink-100">
-          <Receipt className="w-6 h-6 text-ink-600" />
-        </div>
-        <div className="text-left">
-          <div className="font-bold text-sm text-ink-900">Upload Photo</div>
-          <div className="text-xs text-ink-500 mt-0.5">Pick receipt from gallery</div>
-        </div>
-        <ChevronRight className="w-5 h-5 ml-auto text-ink-400" />
-      </button>
-
-      {/* Add Manually */}
-      <button
-        onClick={onManual}
-        className="w-full flex items-center gap-4 p-4 rounded-2xl bg-ink-50 border border-ink-100 press hover:border-brand-200 transition-colors"
-      >
-        <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center shrink-0 border border-ink-100">
-          <Pencil className="w-6 h-6 text-ink-600" />
-        </div>
-        <div className="text-left">
-          <div className="font-bold text-sm text-ink-900">Add Manually</div>
-          <div className="text-xs text-ink-500 mt-0.5">Type items and prices yourself</div>
-        </div>
-        <ChevronRight className="w-5 h-5 ml-auto text-ink-400" />
-      </button>
-    </div>
-  );
-}
-
 /* ======================================================
-   SPLIT BILL — Full Redesign
+   SPLIT BILL — Complete Rewrite
    ====================================================== */
 
-type BillItem = { id: string; name: string; price: number; sharedBy: string[] };
-type SplitStep = 'items' | 'people' | 'assign' | 'summary';
-type SplitType = 'equal' | 'byItem';
+type SplitStep = 'entry' | 'scanning' | 'edit' | 'people' | 'assign' | 'review';
+type SplitType = 'equal' | 'custom' | 'byItem';
+type BillItem = { id: string; name: string; price: number; assignedTo: string[] };
+type Participant = { id: string; name: string; colorIdx: number };
 
-const STEPS_EQUAL: { id: SplitStep; label: string }[] = [
-  { id: 'items', label: 'Items' },
-  { id: 'people', label: 'People' },
-  { id: 'summary', label: 'Summary' },
-];
-
-const STEPS_BYITEM: { id: SplitStep; label: string }[] = [
-  { id: 'items', label: 'Items' },
-  { id: 'people', label: 'People' },
-  { id: 'assign', label: 'Assign' },
-  { id: 'summary', label: 'Summary' },
+const ME_ID = 'me';
+const AVATAR_PALETTE = ['#3B5BFF', '#10B981', '#F59E0B', '#A855F7', '#EF4444', '#EC4899'];
+const SCAN_MOCK_ITEMS: BillItem[] = [
+  { id: 'i1', name: 'Nasi Goreng Spesial', price: 45_000, assignedTo: [] },
+  { id: 'i2', name: 'Es Kelapa Muda', price: 25_000, assignedTo: [] },
+  { id: 'i3', name: 'Sate Lilit (4 pcs)', price: 35_000, assignedTo: [] },
+  { id: 'i4', name: 'Ayam Bakar', price: 55_000, assignedTo: [] },
 ];
 
 function SplitBillSheet({ open, currency, onClose, onConfirm }: {
   open: boolean;
   currency: Currency;
   onClose: () => void;
-  onConfirm: (title: string, myShare: number) => void;
+  onConfirm: (title: string, amount: number, tag: 'you owe' | 'owed to you') => void;
 }) {
-  const [step, setStep] = useState<SplitStep>('items');
-  const [splitType, setSplitType] = useState<SplitType>('equal');
-  const [billName, setBillName] = useState('Dinner at Hujan Locale');
-  const [items, setItems] = useState<BillItem[]>([
-    { id: 'i1', name: 'Nasi Goreng Hujan', price: 85000, sharedBy: [] },
-    { id: 'i2', name: 'Es Teh Manis', price: 20000, sharedBy: [] },
-    { id: 'i3', name: 'Sate Lilit', price: 65000, sharedBy: [] },
-  ]);
-  const [people, setPeople] = useState<string[]>(['Aria', 'Made', 'Sari']);
+  const [step, setStep] = useState<SplitStep>('entry');
+  const [billName, setBillName] = useState('');
+  const [items, setItems] = useState<BillItem[]>([]);
   const [tax, setTax] = useState(10);
   const [service, setService] = useState(5);
+  const [participants, setParticipants] = useState<Participant[]>([{ id: ME_ID, name: 'You', colorIdx: 0 }]);
+  const [splitType, setSplitType] = useState<SplitType>('equal');
+  const [customAmounts, setCustomAmounts] = useState<Record<string, number>>({});
+  const [paidById, setPaidById] = useState<string>(ME_ID);
   const [newItemName, setNewItemName] = useState('');
   const [newItemPrice, setNewItemPrice] = useState('');
-  const [newPerson, setNewPerson] = useState('');
-  const [payer, setPayer] = useState<string>('');
-  const [shared, setShared] = useState(false);
+  const [newPersonName, setNewPersonName] = useState('');
+
+  useEffect(() => {
+    if (open) {
+      setStep('entry');
+      setBillName('');
+      setItems([]);
+      setTax(10);
+      setService(5);
+      setParticipants([{ id: ME_ID, name: 'You', colorIdx: 0 }]);
+      setSplitType('equal');
+      setCustomAmounts({});
+      setPaidById(ME_ID);
+      setNewItemName('');
+      setNewItemPrice('');
+      setNewPersonName('');
+    }
+  }, [open]);
 
   const fmt = (n: number) => formatCurrencyAmount(n, currency);
-
   const subtotal = items.reduce((s, i) => s + i.price, 0);
-  const taxAmt = Math.round(subtotal * (tax / 100));
-  const serviceAmt = Math.round(subtotal * (service / 100));
+  const taxAmt = Math.round(subtotal * tax / 100);
+  const serviceAmt = Math.round(subtotal * service / 100);
   const grandTotal = subtotal + taxAmt + serviceAmt;
-
-  const perPersonBreakdown = useMemo(() => {
-    return people.map((person) => {
-      const myItems = items.filter((item) => item.sharedBy.includes(person));
-      const itemSubtotal = myItems.reduce((s, item) => {
-        return s + item.price / Math.max(1, item.sharedBy.length);
-      }, 0);
-      const proportion = subtotal > 0 ? itemSubtotal / subtotal : 1 / Math.max(1, people.length);
-      const myTax = Math.round(taxAmt * proportion);
-      const myService = Math.round(serviceAmt * proportion);
-      const total = Math.round(itemSubtotal + myTax + myService);
-      return { person, myTax, myService, total, items: myItems };
-    });
-  }, [items, people, taxAmt, serviceAmt, subtotal]);
-
-  const unassignedItems = items.filter((i) => i.sharedBy.length === 0);
 
   const addItem = () => {
     if (!newItemName.trim() || !newItemPrice) return;
-    setItems((prev) => [...prev, { id: `i${Date.now()}`, name: newItemName, price: Number(newItemPrice), sharedBy: [] }]);
+    setItems(prev => [...prev, { id: `i${Date.now()}`, name: newItemName.trim(), price: Number(newItemPrice), assignedTo: [] }]);
     setNewItemName('');
     setNewItemPrice('');
   };
 
-  const toggleAssign = (itemId: string, person: string) => {
-    setItems((prev) => prev.map((i) => i.id === itemId
-      ? { ...i, sharedBy: i.sharedBy.includes(person) ? i.sharedBy.filter((p) => p !== person) : [...i.sharedBy, person] }
+  const toggleAssign = (itemId: string, personId: string) => {
+    setItems(prev => prev.map(i => i.id === itemId
+      ? { ...i, assignedTo: i.assignedTo.includes(personId) ? i.assignedTo.filter(p => p !== personId) : [...i.assignedTo, personId] }
       : i
     ));
   };
 
-  const handleConfirm = () => {
-    const myPerson = people[0] ?? 'Me';
-    const me = perPersonBreakdown.find((p) => p.person === myPerson);
-    onConfirm(billName, me?.total ?? Math.round(grandTotal / Math.max(1, people.length)));
+  const addParticipant = () => {
+    if (!newPersonName.trim()) return;
+    setParticipants(prev => [...prev, { id: `p${Date.now()}`, name: newPersonName.trim(), colorIdx: prev.length % AVATAR_PALETTE.length }]);
+    setNewPersonName('');
   };
 
-  const STEPS = splitType === 'equal' ? STEPS_EQUAL : STEPS_BYITEM;
-  const stepIdx = STEPS.findIndex((s) => s.id === step);
+  const perPersonShares = useMemo(() => {
+    const n = participants.length;
+    if (n === 0) return [];
+    if (splitType === 'equal') {
+      const share = Math.round(grandTotal / n);
+      return participants.map(p => ({ participant: p, amount: share }));
+    }
+    if (splitType === 'custom') {
+      return participants.map(p => ({ participant: p, amount: customAmounts[p.id] ?? 0 }));
+    }
+    return participants.map(p => {
+      let itemTotal = 0;
+      items.forEach(item => {
+        if (item.assignedTo.length === 0) {
+          itemTotal += item.price / n;
+        } else if (item.assignedTo.includes(p.id)) {
+          itemTotal += item.price / item.assignedTo.length;
+        }
+      });
+      const proportion = subtotal > 0 ? itemTotal / subtotal : 1 / n;
+      return { participant: p, amount: Math.round(itemTotal + taxAmt * proportion + serviceAmt * proportion) };
+    });
+  }, [participants, splitType, grandTotal, customAmounts, items, subtotal, taxAmt, serviceAmt]);
+
+  const customTotal = Object.values(customAmounts).reduce((s, v) => s + (v || 0), 0);
+  const customDiff = grandTotal - customTotal;
+  const meIsParticipant = participants.some(p => p.id === ME_ID);
+  const payerParticipant = participants.find(p => p.id === paidById);
+
+  const handleConfirm = () => {
+    if (!meIsParticipant) {
+      onConfirm(billName || 'Group Bill', 0, 'you owe');
+      return;
+    }
+    const myShare = perPersonShares.find(s => s.participant.id === ME_ID)?.amount ?? 0;
+    if (paidById === ME_ID) {
+      onConfirm(billName || 'Group Bill', grandTotal - myShare, 'owed to you');
+    } else {
+      onConfirm(billName || 'Group Bill', myShare, 'you owe');
+    }
+  };
+
+  const startScan = (name: string) => {
+    setBillName(name);
+    setStep('scanning');
+    setTimeout(() => {
+      setItems(SCAN_MOCK_ITEMS.map(i => ({ ...i, assignedTo: [] })));
+      setStep('edit');
+    }, 2200);
+  };
+
+  const STEP_LABELS: { id: SplitStep; label: string }[] = [
+    { id: 'edit', label: 'Items' },
+    { id: 'people', label: 'People' },
+    ...(splitType === 'byItem' ? [{ id: 'assign' as SplitStep, label: 'Assign' }] : []),
+    { id: 'review', label: 'Review' },
+  ];
+
+  const showStepBar = !['entry', 'scanning'].includes(step);
+  const stepIdx = STEP_LABELS.findIndex(s => s.id === step);
+
+  const goBack = () => {
+    const map: Partial<Record<SplitStep, SplitStep>> = {
+      scanning: 'entry', edit: 'entry', people: 'edit',
+      assign: 'people', review: splitType === 'byItem' ? 'assign' : 'people',
+    };
+    const next = map[step];
+    if (next) setStep(next);
+  };
+
+  const goNext = () => {
+    const map: Partial<Record<SplitStep, SplitStep>> = {
+      edit: 'people', people: splitType === 'byItem' ? 'assign' : 'review', assign: 'review',
+    };
+    const next = map[step];
+    if (next) setStep(next);
+  };
 
   return (
     <AnimatePresence>
@@ -854,64 +864,124 @@ function SplitBillSheet({ open, currency, onClose, onConfirm }: {
             style={{ maxHeight: '92%' }}
           >
             <div className="w-12 h-1.5 bg-ink-100 rounded-full mx-auto mt-3 shrink-0" />
+
+            {/* Header */}
             <div className="px-5 pt-3 pb-2 flex items-center justify-between shrink-0">
-              <div>
-                <div className="font-bold text-ink-900 font-display">Split Bill</div>
-                <div className="text-xs text-ink-500 mt-0.5 truncate max-w-[200px]">{billName}</div>
+              <div className="flex items-center gap-2">
+                {step !== 'entry' && (
+                  <button onClick={goBack} className="w-8 h-8 rounded-full bg-ink-50 flex items-center justify-center press shrink-0">
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                )}
+                <div>
+                  <div className="font-bold text-ink-900 font-display">Split Bill</div>
+                  {billName && <div className="text-xs text-ink-500 truncate max-w-[180px]">{billName}</div>}
+                </div>
               </div>
               <button onClick={onClose} className="w-8 h-8 rounded-full bg-ink-50 flex items-center justify-center press shrink-0">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="px-5 pb-3 shrink-0">
-              <div className="flex items-center gap-1">
-                {STEPS.map((s, i) => {
-                  const done = i < stepIdx;
-                  const active = s.id === step;
-                  return (
-                    <button key={s.id} onClick={() => (done || active) && setStep(s.id)} className="flex-1 flex flex-col items-center gap-1">
-                      <div className={`w-full h-1 rounded-full transition-colors ${done ? 'bg-brand-500' : active ? 'bg-brand-300' : 'bg-ink-100'}`} />
-                      <span className={`text-[10px] font-semibold ${active ? 'text-brand-600' : done ? 'text-brand-400' : 'text-ink-400'}`}>{s.label}</span>
-                    </button>
-                  );
-                })}
+            {/* Step bar */}
+            {showStepBar && (
+              <div className="px-5 pb-3 shrink-0">
+                <div className="flex items-center gap-1">
+                  {STEP_LABELS.map((s, i) => {
+                    const done = i < stepIdx;
+                    const active = s.id === step;
+                    return (
+                      <div key={s.id} className="flex-1 flex flex-col items-center gap-1">
+                        <div className={`w-full h-1 rounded-full transition-colors ${done ? 'bg-brand-500' : active ? 'bg-brand-300' : 'bg-ink-100'}`} />
+                        <span className={`text-[10px] font-semibold ${active ? 'text-brand-600' : done ? 'text-brand-400' : 'text-ink-400'}`}>{s.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
 
-            <div className="flex-1 overflow-y-auto no-scrollbar px-5 pb-4">
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto no-scrollbar px-5 pb-6">
               <AnimatePresence mode="wait">
-                {step === 'items' && (
-                  <motion.div key="items" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-3">
+
+                {/* ENTRY */}
+                {step === 'entry' && (
+                  <motion.div key="entry" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} className="space-y-3 py-2">
+                    <p className="text-sm text-ink-500 mb-2">How do you want to enter the bill?</p>
+                    <button onClick={() => startScan('Warung Nasi Campur Bali')} className="w-full flex items-center gap-4 p-4 rounded-2xl bg-brand-500 text-white press shadow-glow">
+                      <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                        <Scan className="w-6 h-6" />
+                      </div>
+                      <div className="text-left flex-1">
+                        <div className="font-bold text-base">Scan Receipt</div>
+                        <div className="text-sm text-white/75 mt-0.5">Auto-detect items and prices</div>
+                      </div>
+                      <ChevronRight className="w-5 h-5 opacity-70" />
+                    </button>
+                    <button onClick={() => startScan('Restaurant Receipt')} className="w-full flex items-center gap-4 p-4 rounded-2xl bg-ink-50 border border-ink-100 press">
+                      <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center shrink-0 border border-ink-100">
+                        <Receipt className="w-6 h-6 text-ink-600" />
+                      </div>
+                      <div className="text-left flex-1">
+                        <div className="font-bold text-sm text-ink-900">Upload Photo</div>
+                        <div className="text-xs text-ink-500 mt-0.5">Pick receipt from gallery</div>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-ink-400" />
+                    </button>
+                    <button onClick={() => { setBillName(''); setItems([]); setStep('edit'); }} className="w-full flex items-center gap-4 p-4 rounded-2xl bg-ink-50 border border-ink-100 press">
+                      <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center shrink-0 border border-ink-100">
+                        <Pencil className="w-6 h-6 text-ink-600" />
+                      </div>
+                      <div className="text-left flex-1">
+                        <div className="font-bold text-sm text-ink-900">Add Manually</div>
+                        <div className="text-xs text-ink-500 mt-0.5">Type items and prices yourself</div>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-ink-400" />
+                    </button>
+                  </motion.div>
+                )}
+
+                {/* SCANNING */}
+                {step === 'scanning' && (
+                  <motion.div key="scanning" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="py-6 flex flex-col items-center gap-4">
+                    <div className="relative w-full h-48 bg-ink-900 rounded-2xl overflow-hidden flex items-center justify-center">
+                      <Receipt className="w-14 h-14 text-white/20" />
+                      <div className="absolute left-4 right-4 h-0.5 bg-brand-500 shadow-glow animate-scanLine" />
+                      <div className="absolute inset-3 rounded-2xl border-2 border-white/30 border-dashed" />
+                      <div className="absolute bottom-3 left-0 right-0 text-center text-white/80 text-xs">Scanning receipt…</div>
+                    </div>
+                    <div className="space-y-2 w-full">
+                      <div className="h-3 rounded shimmer w-2/3" />
+                      <div className="h-3 rounded shimmer w-1/2" />
+                      <div className="h-3 rounded shimmer w-3/4" />
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* EDIT */}
+                {step === 'edit' && (
+                  <motion.div key="edit" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-3">
                     <div className="bg-ink-50 rounded-2xl px-4 py-3">
-                      <div className="text-xs text-ink-500 mb-1">Bill Name</div>
-                      <input value={billName} onChange={(e) => setBillName(e.target.value)} className="w-full bg-transparent text-sm font-bold text-ink-900 outline-none" placeholder="e.g. Dinner at XYZ" />
+                      <div className="text-xs text-ink-500 mb-1">Bill Title</div>
+                      <input value={billName} onChange={e => setBillName(e.target.value)} className="w-full bg-transparent text-sm font-bold text-ink-900 outline-none" placeholder="e.g. Dinner at Hujan Locale" />
                     </div>
                     <div className="space-y-2">
-                      {items.map((item) => (
+                      {items.map(item => (
                         <div key={item.id} className="flex items-center gap-2 bg-white border border-ink-100 rounded-2xl px-3 py-2.5">
                           <div className="flex-1 min-w-0">
-                            <input
-                              value={item.name}
-                              onChange={(e) => setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, name: e.target.value } : i))}
-                              className="w-full bg-transparent text-sm font-semibold text-ink-900 outline-none truncate"
-                            />
+                            <input value={item.name} onChange={e => setItems(prev => prev.map(i => i.id === item.id ? { ...i, name: e.target.value } : i))} className="w-full bg-transparent text-sm font-semibold text-ink-900 outline-none truncate" />
                           </div>
-                          <input
-                            type="number"
-                            value={item.price}
-                            onChange={(e) => setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, price: Math.max(0, Number(e.target.value)) } : i))}
-                            className="w-24 bg-ink-50 rounded-xl px-2 py-1 text-sm font-bold text-brand-600 text-right outline-none"
-                          />
-                          <button onClick={() => setItems((prev) => prev.filter((i) => i.id !== item.id))} className="w-7 h-7 rounded-full hover:bg-red-50 flex items-center justify-center press shrink-0">
+                          <input type="number" value={item.price} onChange={e => setItems(prev => prev.map(i => i.id === item.id ? { ...i, price: Math.max(0, Number(e.target.value)) } : i))} className="w-24 bg-ink-50 rounded-xl px-2 py-1 text-sm font-bold text-brand-600 text-right outline-none" />
+                          <button onClick={() => setItems(prev => prev.filter(i => i.id !== item.id))} className="w-7 h-7 rounded-full hover:bg-red-50 flex items-center justify-center press shrink-0">
                             <Trash2 className="w-3.5 h-3.5 text-red-400" />
                           </button>
                         </div>
                       ))}
                     </div>
                     <div className="flex gap-2">
-                      <input value={newItemName} onChange={(e) => setNewItemName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addItem()} placeholder="Item name" className="flex-1 bg-ink-50 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-300" />
-                      <input type="number" value={newItemPrice} onChange={(e) => setNewItemPrice(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addItem()} placeholder="Price" className="w-24 bg-ink-50 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-300" />
+                      <input value={newItemName} onChange={e => setNewItemName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addItem()} placeholder="Item name" className="flex-1 bg-ink-50 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-300" />
+                      <input type="number" value={newItemPrice} onChange={e => setNewItemPrice(e.target.value)} onKeyDown={e => e.key === 'Enter' && addItem()} placeholder="Price" className="w-24 bg-ink-50 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-300" />
                       <button onClick={addItem} disabled={!newItemName.trim() || !newItemPrice} className="w-10 h-10 rounded-xl bg-brand-500 disabled:bg-ink-200 text-white flex items-center justify-center press shrink-0">
                         <Plus className="w-4 h-4" />
                       </button>
@@ -924,7 +994,7 @@ function SplitBillSheet({ open, currency, onClose, onConfirm }: {
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-ink-600">Tax</span>
                         <div className="flex items-center gap-2">
-                          <input type="number" value={tax} onChange={(e) => setTax(Math.max(0, Number(e.target.value)))} className="w-12 text-center bg-white rounded-lg px-2 py-1 text-sm font-bold outline-none border border-ink-100" />
+                          <input type="number" value={tax} onChange={e => setTax(Math.max(0, Number(e.target.value)))} className="w-12 text-center bg-white rounded-lg px-2 py-1 text-sm font-bold outline-none border border-ink-100" />
                           <span className="text-xs text-ink-500">%</span>
                           <span className="text-sm font-semibold text-ink-700 w-20 text-right">{fmt(taxAmt)}</span>
                         </div>
@@ -932,7 +1002,7 @@ function SplitBillSheet({ open, currency, onClose, onConfirm }: {
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-ink-600">Service</span>
                         <div className="flex items-center gap-2">
-                          <input type="number" value={service} onChange={(e) => setService(Math.max(0, Number(e.target.value)))} className="w-12 text-center bg-white rounded-lg px-2 py-1 text-sm font-bold outline-none border border-ink-100" />
+                          <input type="number" value={service} onChange={e => setService(Math.max(0, Number(e.target.value)))} className="w-12 text-center bg-white rounded-lg px-2 py-1 text-sm font-bold outline-none border border-ink-100" />
                           <span className="text-xs text-ink-500">%</span>
                           <span className="text-sm font-semibold text-ink-700 w-20 text-right">{fmt(serviceAmt)}</span>
                         </div>
@@ -942,198 +1012,211 @@ function SplitBillSheet({ open, currency, onClose, onConfirm }: {
                         <span className="font-extrabold text-brand-600 text-lg">{fmt(grandTotal)}</span>
                       </div>
                     </div>
+                    <button onClick={goNext} disabled={items.length === 0} className="w-full h-12 rounded-2xl bg-brand-500 disabled:bg-ink-200 text-white font-bold press shadow-glow flex items-center justify-center gap-1">
+                      Next: Who's splitting? <ChevronRight className="w-4 h-4" />
+                    </button>
                   </motion.div>
                 )}
 
+                {/* PEOPLE */}
                 {step === 'people' && (
-                  <motion.div key="people" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-3">
-                    <div className="text-sm text-ink-500">Who's splitting this bill?</div>
-                    {/* Split type */}
-                    <div className="grid grid-cols-2 gap-2">
-                      {([['equal', '⚖️', 'Equal Split', 'Divide total evenly'], ['byItem', '🍽️', 'By Item', 'Assign each item']] as const).map(([type, icon, label, sub]) => (
-                        <button
-                          key={type}
-                          onClick={() => setSplitType(type)}
-                          className={`flex flex-col items-center gap-1 p-3 rounded-2xl border-2 press transition-colors ${splitType === type ? 'border-brand-500 bg-brand-50' : 'border-ink-100 bg-white'}`}
-                        >
-                          <span className="text-xl">{icon}</span>
-                          <span className={`text-xs font-bold ${splitType === type ? 'text-brand-700' : 'text-ink-800'}`}>{label}</span>
-                          <span className="text-[10px] text-ink-500">{sub}</span>
+                  <motion.div key="people" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
+                    <div>
+                      <div className="text-xs font-bold text-ink-500 mb-2">SPLIT TYPE</div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {([
+                          ['equal', '⚖️', 'Equal', '÷ evenly'] as const,
+                          ['custom', '✏️', 'Custom', 'per person'] as const,
+                          ['byItem', '🍽️', 'By Item', 'assign each'] as const,
+                        ]).map(([type, icon, label, sub]) => (
+                          <button key={type} onClick={() => setSplitType(type)} className={`flex flex-col items-center gap-1 p-3 rounded-2xl border-2 press transition-colors ${splitType === type ? 'border-brand-500 bg-brand-50' : 'border-ink-100 bg-white'}`}>
+                            <span className="text-xl">{icon}</span>
+                            <span className={`text-xs font-bold ${splitType === type ? 'text-brand-700' : 'text-ink-800'}`}>{label}</span>
+                            <span className="text-[10px] text-ink-500">{sub}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-ink-500 mb-2">PARTICIPANTS ({participants.length})</div>
+                      <div className="space-y-2">
+                        {participants.map(p => (
+                          <div key={p.id} className="flex items-center gap-3 bg-white border border-ink-100 rounded-2xl px-4 py-3">
+                            <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: AVATAR_PALETTE[p.colorIdx] }}>
+                              {p.name[0].toUpperCase()}
+                            </div>
+                            <span className="flex-1 font-semibold text-ink-900">{p.id === ME_ID ? `${p.name} (you)` : p.name}</span>
+                            {p.id !== ME_ID && (
+                              <button onClick={() => setParticipants(prev => prev.filter(pp => pp.id !== p.id))} className="w-7 h-7 rounded-full hover:bg-red-50 flex items-center justify-center press">
+                                <X className="w-3.5 h-3.5 text-red-400" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex gap-2 mt-2">
+                        <input value={newPersonName} onChange={e => setNewPersonName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addParticipant(); }} placeholder="Add person's name" className="flex-1 bg-ink-50 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-300" />
+                        <button onClick={addParticipant} disabled={!newPersonName.trim()} className="w-10 h-10 rounded-xl bg-brand-500 disabled:bg-ink-200 text-white flex items-center justify-center press shrink-0">
+                          <Plus className="w-4 h-4" />
                         </button>
-                      ))}
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      {people.map((person, idx) => (
-                        <div key={person} className="flex items-center gap-3 bg-white border border-ink-100 rounded-2xl px-4 py-3">
-                          <div className="w-9 h-9 rounded-full bg-brand-50 flex items-center justify-center text-sm font-bold text-brand-600">{person[0]}</div>
-                          <span className="flex-1 font-semibold text-ink-900">{idx === 0 ? `${person} (you)` : person}</span>
-                          {idx > 0 && (
-                            <button onClick={() => setPeople((prev) => prev.filter((p) => p !== person))} className="w-7 h-7 rounded-full hover:bg-red-50 flex items-center justify-center press">
-                              <X className="w-3.5 h-3.5 text-red-400" />
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex gap-2">
-                      <input
-                        value={newPerson}
-                        onChange={(e) => setNewPerson(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' && newPerson.trim()) { setPeople((p) => [...p, newPerson.trim()]); setNewPerson(''); } }}
-                        placeholder="Add person's name"
-                        className="flex-1 bg-ink-50 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-300"
-                      />
-                      <button onClick={() => { if (newPerson.trim()) { setPeople((p) => [...p, newPerson.trim()]); setNewPerson(''); } }} className="w-10 h-10 rounded-xl bg-brand-500 text-white flex items-center justify-center press shrink-0">
-                        <Plus className="w-4 h-4" />
-                      </button>
-                    </div>
-                    <div className="bg-brand-50 rounded-xl p-3 text-sm text-brand-700 font-medium">
-                      {people.length} people splitting {fmt(grandTotal)} · avg {fmt(Math.round(grandTotal / Math.max(1, people.length)))} / person
-                    </div>
-                  </motion.div>
-                )}
-
-                {step === 'assign' && (
-                  <motion.div key="assign" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-3">
-                    <div className="text-sm text-ink-500">Tap to mark who ordered each item.</div>
-                    {unassignedItems.length > 0 && (
-                      <div className="bg-amber-50 rounded-xl px-3 py-2 text-xs text-amber-700 font-medium">
-                        ⚠️ {unassignedItems.length} item(s) unassigned — they'll be split evenly
+                    {participants.length < 2 && (
+                      <div className="bg-amber-50 rounded-xl px-3 py-2 text-xs text-amber-700 font-medium">Add at least 1 more person to split</div>
+                    )}
+                    {participants.length >= 2 && (
+                      <div className="bg-brand-50 rounded-xl p-3 text-sm text-brand-700 font-medium">
+                        {participants.length} people · {fmt(grandTotal)} total · avg {fmt(Math.round(grandTotal / participants.length))} each
                       </div>
                     )}
-                    {items.map((item) => (
+                    <button onClick={goNext} disabled={participants.length < 2} className="w-full h-12 rounded-2xl bg-brand-500 disabled:bg-ink-200 text-white font-bold press shadow-glow flex items-center justify-center gap-1">
+                      {splitType === 'byItem' ? 'Next: Assign Items' : 'Next: Review'} <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </motion.div>
+                )}
+
+                {/* ASSIGN */}
+                {step === 'assign' && (
+                  <motion.div key="assign" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-3">
+                    <div className="text-sm text-ink-500">Tap people to mark who ordered each item.</div>
+                    {items.filter(i => i.assignedTo.length === 0).length > 0 && (
+                      <div className="bg-amber-50 rounded-xl px-3 py-2 text-xs text-amber-700 font-medium">
+                        ⚠️ {items.filter(i => i.assignedTo.length === 0).length} item(s) unassigned — split evenly
+                      </div>
+                    )}
+                    {items.map(item => (
                       <div key={item.id} className="bg-white border border-ink-100 rounded-2xl p-3">
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-semibold text-ink-900 text-sm">{item.name}</span>
                           <span className="text-sm font-bold text-brand-600">{fmt(item.price)}</span>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          {people.map((person) => {
-                            const assigned = item.sharedBy.includes(person);
+                          {participants.map(p => {
+                            const assigned = item.assignedTo.includes(p.id);
                             return (
-                              <button
-                                key={person}
-                                onClick={() => toggleAssign(item.id, person)}
-                                className={`px-2.5 py-1.5 rounded-full text-xs font-semibold press transition-colors ${assigned ? 'bg-brand-500 text-white' : 'bg-ink-50 text-ink-600'}`}
-                              >
-                                {assigned && <Check className="w-3 h-3 inline mr-1" />}{person}
-                                {assigned && item.sharedBy.length > 1 && ` (${fmt(Math.round(item.price / item.sharedBy.length))})`}
+                              <button key={p.id} onClick={() => toggleAssign(item.id, p.id)} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-semibold press transition-colors ${assigned ? 'text-white' : 'bg-ink-50 text-ink-600'}`} style={assigned ? { background: AVATAR_PALETTE[p.colorIdx] } : {}}>
+                                {assigned && <Check className="w-3 h-3" />}
+                                {p.id === ME_ID ? 'You' : p.name}
+                                {assigned && item.assignedTo.length > 1 && ` (${fmt(Math.round(item.price / item.assignedTo.length))})`}
                               </button>
                             );
                           })}
                         </div>
                       </div>
                     ))}
+                    <button onClick={goNext} className="w-full h-12 rounded-2xl bg-brand-500 text-white font-bold press shadow-glow flex items-center justify-center gap-1">
+                      Next: Review <ChevronRight className="w-4 h-4" />
+                    </button>
                   </motion.div>
                 )}
 
-                {step === 'summary' && (
-                  <motion.div key="summary" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-3">
+                {/* REVIEW */}
+                {step === 'review' && (
+                  <motion.div key="review" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
                     <div className="bg-brand-50 rounded-2xl p-3 flex items-center justify-between">
-                      <span className="font-bold text-ink-900">{billName}</span>
+                      <span className="font-bold text-ink-900">{billName || 'Group Bill'}</span>
                       <span className="text-brand-600 font-extrabold">{fmt(grandTotal)}</span>
                     </div>
+
+                    {/* Who paid */}
                     <div>
                       <div className="text-xs font-bold text-ink-500 mb-2">WHO PAID?</div>
                       <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-                        {['Nobody yet', ...people].map((p) => (
-                          <button key={p} onClick={() => setPayer(p)} className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold press transition-colors ${payer === p ? 'bg-brand-500 text-white' : 'bg-ink-50 text-ink-700'}`}>
-                            {p}
+                        {participants.map(p => (
+                          <button key={p.id} onClick={() => setPaidById(p.id)} className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold press transition-colors ${paidById === p.id ? 'text-white' : 'bg-ink-50 text-ink-700'}`} style={paidById === p.id ? { background: AVATAR_PALETTE[p.colorIdx] } : {}}>
+                            {p.id === ME_ID ? 'You' : p.name}
                           </button>
                         ))}
                       </div>
                     </div>
 
-                    {splitType === 'equal' ? (
-                      /* Equal split summary */
+                    {/* Custom amounts */}
+                    {splitType === 'custom' && (
                       <div className="space-y-2">
-                        {people.map((person, idx) => {
-                          const share = Math.round(grandTotal / Math.max(1, people.length));
-                          const isMe = idx === 0;
+                        <div className="text-xs font-bold text-ink-500">EACH PERSON'S SHARE</div>
+                        {participants.map(p => (
+                          <div key={p.id} className="flex items-center gap-3 bg-white border border-ink-100 rounded-2xl px-4 py-2.5">
+                            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0" style={{ background: AVATAR_PALETTE[p.colorIdx] }}>
+                              {p.name[0].toUpperCase()}
+                            </div>
+                            <span className="flex-1 text-sm font-semibold text-ink-900">{p.id === ME_ID ? 'You' : p.name}</span>
+                            <input type="number" value={customAmounts[p.id] ?? ''} onChange={e => setCustomAmounts(prev => ({ ...prev, [p.id]: Number(e.target.value) }))} placeholder="0" className="w-28 bg-ink-50 rounded-xl px-3 py-1.5 text-sm font-bold text-brand-600 text-right outline-none" />
+                          </div>
+                        ))}
+                        <div className={`rounded-xl px-3 py-2 text-xs font-semibold flex items-center justify-between ${Math.abs(customDiff) < 1000 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+                          <span>{Math.abs(customDiff) < 1000 ? '✓ Amounts match' : `${customDiff > 0 ? 'Remaining' : 'Over by'}: ${fmt(Math.abs(customDiff))}`}</span>
+                          <span>{fmt(customTotal)} / {fmt(grandTotal)}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Breakdown */}
+                    <div>
+                      <div className="text-xs font-bold text-ink-500 mb-2">BREAKDOWN</div>
+                      <div className="space-y-2">
+                        {perPersonShares.map(({ participant: p, amount }) => {
+                          const isMe = p.id === ME_ID;
+                          const isPayer = p.id === paidById;
                           return (
-                            <div key={person} className={`flex items-center gap-3 rounded-2xl p-3 border ${isMe ? 'border-brand-200 bg-brand-50' : 'border-ink-100 bg-white'}`}>
-                              <div className="w-9 h-9 rounded-full bg-white flex items-center justify-center text-sm font-bold text-brand-600 border border-brand-100 shrink-0">{person[0]}</div>
-                              <div className="flex-1">
-                                <div className="font-semibold text-ink-900 text-sm">{isMe ? `${person} (you)` : person}</div>
-                                {payer && payer !== 'Nobody yet' && payer !== person && (
-                                  <div className="text-[10px] text-red-500 font-semibold mt-0.5">owes {payer} · {fmt(share)}</div>
+                            <div key={p.id} className={`flex items-center gap-3 rounded-2xl p-3 border ${isMe ? 'border-brand-200 bg-brand-50' : 'border-ink-100 bg-white'}`}>
+                              <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: AVATAR_PALETTE[p.colorIdx] }}>
+                                {p.name[0].toUpperCase()}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-semibold text-ink-900 text-sm">{isMe ? 'You' : p.name}</div>
+                                {!isPayer && payerParticipant && (
+                                  <div className="text-[10px] font-semibold mt-0.5 text-red-500">
+                                    owes {payerParticipant.id === ME_ID ? 'You' : payerParticipant.name}: {fmt(amount)}
+                                  </div>
                                 )}
-                                {payer === person && (
-                                  <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">paid · gets back {fmt(grandTotal - share)}</div>
+                                {isPayer && (
+                                  <div className="text-[10px] font-semibold mt-0.5 text-emerald-600">
+                                    paid · owed back {fmt(grandTotal - amount)}
+                                  </div>
                                 )}
                               </div>
-                              <div className="font-extrabold text-ink-900">{fmt(share)}</div>
+                              <div className="font-extrabold text-ink-900">{fmt(amount)}</div>
                             </div>
                           );
                         })}
                       </div>
-                    ) : (
-                      /* By-item split summary */
-                      <div className="space-y-2">
-                        {perPersonBreakdown.map(({ person, myTax, myService, total, items: pItems }, idx) => (
-                          <div key={person} className={`rounded-2xl p-3 border ${idx === 0 ? 'border-brand-200 bg-brand-50' : 'border-ink-100 bg-white'}`}>
-                            <div className="flex items-center justify-between mb-1.5">
-                              <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-xs font-bold text-brand-600 border border-brand-100">{person[0]}</div>
-                                <span className="font-semibold text-ink-900 text-sm">{idx === 0 ? `${person} (you)` : person}</span>
-                              </div>
-                              <div className="text-right">
-                                <div className="font-extrabold text-ink-900">{fmt(total)}</div>
-                                {payer && payer !== 'Nobody yet' && payer !== person && (
-                                  <div className="text-[10px] text-red-500 font-semibold">owes {payer}</div>
-                                )}
-                                {payer === person && <div className="text-[10px] text-emerald-600 font-semibold">paid · gets back {fmt(grandTotal - total)}</div>}
-                              </div>
-                            </div>
-                            {pItems.length > 0 && (
-                              <div className="text-[11px] text-ink-500 pl-10 space-y-0.5">
-                                {pItems.map((i) => (
-                                  <div key={i.id} className="flex justify-between">
-                                    <span className="truncate max-w-[140px]">{i.name}{i.sharedBy.length > 1 ? ` ÷${i.sharedBy.length}` : ''}</span>
-                                    <span>{fmt(Math.round(i.price / i.sharedBy.length))}</span>
-                                  </div>
-                                ))}
-                                {(myTax > 0 || myService > 0) && (
-                                  <div className="flex justify-between text-ink-400">
-                                    <span>Tax + Service</span>
-                                    <span>{fmt(myTax + myService)}</span>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                            {pItems.length === 0 && <div className="text-[11px] text-ink-400 pl-10">Even split (unassigned items)</div>}
-                          </div>
-                        ))}
+                    </div>
+
+                    {/* Wallet info */}
+                    {meIsParticipant && (
+                      <div className={`rounded-xl px-3 py-2.5 text-xs font-semibold flex items-center gap-2 ${paidById === ME_ID ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+                        <span>{paidById === ME_ID ? '🟢' : '🔴'}</span>
+                        <span>
+                          {paidById === ME_ID
+                            ? `Others owe you ${fmt(grandTotal - (perPersonShares.find(s => s.participant.id === ME_ID)?.amount ?? 0))} — tracked in wallet`
+                            : `Your share: ${fmt(perPersonShares.find(s => s.participant.id === ME_ID)?.amount ?? 0)} — tracked in wallet`
+                          }
+                        </span>
                       </div>
                     )}
 
                     <div className="grid grid-cols-2 gap-2 pt-1">
-                      <button onClick={() => setShared(true)} className="h-11 rounded-2xl bg-ink-50 text-ink-800 font-semibold press inline-flex items-center justify-center gap-2">
-                        <Share2 className="w-4 h-4" /> {shared ? 'Copied!' : 'Share'}
+                      <button
+                        onClick={() => {
+                          const lines = perPersonShares.map(({ participant: p, amount }) => `${p.id === ME_ID ? 'You' : p.name}: ${fmt(amount)}`).join('\n');
+                          navigator.clipboard?.writeText(`${billName || 'Group Bill'}\nTotal: ${fmt(grandTotal)}\n\n${lines}`).catch(() => {});
+                        }}
+                        className="h-11 rounded-2xl bg-ink-50 text-ink-800 font-semibold press inline-flex items-center justify-center gap-2"
+                      >
+                        <Share2 className="w-4 h-4" /> Share
                       </button>
-                      <button onClick={handleConfirm} className="h-11 rounded-2xl bg-brand-500 text-white font-bold shadow-glow press inline-flex items-center justify-center gap-2">
+                      <button
+                        onClick={handleConfirm}
+                        disabled={splitType === 'custom' && Math.abs(customDiff) >= 1000}
+                        className="h-11 rounded-2xl bg-brand-500 disabled:bg-ink-200 text-white font-bold shadow-glow press inline-flex items-center justify-center gap-2"
+                      >
                         <Check className="w-4 h-4" /> Confirm
                       </button>
                     </div>
                   </motion.div>
                 )}
-              </AnimatePresence>
-            </div>
 
-            <div className="px-5 pb-6 pt-2 flex gap-2 shrink-0 border-t border-ink-50">
-              {stepIdx > 0 && (
-                <button onClick={() => setStep(STEPS[stepIdx - 1].id)} className="h-11 px-4 rounded-2xl bg-ink-50 text-ink-700 font-semibold press inline-flex items-center gap-1">
-                  <ChevronLeft className="w-4 h-4" /> Back
-                </button>
-              )}
-              {stepIdx < STEPS.length - 1 && (
-                <button
-                  onClick={() => setStep(STEPS[stepIdx + 1].id)}
-                  className="flex-1 h-11 rounded-2xl bg-brand-500 text-white font-bold press inline-flex items-center justify-center gap-1 shadow-glow"
-                >
-                  Next: {STEPS[stepIdx + 1].label} <ChevronRight className="w-4 h-4" />
-                </button>
-              )}
+              </AnimatePresence>
             </div>
           </motion.div>
         </>

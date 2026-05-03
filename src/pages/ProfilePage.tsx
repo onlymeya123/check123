@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Settings, Mail, Phone, MapPin, ChevronRight, Bookmark, Clock, CreditCard, HelpCircle, X, Crown,
-  Compass, Sparkles, TrendingDown, Star, Flame, Target,
+  Compass, Sparkles, TrendingDown, Star, Target,
 } from 'lucide-react';
 import { useState } from 'react';
 import StatusBar from '../components/StatusBar';
@@ -114,22 +114,6 @@ export default function ProfilePage() {
           </div>
           <ChevronRight className="w-4 h-4 text-ink-400 shrink-0" />
         </motion.div>
-      </div>
-
-      {/* This Week highlight */}
-      <div className="px-5 mt-4">
-        <div className="bg-ink-900 rounded-2xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-brand-500 flex items-center justify-center shrink-0">
-            <Flame className="w-5 h-5 text-white" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[10px] text-white/60 font-bold tracking-widest">THIS WEEK</div>
-            <div className="text-white font-bold text-sm leading-snug mt-0.5">
-              {visited.size} places visited · {formatRp(450000)} saved · {savedPlaces.length} places saved
-            </div>
-          </div>
-          <div className="text-2xl">🔥</div>
-        </div>
       </div>
 
       {/* Stats — visual cards */}
