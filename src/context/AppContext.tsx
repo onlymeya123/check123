@@ -1,8 +1,31 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 import { PLACES, pickItinerary, type Place, type Vibe } from '../data/places';
-import { DEFAULT_TRIP, BUDGET_TOTAL, type Transaction, type Trip, type Currency } from '../data/wallet';
+import { DEFAULT_TRIP, BUDGET_TOTAL, type Transaction, type Trip, type Currency, suggestCurrency } from '../data/wallet';
+
+export interface Destination {
+  id: string;
+  name: string;   // e.g. "Paris, France"
+  days: number;
+  currency: Currency;
+  itinerary: Place[];
+}
 
 interface AppState {
+  // Auth
+  isAuthenticated: boolean;
+  authUser: { name: string; email: string } | null;
+  onboardingComplete: boolean;
+  signIn: (name: string, email: string) => void;
+  completeOnboarding: (data: {
+    name: string;
+    email: string;
+    vibe: Vibe;
+    destinations: Array<{ name: string; days: number }>;
+    totalDays: number;
+    budget: number;
+    startDate: string;
+  }) => void;
+
   // Vibe & itinerary
   vibe: Vibe;
   setVibe: (v: Vibe) => void;
@@ -18,6 +41,19 @@ interface AppState {
   replaceStop: (id: string, withPlace: Place) => void;
   addStop: (p: Place) => void;
   alternatives: (excludeIds: string[]) => Place[];
+
+  // Multi-destination
+  destinations: Destination[];
+  setDestinations: (d: Destination[]) => void;
+  activeDestIdx: number;
+  setActiveDestIdx: (i: number) => void;
+  addDestination: (dest: { name: string; days: number }) => void;
+  removeDestination: (id: string) => void;
+  insertDestination: (afterIdx: number, dest: { name: string; days: number }) => void;
+
+  // Trip completion
+  tripCompleted: boolean;
+  completeTrip: () => void;
 
   // Multi-trip wallet
   trips: Trip[];
@@ -65,6 +101,12 @@ interface AppState {
 const Ctx = createContext<AppState | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  // Auth
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authUser, setAuthUser] = useState<{ name: string; email: string } | null>(null);
+  const [onboardingComplete, setOnboardingComplete] = useState(false);
+
+  // Vibe & itinerary
   const [vibe, setVibe] = useState<Vibe>('zen');
   const [budget, setBudget] = useState<number>(500_000);
   const [surpriseMode, setSurpriseMode] = useState(false);
@@ -76,6 +118,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [visited, setVisited] = useState<Set<string>>(new Set());
   const [savedPlaces, setSavedPlaces] = useState<Place[]>([]);
   const [journeyStart, setJourneyStart] = useState({ date: 'today', time: '09:00', days: 1 });
+
+  // Multi-destination
+  const [destinations, setDestinations] = useState<Destination[]>([]);
+  const [activeDestIdx, setActiveDestIdx] = useState(0);
+
+  // Trip completion
+  const [tripCompleted, setTripCompleted] = useState(false);
 
   // Multi-trip state
   const [trips, setTrips] = useState<Trip[]>([DEFAULT_TRIP]);
@@ -100,7 +149,78 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return activeTrip.daysRemaining > 0 ? Math.max(0, remaining / activeTrip.daysRemaining) : 0;
   }, [activeTrip.budget, totalSpent, activeTrip.daysRemaining]);
 
+  const createTripFn = (data: Omit<Trip, 'id' | 'transactions' | 'createdAt'>): string => {
+    const id = `trip-${Math.random().toString(36).slice(2, 9)}`;
+    const newTrip: Trip = { ...data, id, transactions: [], createdAt: new Date().toISOString() };
+    setTrips((prev) => [...prev, newTrip]);
+    setActiveTripId(id);
+    return id;
+  };
+
+  const completeOnboarding = (data: {
+    name: string;
+    email: string;
+    vibe: Vibe;
+    destinations: Array<{ name: string; days: number }>;
+    totalDays: number;
+    budget: number;
+    startDate: string;
+  }) => {
+    setAuthUser({ name: data.name, email: data.email });
+    setIsAuthenticated(true);
+    setVibe(data.vibe);
+    setBudget(data.budget);
+
+    const newDests: Destination[] = data.destinations.map((d, i) => ({
+      id: `dest-${i}-${Date.now()}`,
+      name: d.name,
+      days: d.days,
+      currency: suggestCurrency(d.name),
+      itinerary: [],
+    }));
+    setDestinations(newDests);
+    setActiveDestIdx(0);
+
+    // Clear itinerary — user will generate it from Home
+    setItinerary([]);
+
+    setJourneyStart({ date: data.startDate, time: '09:00', days: data.totalDays });
+
+    // Create wallet trip
+    const tripName = data.destinations.length === 1
+      ? `${data.destinations[0].name} Trip`
+      : `${data.destinations[0]?.name} + ${data.destinations.length - 1} more`;
+    const tripDest = data.destinations.map((d) => d.name).join(' → ');
+    const id = `trip-${Math.random().toString(36).slice(2, 9)}`;
+    const newTrip: Trip = {
+      id,
+      name: tripName,
+      destination: tripDest,
+      currency: newDests[0]?.currency ?? 'IDR',
+      budget: data.budget * data.totalDays,
+      daysTotal: data.totalDays,
+      daysRemaining: data.totalDays,
+      transactions: [],
+      createdAt: new Date().toISOString(),
+    };
+    setTrips((prev) => [...prev, newTrip]);
+    setActiveTripId(id);
+
+    setOnboardingComplete(true);
+  };
+
   const value: AppState = {
+    // Auth
+    isAuthenticated,
+    authUser,
+    onboardingComplete,
+    signIn: (name, email) => {
+      setAuthUser({ name, email });
+      setIsAuthenticated(true);
+      setOnboardingComplete(true);
+    },
+    completeOnboarding,
+
     vibe, setVibe,
     budget, setBudget,
     surpriseMode, setSurpriseMode,
@@ -121,18 +241,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setItinerary((cur) => (cur.find((x) => x.id === p.id) ? cur : [...cur, p])),
     alternatives: (excludeIds) => PLACES.filter((p) => !excludeIds.includes(p.id)).slice(0, 8),
 
+    // Multi-destination
+    destinations,
+    setDestinations,
+    activeDestIdx,
+    setActiveDestIdx,
+    addDestination: (dest) => {
+      const newDest: Destination = {
+        id: `dest-${Date.now()}`,
+        name: dest.name,
+        days: dest.days,
+        currency: suggestCurrency(dest.name),
+        itinerary: [],
+      };
+      setDestinations((prev) => [...prev, newDest]);
+    },
+    removeDestination: (id) => {
+      setDestinations((prev) => prev.filter((d) => d.id !== id));
+      setActiveDestIdx(0);
+    },
+    insertDestination: (afterIdx, dest) => {
+      const newDest: Destination = {
+        id: `dest-${Date.now()}`,
+        name: dest.name,
+        days: dest.days,
+        currency: suggestCurrency(dest.name),
+        itinerary: [],
+      };
+      setDestinations((prev) => {
+        const next = prev.slice();
+        next.splice(afterIdx + 1, 0, newDest);
+        return next;
+      });
+    },
+
+    // Trip completion
+    tripCompleted,
+    completeTrip: () => setTripCompleted(true),
+
     // Multi-trip
     trips,
     activeTripId,
     setActiveTripId,
     activeTrip,
-    createTrip: (data) => {
-      const id = `trip-${Math.random().toString(36).slice(2, 9)}`;
-      const newTrip: Trip = { ...data, id, transactions: [], createdAt: new Date().toISOString() };
-      setTrips((prev) => [...prev, newTrip]);
-      setActiveTripId(id);
-      return id;
-    },
+    createTrip: createTripFn,
     deleteTrip: (id) => {
       if (trips.length <= 1) return;
       setTrips((prev) => prev.filter((t) => t.id !== id));

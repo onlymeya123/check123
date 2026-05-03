@@ -1,4 +1,4 @@
-import { Home, MapPin, Wallet, User, Smile, Navigation } from 'lucide-react';
+import { Home, MapPin, Wallet, User, Smile, Navigation, X } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from '../context/AppContext';
@@ -13,7 +13,7 @@ export default function BottomNav({ onBuddyOpen }: Props) {
 
   return (
     <>
-      <NavigationIndicator />
+      <NavigationBar />
       <div className="absolute inset-x-0 bottom-0 z-30 pb-[env(safe-area-inset-bottom)]">
         <div className="relative">
           <div className="absolute inset-x-0 -top-6 flex justify-center pointer-events-none">
@@ -43,34 +43,89 @@ export default function BottomNav({ onBuddyOpen }: Props) {
   );
 }
 
-function NavigationIndicator() {
+// ── Persistent navigation bar — shows when navigating from non-navigate pages ──
+function NavigationBar() {
   const nav = useNavigate();
   const { pathname } = useLocation();
-  const { isNavigating, itinerary, navIndex } = useApp();
+  const { isNavigating, itinerary, navIndex, setIsNavigating } = useApp();
 
   if (!isNavigating || pathname === '/navigate') return null;
 
   const current = itinerary[navIndex];
+  const next = itinerary[navIndex + 1];
+
+  // Estimate remaining from navIndex
+  const stopsLeft = itinerary.length - navIndex;
+
+  const handleCancel = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsNavigating(false);
+  };
 
   return (
     <AnimatePresence>
-      <motion.button
-        key="nav-indicator"
-        initial={{ y: -48, opacity: 0 }}
+      <motion.div
+        key="nav-bar"
+        initial={{ y: 80, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        exit={{ y: -48, opacity: 0 }}
-        transition={{ type: 'spring', stiffness: 360, damping: 28 }}
-        onClick={() => nav('/navigate')}
-        className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 bg-brand-500 text-white rounded-full pl-2 pr-4 py-1.5 shadow-glow press whitespace-nowrap"
+        exit={{ y: 80, opacity: 0 }}
+        transition={{ type: 'spring', stiffness: 340, damping: 28 }}
+        className="absolute inset-x-0 bottom-[72px] z-30 px-4"
       >
-        <span className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center shrink-0">
-          <Navigation className="w-3.5 h-3.5" />
-        </span>
-        <span className="text-xs font-bold">On the way</span>
-        {current && (
-          <span className="text-xs opacity-75 font-medium truncate max-w-[100px]">· {current.name}</span>
-        )}
-      </motion.button>
+        <button
+          onClick={() => nav('/navigate')}
+          className="w-full bg-brand-500 rounded-2xl shadow-glow overflow-hidden press"
+        >
+          {/* Progress bar at top */}
+          <div className="h-1 bg-white/20">
+            <motion.div
+              className="h-full bg-white/70"
+              initial={{ width: `${(navIndex / Math.max(itinerary.length, 1)) * 100}%` }}
+              animate={{ width: `${(navIndex / Math.max(itinerary.length, 1)) * 100}%` }}
+            />
+          </div>
+
+          <div className="flex items-center gap-3 px-4 py-3">
+            {/* Navigation icon pulsing */}
+            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0 relative">
+              <motion.span
+                className="absolute inset-0 rounded-full bg-white/20"
+                animate={{ scale: [1, 1.4, 1], opacity: [0.6, 0, 0.6] }}
+                transition={{ repeat: Infinity, duration: 2 }}
+              />
+              <Navigation className="w-5 h-5 text-white" />
+            </div>
+
+            <div className="flex-1 min-w-0 text-left">
+              <div className="text-white/80 text-[11px] font-semibold uppercase tracking-wide">
+                Navigating to
+              </div>
+              <div className="text-white font-bold text-sm leading-tight truncate">
+                {current?.name ?? 'Current stop'}
+              </div>
+              {next && (
+                <div className="text-white/60 text-[11px] truncate">
+                  Then: {next.name}
+                </div>
+              )}
+            </div>
+
+            <div className="text-right shrink-0 mr-1">
+              <div className="text-white font-bold text-sm">{stopsLeft}</div>
+              <div className="text-white/70 text-[11px]">stop{stopsLeft !== 1 ? 's' : ''} left</div>
+            </div>
+
+            {/* Cancel button */}
+            <button
+              onClick={handleCancel}
+              className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center press shrink-0"
+              aria-label="Cancel navigation"
+            >
+              <X className="w-4 h-4 text-white" />
+            </button>
+          </div>
+        </button>
+      </motion.div>
     </AnimatePresence>
   );
 }

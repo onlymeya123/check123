@@ -23,7 +23,7 @@ export default function WalletPage() {
     totalSpent, dailyAllowance,
     trips, activeTripId, setActiveTripId, createTrip, deleteTrip,
     currency, setCurrency,
-    isNavigating,
+    isNavigating, tripCompleted,
   } = useApp();
   const { show } = useToast();
 
@@ -63,6 +63,11 @@ export default function WalletPage() {
       <div className="flex items-center justify-between px-5 pt-2 pb-3">
         <div className="font-bold text-ink-900 text-lg font-display flex items-center gap-2">
           <Wallet className="w-5 h-5 text-brand-500" /> Trip Budget
+          {tripCompleted && (
+            <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full ml-1">
+              COMPLETED
+            </span>
+          )}
         </div>
         <button className="w-9 h-9 rounded-full bg-ink-50 flex items-center justify-center press" onClick={() => show('Notifications: 0 new', 'info')}>
           <Bell className="w-4 h-4 text-ink-700" />
@@ -200,17 +205,51 @@ export default function WalletPage() {
         </motion.div>
       </div>
 
+      {/* Trip completed summary banner */}
+      {tripCompleted && (
+        <div className="px-5 mt-4">
+          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-2xl">🏁</span>
+              <div>
+                <div className="font-bold text-emerald-800">Trip completed!</div>
+                <div className="text-xs text-emerald-700">Wallet is now read-only</div>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="bg-white rounded-xl p-2.5">
+                <div className="font-bold text-ink-900 text-sm">{fmt(totalSpent)}</div>
+                <div className="text-[10px] text-ink-500">Total spent</div>
+              </div>
+              <div className="bg-white rounded-xl p-2.5">
+                <div className={`font-bold text-sm ${tripBudget - totalSpent >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                  {fmt(Math.abs(tripBudget - totalSpent))}
+                </div>
+                <div className="text-[10px] text-ink-500">
+                  {tripBudget - totalSpent >= 0 ? 'Saved' : 'Over budget'}
+                </div>
+              </div>
+              <div className="bg-white rounded-xl p-2.5">
+                <div className="font-bold text-ink-900 text-sm">{transactions.filter((t) => t.amount < 0).length}</div>
+                <div className="text-[10px] text-ink-500">Transactions</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Quick Actions */}
-      <div className={`grid gap-2 px-5 mt-4 ${isNavigating ? 'grid-cols-3' : 'grid-cols-4'}`}>
-        {!isNavigating && <QuickBtn icon={<Plus />} label="Add Expense" onClick={() => setSheet('addExpense')} />}
-        <QuickBtn icon={<Users />} label="Split Bill" onClick={() => setSheet('splitBill')} highlight />
-        <QuickBtn icon={<Scan />} label="Scan" onClick={() => setSheet('scan')} />
+      <div className={`grid gap-2 px-5 mt-4 ${(isNavigating || tripCompleted) ? 'grid-cols-3' : 'grid-cols-4'}`}>
+        {!isNavigating && !tripCompleted && <QuickBtn icon={<Plus />} label="Add Expense" onClick={() => setSheet('addExpense')} />}
+        <QuickBtn icon={<Users />} label="Split Bill" onClick={() => !tripCompleted && setSheet('splitBill')} highlight={!tripCompleted} />
+        <QuickBtn icon={<Scan />} label="Scan" onClick={() => !tripCompleted && setSheet('scan')} />
         <QuickBtn icon={<Clock />} label="History" onClick={() => setSheet('history')} />
       </div>
-      {isNavigating && (
+      {(isNavigating || tripCompleted) && (
         <div className="px-5 mt-2">
-          <div className="bg-amber-50 rounded-xl px-3 py-2 text-xs text-amber-700 font-medium flex items-center gap-2">
-            <span>🧭</span> Add expenses after your journey ends
+          <div className={`rounded-xl px-3 py-2 text-xs font-medium flex items-center gap-2 ${tripCompleted ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+            <span>{tripCompleted ? '✅' : '🧭'}</span>
+            {tripCompleted ? 'Trip is complete — expenses are locked' : 'Add expenses after your journey ends'}
           </div>
         </div>
       )}
