@@ -2,7 +2,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   Search, SlidersHorizontal, Sparkles, CloudSun, Bookmark, Palmtree, Flame,
   Diamond, X, Star, MapPin, Clock, Link2, Camera, Play, Pencil,
-  Calendar, ChevronRight, DollarSign, ChevronLeft,
+  Calendar, ChevronRight, DollarSign, ChevronLeft, Plus, Navigation,
+  ArrowRight, Compass,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import StatusBar from '../components/StatusBar';
@@ -55,7 +56,9 @@ export default function HomePage() {
     vibe, setVibe, budget, setBudget, itinerary,
     surpriseMode, setSurpriseMode, setItinerary, buildItinerary,
     savedPlaces, savePlace, removeSavedPlace, isSaved,
-    setJourneyStart,
+    setJourneyStart, authUser, onboardingComplete,
+    destinations, activeDestIdx, setActiveDestIdx, addDestination,
+    isNavigating,
   } = useApp();
   const { show } = useToast();
 
@@ -70,8 +73,11 @@ export default function HomePage() {
   const [planSheet, setPlanSheet] = useState(false);
   const [planTarget, setPlanTarget] = useState<'ai' | 'manual'>('ai');
   const [detailPlace, setDetailPlace] = useState<Place | null>(null);
+  const [addDestSheet, setAddDestSheet] = useState(false);
+  const [newDestName, setNewDestName] = useState('');
+  const [newDestDays, setNewDestDays] = useState(2);
 
-  // Local journey-start form state (mirrors context while editing)
+  // Local journey-start form state
   const [localStartDate, setLocalStartDate] = useState<Date | null>(null);
   const [localEndDate, setLocalEndDate] = useState<Date | null>(null);
   const [localTime, setLocalTime] = useState('09:00');
@@ -100,6 +106,14 @@ export default function HomePage() {
   }, [search, filterCats, filterMinRating]);
 
   const activeFilters = filterCats.length + (filterMinRating > 0 ? 1 : 0);
+
+  // ── Trip state logic ──────────────────────────────────────────
+  const hasTodayPlan = itinerary.length > 0;
+  const activeDest = destinations[activeDestIdx];
+  const nextDest = destinations[activeDestIdx + 1];
+  const hasMultiDest = destinations.length > 1;
+
+  const displayName = authUser?.name?.split(' ')[0] ?? USER.firstName;
 
   const handleSurpriseToggle = () => {
     const next = !surpriseMode;
@@ -130,9 +144,6 @@ export default function HomePage() {
       if (localStartDate && d < localStartDate) {
         setLocalStartDate(d);
         setLocalEndDate(null);
-      } else if (localStartDate && d.getTime() === localStartDate.getTime()) {
-        // Same day = single-day trip
-        setLocalEndDate(d);
       } else {
         setLocalEndDate(d);
       }
@@ -167,12 +178,21 @@ export default function HomePage() {
     }, 1800);
   };
 
+  const handleAddDest = () => {
+    if (!newDestName.trim()) return;
+    addDestination({ name: newDestName.trim(), days: newDestDays });
+    setNewDestName('');
+    setNewDestDays(2);
+    setAddDestSheet(false);
+    show(`${newDestName.trim()} added to your trip`, 'success');
+  };
+
   return (
     <div className="absolute inset-0 overflow-y-auto pb-32 no-scrollbar bg-white">
       {/* Hero */}
-      <div className="relative h-[280px] overflow-hidden">
+      <div className="relative h-[260px] overflow-hidden">
         <motion.img
-          src={HERO_IMAGE} alt="Ubud"
+          src={HERO_IMAGE} alt="Destination"
           className="absolute inset-0 w-full h-full object-cover"
           initial={{ scale: 1.08 }} animate={{ scale: 1 }}
           transition={{ duration: 1.4, ease: [0.22, 1, 0.36, 1] }}
@@ -184,12 +204,19 @@ export default function HomePage() {
             <div>
               <p className="text-white/90 text-sm font-medium drop-shadow">Good morning,</p>
               <h1 className="text-white text-4xl font-extrabold tracking-tight drop-shadow flex items-center gap-2 font-display">
-                {USER.firstName}
+                {displayName}
                 <motion.span animate={{ rotate: [0, 18, -8, 14, 0] }} transition={{ duration: 1.6, repeat: Infinity, repeatDelay: 2 }}>👋</motion.span>
               </h1>
-              <button className="mt-2 inline-flex items-center gap-1 text-white/90 text-xs font-semibold press drop-shadow">
-                <MapPin className="w-3 h-3" /> {USER.current} <span className="text-white/60">▾</span>
-              </button>
+              {activeDest ? (
+                <div className="mt-2 inline-flex items-center gap-1.5 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1">
+                  <MapPin className="w-3 h-3 text-white" />
+                  <span className="text-white text-xs font-semibold">{activeDest.name.split(',')[0]}</span>
+                </div>
+              ) : (
+                <button className="mt-2 inline-flex items-center gap-1 text-white/90 text-xs font-semibold press drop-shadow">
+                  <MapPin className="w-3 h-3" /> {USER.current} <span className="text-white/60">▾</span>
+                </button>
+              )}
             </div>
             <button className="relative w-12 h-12 rounded-full overflow-hidden ring-2 ring-white press">
               <img src={USER.avatar} alt="me" className="w-full h-full object-cover" />
@@ -224,6 +251,48 @@ export default function HomePage() {
           </div>
         </motion.div>
       </div>
+
+      {/* ── Multi-Destination Trip Strip ── */}
+      {hasMultiDest && (
+        <div className="px-5 mt-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] font-bold tracking-widest text-ink-500">YOUR ROUTE</span>
+            <button
+              onClick={() => setAddDestSheet(true)}
+              className="flex items-center gap-1 text-xs text-brand-600 font-semibold press"
+            >
+              <Plus className="w-3 h-3" /> Add stop
+            </button>
+          </div>
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+            {destinations.map((d, i) => (
+              <div key={d.id} className="flex items-center gap-1 shrink-0">
+                <button
+                  onClick={() => setActiveDestIdx(i)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold press transition-colors whitespace-nowrap ${
+                    i === activeDestIdx
+                      ? 'bg-brand-500 text-white shadow-glow'
+                      : 'bg-ink-50 text-ink-700 border border-ink-100'
+                  }`}
+                >
+                  {i === activeDestIdx && <span className="w-1.5 h-1.5 rounded-full bg-white/80" />}
+                  {d.name.split(',')[0]}
+                  <span className={`text-[10px] ${i === activeDestIdx ? 'text-white/70' : 'text-ink-400'}`}>{d.days}d</span>
+                </button>
+                {i < destinations.length - 1 && (
+                  <ArrowRight className="w-3 h-3 text-ink-300 shrink-0" />
+                )}
+              </div>
+            ))}
+            <button
+              onClick={() => setAddDestSheet(true)}
+              className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-full border border-dashed border-brand-300 text-brand-500 text-xs font-semibold press"
+            >
+              <Plus className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Search + Filter */}
       <div className="px-5 mt-4">
@@ -269,8 +338,208 @@ export default function HomePage() {
         </AnimatePresence>
       </div>
 
-      {/* Pick your vibe */}
+      {/* ── DYNAMIC PLAN SECTION ── */}
       <div className="px-5 mt-5">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-[11px] font-bold tracking-widest text-ink-500">TODAY'S PLAN</span>
+          {hasTodayPlan && (
+            <button className="text-xs text-brand-600 font-semibold press" onClick={() => nav('/map')}>
+              View on map ›
+            </button>
+          )}
+        </div>
+
+        {/* ── CASE A: Has today's plan ── */}
+        {hasTodayPlan && (
+          <div>
+            {/* Active nav indicator */}
+            {isNavigating && (
+              <motion.button
+                initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+                onClick={() => nav('/navigate')}
+                className="w-full mb-3 flex items-center gap-3 bg-brand-500 rounded-2xl px-4 py-3 shadow-glow press"
+              >
+                <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                  <Navigation className="w-5 h-5 text-white" />
+                </div>
+                <div className="flex-1 text-left">
+                  <div className="text-white font-bold text-sm">Navigation active</div>
+                  <div className="text-white/80 text-xs">Tap to return to your route</div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-white/70" />
+              </motion.button>
+            )}
+
+            {/* Full itinerary — not truncated */}
+            <div className="relative">
+              <div className="absolute left-2.5 top-4 bottom-4 w-px bg-ink-200" />
+              <div className="space-y-3">
+                {itinerary.map((p, i) => {
+                  const startMin = 10 * 60 + 30 + i * 150;
+                  const h = Math.floor(startMin / 60) % 24;
+                  const m = startMin % 60;
+                  const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                  return (
+                    <motion.div
+                      key={p.id}
+                      initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.05 * i }}
+                      className="relative pl-7"
+                    >
+                      <span className="absolute left-0.5 top-4 w-4 h-4 rounded-full bg-brand-500 ring-4 ring-brand-100 flex items-center justify-center z-10">
+                        <span className="text-[8px] text-white font-bold">{i + 1}</span>
+                      </span>
+                      <div className="text-xs font-semibold text-ink-600 mb-1 flex items-center gap-1">
+                        <Clock className="w-3 h-3" /> {timeStr}
+                        {i > 0 && <span className="text-ink-400 font-normal ml-1">· {itinerary[i].distanceKm} km from prev</span>}
+                      </div>
+                      <button
+                        onClick={() => setDetailPlace(p)}
+                        className="w-full bg-white rounded-2xl border border-ink-100 p-2.5 flex items-center gap-3 press text-left hover:border-brand-200 transition-colors"
+                      >
+                        <img src={p.image} alt={p.name} className="w-14 h-14 rounded-xl object-cover shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-ink-900 truncate">{p.name}</div>
+                          <div className="text-xs text-ink-500 flex items-center gap-1.5 mt-0.5">
+                            <span>{p.category}</span>
+                            <span className="text-ink-300">·</span>
+                            <span className="flex items-center gap-0.5"><Star className="w-3 h-3 fill-amber-400 text-amber-400" />{p.rating}</span>
+                            <span className="text-ink-300">·</span>
+                            <span className="text-ink-400">{p.openingHours}</span>
+                          </div>
+                          <div className="text-xs text-brand-600 font-semibold mt-0.5">
+                            {formatRp(p.priceRange.min)}{p.priceRange.max !== p.priceRange.min && ` – ${formatRp(p.priceRange.max)}`}
+                          </div>
+                        </div>
+                        <button
+                          className="w-9 h-9 rounded-full hover:bg-ink-50 flex items-center justify-center shrink-0 press"
+                          onClick={(e) => { e.stopPropagation(); isSaved(p.id) ? removeSavedPlace(p.id) : savePlace(p); }}
+                          aria-label={isSaved(p.id) ? 'Unsave' : 'Save'}
+                        >
+                          <Bookmark className={`w-4 h-4 transition-colors ${isSaved(p.id) ? 'fill-brand-500 text-brand-500' : 'text-ink-400'}`} />
+                        </button>
+                      </button>
+                    </motion.div>
+                  );
+                })}
+              </div>
+
+              {/* Edit plan CTA */}
+              <div className="mt-4 flex gap-2">
+                <button
+                  onClick={() => nav('/generate')}
+                  className="flex-1 h-10 rounded-xl border border-brand-200 text-brand-600 text-xs font-semibold press flex items-center justify-center gap-1.5"
+                >
+                  <Pencil className="w-3.5 h-3.5" /> Edit Plan
+                </button>
+                <button
+                  onClick={() => nav('/map')}
+                  className="flex-1 h-10 rounded-xl bg-brand-500 text-white text-xs font-semibold press flex items-center justify-center gap-1.5 shadow-glow"
+                >
+                  <MapPin className="w-3.5 h-3.5" /> View Map
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── CASE B: No plan today ── */}
+        {!hasTodayPlan && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+          >
+            <div className="bg-ink-50 rounded-2xl p-5 text-center mb-4 border border-ink-100">
+              <div className="text-4xl mb-3">🗺️</div>
+              <div className="font-bold text-ink-900 text-base font-display">No plans for today</div>
+              <div className="text-sm text-ink-500 mt-1 leading-snug">
+                {onboardingComplete
+                  ? 'Ready to explore? Build your day below.'
+                  : 'Set up your trip to get started'}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <ActionCard
+                icon={<Sparkles className="w-5 h-5 text-white" />}
+                label={surpriseMode ? 'Surprise Me' : 'AI Generate'}
+                sub="Let Buddy plan it"
+                variant="primary"
+                onClick={() => openPlanSheet('ai')}
+              />
+              <ActionCard
+                icon={<Pencil className="w-5 h-5 text-brand-600" />}
+                label="Plan Manually"
+                sub="Your way, your stops"
+                variant="outline"
+                onClick={() => openPlanSheet('manual')}
+              />
+              <ActionCard
+                icon={<Compass className="w-5 h-5 text-orange-500" />}
+                label="Explore Nearby"
+                sub="Discover around you"
+                variant="light"
+                onClick={() => nav('/map')}
+              />
+              <ActionCard
+                icon={<Bookmark className="w-5 h-5 text-purple-500" />}
+                label="Saved Places"
+                sub={savedPlaces.length > 0 ? `${savedPlaces.length} saved` : 'Your favorites'}
+                variant="light"
+                onClick={() => {}}
+              />
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── CASE C: Future destination preview ── */}
+        {nextDest && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="mt-4"
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[10px] font-bold tracking-widest text-ink-500">UP NEXT</span>
+            </div>
+            <div className="bg-gradient-to-br from-brand-50 to-purple-50 rounded-2xl p-4 border border-brand-100 flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-brand-500/10 flex items-center justify-center shrink-0">
+                <span className="text-2xl">✈️</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-ink-900">{nextDest.name.split(',')[0]}</div>
+                <div className="text-xs text-ink-500 mt-0.5">
+                  {nextDest.days} day{nextDest.days !== 1 ? 's' : ''} planned · {nextDest.currency}
+                </div>
+              </div>
+              <button
+                onClick={() => setActiveDestIdx(activeDestIdx + 1)}
+                className="flex items-center gap-1 px-3 py-2 rounded-xl bg-brand-500 text-white text-xs font-semibold press shadow-glow shrink-0"
+              >
+                Plan <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── CASE D: Add destination CTA ── */}
+        {!hasMultiDest && onboardingComplete && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            transition={{ delay: 0.15 }}
+            className="mt-4"
+          >
+            <button
+              onClick={() => setAddDestSheet(true)}
+              className="w-full h-11 rounded-2xl border-2 border-dashed border-brand-200 text-brand-600 text-sm font-semibold press flex items-center justify-center gap-2 hover:border-brand-400 transition-colors"
+            >
+              <Plus className="w-4 h-4" /> Add another destination
+            </button>
+          </motion.div>
+        )}
+      </div>
+
+      {/* Vibe picker */}
+      <div className="px-5 mt-6">
         <div className="flex items-center justify-between">
           <h2 className="font-bold text-ink-900 font-display">Pick your vibe</h2>
           <label className="flex items-center gap-2 text-xs font-semibold" style={{ color: surpriseMode ? '#3B5BFF' : '#6B7280' }}>
@@ -326,7 +595,6 @@ export default function HomePage() {
       {/* CTA — Two equal-weight options */}
       <div className="px-5 mt-5">
         <div className="grid grid-cols-2 gap-3">
-          {/* AI Generate */}
           <motion.button
             whileTap={{ scale: 0.96 }} whileHover={{ scale: 1.01 }}
             onClick={() => openPlanSheet('ai')}
@@ -343,7 +611,6 @@ export default function HomePage() {
             </div>
           </motion.button>
 
-          {/* Plan Manually */}
           <motion.button
             whileTap={{ scale: 0.96 }} whileHover={{ scale: 1.01 }}
             onClick={() => openPlanSheet('manual')}
@@ -358,102 +625,6 @@ export default function HomePage() {
             </div>
           </motion.button>
         </div>
-      </div>
-
-      {/* Today's Plan */}
-      <div className="px-5 mt-6">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-[11px] font-bold tracking-widest text-ink-500">TODAY'S PLAN</span>
-          {itinerary.length > 0 && (
-            <button className="text-xs text-brand-600 font-semibold press" onClick={() => nav('/map')}>View on map ›</button>
-          )}
-        </div>
-
-        {itinerary.length === 0 ? (
-          // Empty state
-          <motion.div
-            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-            className="bg-brand-50 rounded-2xl p-6 text-center border border-brand-100"
-          >
-            <div className="text-4xl mb-3">🗺️</div>
-            <div className="font-bold text-ink-900 text-base font-display">No plans yet</div>
-            <div className="text-sm text-ink-500 mt-1 leading-snug">Ready to explore? Start building your day</div>
-            <div className="grid grid-cols-2 gap-2 mt-4">
-              <button
-                onClick={() => openPlanSheet('ai')}
-                className="h-10 rounded-xl bg-brand-500 text-white text-xs font-semibold press flex items-center justify-center gap-1.5 shadow-glow"
-              >
-                <Sparkles className="w-3.5 h-3.5" /> Generate Journey
-              </button>
-              <button
-                onClick={() => openPlanSheet('manual')}
-                className="h-10 rounded-xl bg-white border border-brand-200 text-brand-700 text-xs font-semibold press flex items-center justify-center gap-1.5"
-              >
-                <Pencil className="w-3.5 h-3.5" /> Plan Manually
-              </button>
-            </div>
-            {savedPlaces.length > 0 && (
-              <button className="mt-3 text-xs text-brand-600 font-semibold press flex items-center gap-1 mx-auto">
-                <Bookmark className="w-3 h-3" /> Use saved places
-              </button>
-            )}
-          </motion.div>
-        ) : (
-          <div className="relative">
-            {/* Vertical timeline line */}
-            <div className="absolute left-2.5 top-4 bottom-4 w-px bg-ink-200" />
-            <div className="space-y-3">
-              {itinerary.map((p, i) => {
-                const startMin = 10 * 60 + 30 + i * 150;
-                const h = Math.floor(startMin / 60) % 24;
-                const m = startMin % 60;
-                const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-                return (
-                  <motion.div
-                    key={p.id}
-                    initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.05 * i }}
-                    className="relative pl-7"
-                  >
-                    <span className="absolute left-0.5 top-4 w-4 h-4 rounded-full bg-brand-500 ring-4 ring-brand-100 flex items-center justify-center z-10">
-                      <span className="text-[8px] text-white font-bold">{i + 1}</span>
-                    </span>
-                    <div className="text-xs font-semibold text-ink-600 mb-1 flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> {timeStr}
-                      {i > 0 && <span className="text-ink-400 font-normal ml-1">· {itinerary[i].distanceKm} km from prev</span>}
-                    </div>
-                    <button
-                      onClick={() => setDetailPlace(p)}
-                      className="w-full bg-white rounded-2xl border border-ink-100 p-2.5 flex items-center gap-3 press text-left hover:border-brand-200 transition-colors"
-                    >
-                      <img src={p.image} alt={p.name} className="w-14 h-14 rounded-xl object-cover shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-ink-900 truncate">{p.name}</div>
-                        <div className="text-xs text-ink-500 flex items-center gap-1.5 mt-0.5">
-                          <span>{p.category}</span>
-                          <span className="text-ink-300">·</span>
-                          <span className="flex items-center gap-0.5"><Star className="w-3 h-3 fill-amber-400 text-amber-400" />{p.rating}</span>
-                          <span className="text-ink-300">·</span>
-                          <span className="text-ink-400">{p.openingHours}</span>
-                        </div>
-                        <div className="text-xs text-brand-600 font-semibold mt-0.5">
-                          {formatRp(p.priceRange.min)}{p.priceRange.max !== p.priceRange.min && ` – ${formatRp(p.priceRange.max)}`}
-                        </div>
-                      </div>
-                      <button
-                        className="w-9 h-9 rounded-full hover:bg-ink-50 flex items-center justify-center shrink-0 press"
-                        onClick={(e) => { e.stopPropagation(); isSaved(p.id) ? removeSavedPlace(p.id) : savePlace(p); }}
-                        aria-label={isSaved(p.id) ? 'Unsave' : 'Save'}
-                      >
-                        <Bookmark className={`w-4 h-4 transition-colors ${isSaved(p.id) ? 'fill-brand-500 text-brand-500' : 'text-ink-400'}`} />
-                      </button>
-                    </button>
-                  </motion.div>
-                );
-              })}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Saved Places */}
@@ -599,7 +770,6 @@ export default function HomePage() {
               </div>
 
               <div className="px-5 space-y-4 overflow-y-auto no-scrollbar pb-8">
-                {/* Calendar */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <div className="text-[10px] font-bold tracking-widest text-ink-500">
@@ -609,7 +779,6 @@ export default function HomePage() {
                       <button onClick={() => { setCalPhase('start'); setLocalStartDate(null); setLocalEndDate(null); }} className="text-[10px] text-brand-500 font-semibold press">Reset</button>
                     )}
                   </div>
-                  {/* Date chips summary */}
                   {(localStartDate || localEndDate) && (
                     <div className="flex items-center gap-2 mb-2">
                       <div className={`flex-1 py-2 px-3 rounded-xl text-center text-xs font-semibold border-2 ${calPhase === 'start' ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-ink-200 bg-ink-50 text-ink-700'}`}>
@@ -628,14 +797,9 @@ export default function HomePage() {
                       )}
                     </div>
                   )}
-                  <MiniCalendar
-                    startDate={localStartDate}
-                    endDate={localEndDate}
-                    onSelect={handleCalSelect}
-                  />
+                  <MiniCalendar startDate={localStartDate} endDate={localEndDate} onSelect={handleCalSelect} />
                 </div>
 
-                {/* Times row */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-1.5">START TIME</div>
@@ -666,6 +830,58 @@ export default function HomePage() {
                   ) : (
                     <><Pencil className="w-4 h-4" /> Start Building</>
                   )}
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── Add Destination Sheet ── */}
+      <AnimatePresence>
+        {addDestSheet && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setAddDestSheet(false)} className="absolute inset-0 z-40 bg-ink-900/40" />
+            <motion.div
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              className="absolute inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl shadow-card pb-10"
+            >
+              <div className="w-12 h-1.5 bg-ink-100 rounded-full mx-auto mt-3" />
+              <div className="px-5 pt-3 pb-4 flex items-center justify-between">
+                <div className="font-bold text-ink-900 font-display">Add Destination</div>
+                <button onClick={() => setAddDestSheet(false)} className="w-8 h-8 rounded-full bg-ink-50 flex items-center justify-center press"><X className="w-4 h-4" /></button>
+              </div>
+              <div className="px-5 space-y-4">
+                <div>
+                  <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-1.5">DESTINATION</div>
+                  <div className="flex items-center gap-2 bg-ink-50 rounded-xl px-3 py-2.5 border-2 border-transparent focus-within:border-brand-400 transition-colors">
+                    <MapPin className="w-4 h-4 text-ink-400 shrink-0" />
+                    <input
+                      value={newDestName}
+                      onChange={(e) => setNewDestName(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleAddDest()}
+                      placeholder="City or country (e.g. Rome, Italy)"
+                      className="flex-1 bg-transparent text-sm text-ink-900 placeholder:text-ink-400 outline-none"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-1.5">DAYS PLANNED</div>
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => setNewDestDays((d) => Math.max(1, d - 1))} className="w-10 h-10 rounded-full bg-ink-50 border border-ink-200 flex items-center justify-center press font-bold text-ink-700 text-lg">−</button>
+                    <div className="flex-1 text-center text-2xl font-extrabold text-ink-900 font-display">{newDestDays}</div>
+                    <button onClick={() => setNewDestDays((d) => d + 1)} className="w-10 h-10 rounded-full bg-brand-500 flex items-center justify-center press font-bold text-white text-lg">+</button>
+                  </div>
+                  <div className="text-center text-xs text-ink-500 mt-1">day{newDestDays !== 1 ? 's' : ''}</div>
+                </div>
+                <button
+                  onClick={handleAddDest}
+                  disabled={!newDestName.trim()}
+                  className="w-full h-12 rounded-2xl bg-brand-500 disabled:bg-ink-200 text-white font-bold press shadow-glow flex items-center justify-center gap-2"
+                >
+                  <Plus className="w-4 h-4" /> Add to Trip
                 </button>
               </div>
             </motion.div>
@@ -800,6 +1016,32 @@ export default function HomePage() {
   );
 }
 
+function ActionCard({
+  icon, label, sub, variant, onClick,
+}: {
+  icon: React.ReactNode; label: string; sub: string;
+  variant: 'primary' | 'outline' | 'light';
+  onClick: () => void;
+}) {
+  const base = 'rounded-2xl p-4 text-left flex flex-col gap-2 press';
+  const styles = {
+    primary: 'bg-brand-500 shadow-glow',
+    outline: 'bg-white border-2 border-brand-200 hover:border-brand-400 transition-colors',
+    light: 'bg-ink-50 border border-ink-100',
+  };
+  return (
+    <motion.button whileTap={{ scale: 0.96 }} onClick={onClick} className={`${base} ${styles[variant]}`}>
+      <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${variant === 'primary' ? 'bg-white/20' : 'bg-white'}`}>
+        {icon}
+      </div>
+      <div>
+        <div className={`font-bold text-sm font-display leading-tight ${variant === 'primary' ? 'text-white' : 'text-ink-900'}`}>{label}</div>
+        <div className={`text-[11px] mt-0.5 leading-tight ${variant === 'primary' ? 'text-white/75' : 'text-ink-500'}`}>{sub}</div>
+      </div>
+    </motion.button>
+  );
+}
+
 function InfoChip({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className="bg-ink-50 rounded-xl p-2.5">
@@ -810,9 +1052,7 @@ function InfoChip({ icon, label, value }: { icon: React.ReactNode; label: string
 }
 
 function MiniCalendar({ startDate, endDate, onSelect }: {
-  startDate: Date | null;
-  endDate: Date | null;
-  onSelect: (d: Date) => void;
+  startDate: Date | null; endDate: Date | null; onSelect: (d: Date) => void;
 }) {
   const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
   const [viewYear, setViewYear] = useState(() => today.getFullYear());
