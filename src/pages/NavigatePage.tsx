@@ -21,6 +21,7 @@ export default function NavigatePage() {
   const [progress, setProgress] = useState(0); // 0..1 to current stop
   const [arrived, setArrived] = useState(false);
   const [prompt, setPrompt] = useState<string | null>(null);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const promptedRef = useRef(false);
 
   const current = itinerary[navIndex];
@@ -80,8 +81,11 @@ export default function NavigatePage() {
     onNext();
   };
 
-  const onExit = () => {
+  const onExit = () => nav('/map');
+
+  const confirmCancelNavigation = () => {
     setIsNavigating(false);
+    setShowCancelConfirm(false);
     nav('/map');
   };
 
@@ -167,6 +171,30 @@ export default function NavigatePage() {
         </AnimatePresence>
       </div>
 
+      {/* Cancel navigation confirmation */}
+      <AnimatePresence>
+        {showCancelConfirm && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowCancelConfirm(false)} className="absolute inset-0 z-40 bg-ink-900/50" />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+              className="absolute inset-x-8 top-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl p-5 shadow-card"
+            >
+              <div className="text-center">
+                <div className="text-3xl mb-2">🛑</div>
+                <div className="font-bold text-ink-900 font-display">Cancel navigation?</div>
+                <div className="text-sm text-ink-500 mt-1 leading-snug">Your route progress will be lost.</div>
+              </div>
+              <div className="flex gap-2 mt-4">
+                <button onClick={() => setShowCancelConfirm(false)} className="flex-1 h-11 rounded-xl bg-ink-50 text-ink-700 font-semibold press">Keep Going</button>
+                <button onClick={confirmCancelNavigation} className="flex-1 h-11 rounded-xl bg-red-500 text-white font-semibold press">Cancel</button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* Sticky bottom card */}
       <div className="bg-white px-4 pt-3 pb-6 border-t border-ink-100">
         <AnimatePresence mode="wait">
@@ -201,6 +229,13 @@ export default function NavigatePage() {
                 <Action icon={<SkipForward className="w-4 h-4" />} label="Skip" onClick={onSkip} />
                 <Action icon={<Smile className="w-4 h-4" />} label="Buddy" onClick={() => show('Tap the Buddy button to get help', 'info')} />
               </div>
+
+              <button
+                onClick={() => setShowCancelConfirm(true)}
+                className="mt-3 w-full h-10 rounded-xl border border-red-200 text-red-500 text-xs font-semibold press flex items-center justify-center gap-1.5 hover:bg-red-50 transition-colors"
+              >
+                Cancel Navigation
+              </button>
 
               {next && (
                 <div className="mt-3 flex items-center gap-2 text-[11px] text-ink-500 bg-ink-50 rounded-xl px-3 py-2">

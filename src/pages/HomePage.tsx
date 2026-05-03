@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   Search, SlidersHorizontal, Sparkles, CloudSun, Bookmark, Palmtree, Flame,
   Diamond, X, Star, MapPin, Clock, Link2, Camera, Play, Pencil,
-  Calendar, ChevronRight, DollarSign,
+  Calendar, ChevronRight, DollarSign, ChevronLeft,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import StatusBar from '../components/StatusBar';
@@ -72,9 +72,16 @@ export default function HomePage() {
   const [detailPlace, setDetailPlace] = useState<Place | null>(null);
 
   // Local journey-start form state (mirrors context while editing)
-  const [localDate, setLocalDate] = useState<'today' | 'tomorrow'>('today');
+  const [localStartDate, setLocalStartDate] = useState<Date | null>(null);
+  const [localEndDate, setLocalEndDate] = useState<Date | null>(null);
   const [localTime, setLocalTime] = useState('09:00');
-  const [localDays, setLocalDays] = useState(1);
+  const [localEndTime, setLocalEndTime] = useState('18:00');
+  const [calPhase, setCalPhase] = useState<'start' | 'end'>('start');
+
+  const localDays = useMemo(() => {
+    if (!localStartDate || !localEndDate) return 1;
+    return Math.max(1, Math.round((localEndDate.getTime() - localStartDate.getTime()) / 86400000) + 1);
+  }, [localStartDate, localEndDate]);
 
   const sliderPct = useMemo(() => {
     const min = 50_000, max = 1_000_000;
@@ -106,14 +113,37 @@ export default function HomePage() {
 
   const openPlanSheet = (target: 'ai' | 'manual') => {
     setPlanTarget(target);
-    setLocalDate('today');
+    setLocalStartDate(null);
+    setLocalEndDate(null);
     setLocalTime('09:00');
-    setLocalDays(1);
+    setLocalEndTime('18:00');
+    setCalPhase('start');
     setPlanSheet(true);
   };
 
+  const handleCalSelect = (d: Date) => {
+    if (calPhase === 'start') {
+      setLocalStartDate(d);
+      setLocalEndDate(null);
+      setCalPhase('end');
+    } else {
+      if (localStartDate && d < localStartDate) {
+        setLocalStartDate(d);
+        setLocalEndDate(null);
+      } else if (localStartDate && d.getTime() === localStartDate.getTime()) {
+        // Same day = single-day trip
+        setLocalEndDate(d);
+      } else {
+        setLocalEndDate(d);
+      }
+    }
+  };
+
   const confirmPlan = () => {
-    setJourneyStart({ date: localDate, time: localTime, days: localDays });
+    const dateStr = localStartDate
+      ? `${localStartDate.getFullYear()}-${String(localStartDate.getMonth() + 1).padStart(2, '0')}-${String(localStartDate.getDate()).padStart(2, '0')}`
+      : 'today';
+    setJourneyStart({ date: dateStr, time: localTime, days: localDays });
     if (planTarget === 'ai') {
       if (surpriseMode) setItinerary(buildItinerary());
       setPlanSheet(false);
@@ -136,9 +166,6 @@ export default function HomePage() {
       else setSocialResult(SOCIAL_MOCK.tiktok);
     }, 1800);
   };
-
-  const todayLabel = new Date().toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
-  const tomorrowLabel = new Date(Date.now() + 86400000).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
 
   return (
     <div className="absolute inset-0 overflow-y-auto pb-32 no-scrollbar bg-white">
@@ -250,7 +277,7 @@ export default function HomePage() {
             <span>Surprise me</span>
             <button
               onClick={handleSurpriseToggle}
-              className={`relative w-9 h-5 rounded-full transition-colors ${surpriseMode ? 'bg-brand-500' : 'bg-ink-200'}`}
+              className={`relative w-9 h-5 rounded-full transition-colors overflow-hidden ${surpriseMode ? 'bg-brand-500' : 'bg-ink-200'}`}
             >
               <motion.span
                 className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow"
@@ -282,16 +309,18 @@ export default function HomePage() {
 
       {/* Budget slider */}
       <div className="px-5 mt-4">
-        <div className="flex items-center justify-between">
-          <div className="font-bold text-ink-900 font-display">Budget <span className="text-ink-400 font-normal text-sm">(per stop)</span></div>
-          <span className="bg-emerald-50 text-emerald-600 text-[11px] font-semibold px-2 py-0.5 rounded-full">{formatRp(budget)}</span>
-        </div>
+        <div className="font-bold text-ink-900 font-display">Budget <span className="text-ink-400 font-normal text-sm">(per stop)</span></div>
         <input
           type="range" min={50_000} max={1_000_000} step={10_000}
           value={budget} onChange={(e) => setBudget(Number(e.target.value))}
-          className="vibe-slider mt-2 mb-0"
+          className="vibe-slider mt-2 mb-1"
           style={{ ['--val' as any]: `${sliderPct}%` }}
         />
+        <div className="flex justify-between text-xs text-ink-500">
+          <span>{formatRp(50_000)}</span>
+          <span className="text-brand-600 font-semibold">{formatRp(budget)}</span>
+          <span>{formatRp(1_000_000)}+</span>
+        </div>
       </div>
 
       {/* CTA — Two equal-weight options */}
@@ -553,10 +582,10 @@ export default function HomePage() {
             <motion.div
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className="absolute inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl shadow-card pb-8"
+              className="absolute inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl shadow-card flex flex-col max-h-[92%]"
             >
-              <div className="w-12 h-1.5 bg-ink-100 rounded-full mx-auto mt-3" />
-              <div className="px-5 pt-3 pb-4 flex items-center justify-between">
+              <div className="w-12 h-1.5 bg-ink-100 rounded-full mx-auto mt-3 shrink-0" />
+              <div className="px-5 pt-3 pb-2 flex items-center justify-between shrink-0">
                 <div>
                   <div className="font-bold text-ink-900 font-display flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-brand-500" />
@@ -569,56 +598,62 @@ export default function HomePage() {
                 <button onClick={() => setPlanSheet(false)} className="w-8 h-8 rounded-full bg-ink-50 flex items-center justify-center press"><X className="w-4 h-4" /></button>
               </div>
 
-              <div className="px-5 space-y-4">
-                {/* Date */}
+              <div className="px-5 space-y-4 overflow-y-auto no-scrollbar pb-8">
+                {/* Calendar */}
                 <div>
-                  <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-2">START DATE</div>
-                  <div className="flex gap-2">
-                    {(['today', 'tomorrow'] as const).map((d) => (
-                      <button
-                        key={d}
-                        onClick={() => setLocalDate(d)}
-                        className={`flex-1 py-3 rounded-xl text-center press transition-colors ${localDate === d ? 'bg-brand-500 text-white' : 'bg-ink-50 text-ink-700'}`}
-                      >
-                        <div className="text-sm font-bold capitalize">{d}</div>
-                        <div className={`text-[10px] mt-0.5 ${localDate === d ? 'text-white/75' : 'text-ink-400'}`}>
-                          {d === 'today' ? todayLabel : tomorrowLabel}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Time */}
-                <div>
-                  <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-2">
-                    START TIME <span className="font-normal text-ink-400 normal-case tracking-normal">(optional)</span>
-                  </div>
-                  <select
-                    value={localTime} onChange={(e) => setLocalTime(e.target.value)}
-                    className="w-full bg-ink-50 rounded-xl px-4 py-3 text-sm font-semibold text-ink-900 outline-none appearance-none"
-                  >
-                    {TIME_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-
-                {/* Duration */}
-                <div>
-                  <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-2">TRIP DURATION</div>
-                  <div className="flex items-center justify-between bg-ink-50 rounded-xl px-4 py-3">
-                    <span className="text-sm font-semibold text-ink-700">How many days?</span>
-                    <div className="flex items-center gap-3">
-                      <button onClick={() => setLocalDays((d) => Math.max(1, d - 1))} className="w-8 h-8 rounded-full bg-white press flex items-center justify-center font-bold text-ink-700 shadow-soft">−</button>
-                      <span className="font-extrabold text-ink-900 w-8 text-center font-display">{localDays}</span>
-                      <button onClick={() => setLocalDays((d) => Math.min(7, d + 1))} className="w-8 h-8 rounded-full bg-white press flex items-center justify-center font-bold text-ink-700 shadow-soft">+</button>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-[10px] font-bold tracking-widest text-ink-500">
+                      {calPhase === 'start' ? 'SELECT START DATE' : 'SELECT END DATE'}
                     </div>
+                    {localStartDate && (
+                      <button onClick={() => { setCalPhase('start'); setLocalStartDate(null); setLocalEndDate(null); }} className="text-[10px] text-brand-500 font-semibold press">Reset</button>
+                    )}
                   </div>
-                  <div className="flex gap-1.5 mt-2">
-                    {[1, 2, 3, 5, 7].map((d) => (
-                      <button key={d} onClick={() => setLocalDays(d)} className={`flex-1 py-1.5 rounded-lg text-xs font-semibold press ${localDays === d ? 'bg-brand-500 text-white' : 'bg-ink-50 text-ink-600'}`}>
-                        {d}d
-                      </button>
-                    ))}
+                  {/* Date chips summary */}
+                  {(localStartDate || localEndDate) && (
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className={`flex-1 py-2 px-3 rounded-xl text-center text-xs font-semibold border-2 ${calPhase === 'start' ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-ink-200 bg-ink-50 text-ink-700'}`}>
+                        <div className="text-[10px] text-ink-400">Start</div>
+                        <div>{localStartDate ? localStartDate.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) : '—'}</div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-ink-400 shrink-0" />
+                      <div className={`flex-1 py-2 px-3 rounded-xl text-center text-xs font-semibold border-2 ${calPhase === 'end' ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-ink-200 bg-ink-50 text-ink-700'}`}>
+                        <div className="text-[10px] text-ink-400">End</div>
+                        <div>{localEndDate ? localEndDate.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) : '—'}</div>
+                      </div>
+                      {localStartDate && localEndDate && (
+                        <div className="bg-brand-50 rounded-xl px-3 py-2 text-center text-xs font-bold text-brand-600 border-2 border-brand-100 shrink-0">
+                          {localDays}d
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <MiniCalendar
+                    startDate={localStartDate}
+                    endDate={localEndDate}
+                    onSelect={handleCalSelect}
+                  />
+                </div>
+
+                {/* Times row */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-1.5">START TIME</div>
+                    <select
+                      value={localTime} onChange={(e) => setLocalTime(e.target.value)}
+                      className="w-full bg-ink-50 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink-900 outline-none appearance-none"
+                    >
+                      {TIME_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-1.5">END TIME</div>
+                    <select
+                      value={localEndTime} onChange={(e) => setLocalEndTime(e.target.value)}
+                      className="w-full bg-ink-50 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink-900 outline-none appearance-none"
+                    >
+                      {TIME_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
                   </div>
                 </div>
 
@@ -770,6 +805,81 @@ function InfoChip({ icon, label, value }: { icon: React.ReactNode; label: string
     <div className="bg-ink-50 rounded-xl p-2.5">
       <div className="flex items-center gap-1 mb-1">{icon}<span className="text-[10px] text-ink-500 font-medium">{label}</span></div>
       <div className="text-xs font-bold text-ink-900 leading-snug">{value}</div>
+    </div>
+  );
+}
+
+function MiniCalendar({ startDate, endDate, onSelect }: {
+  startDate: Date | null;
+  endDate: Date | null;
+  onSelect: (d: Date) => void;
+}) {
+  const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
+  const [viewYear, setViewYear] = useState(() => today.getFullYear());
+  const [viewMonth, setViewMonth] = useState(() => today.getMonth());
+
+  const firstDow = new Date(viewYear, viewMonth, 1).getDay();
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const monthLabel = new Date(viewYear, viewMonth).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  const cells: (Date | null)[] = [];
+  for (let i = 0; i < firstDow; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(viewYear, viewMonth, d));
+
+  const isSameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+  const prevMonth = () => {
+    if (viewMonth === 0) { setViewMonth(11); setViewYear((y) => y - 1); }
+    else setViewMonth((m) => m - 1);
+  };
+  const nextMonth = () => {
+    if (viewMonth === 11) { setViewMonth(0); setViewYear((y) => y + 1); }
+    else setViewMonth((m) => m + 1);
+  };
+
+  return (
+    <div className="bg-ink-50 rounded-2xl p-3">
+      <div className="flex items-center justify-between mb-2">
+        <button onClick={prevMonth} className="w-8 h-8 rounded-full bg-white flex items-center justify-center press shadow-soft">
+          <ChevronLeft className="w-4 h-4 text-ink-700" />
+        </button>
+        <span className="text-sm font-bold text-ink-900">{monthLabel}</span>
+        <button onClick={nextMonth} className="w-8 h-8 rounded-full bg-white flex items-center justify-center press shadow-soft">
+          <ChevronRight className="w-4 h-4 text-ink-700" />
+        </button>
+      </div>
+      <div className="grid grid-cols-7 mb-1">
+        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+          <div key={i} className="text-center text-[10px] font-bold text-ink-400 py-1">{d}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-y-0.5">
+        {cells.map((d, i) => {
+          if (!d) return <div key={i} />;
+          const isStart = startDate ? isSameDay(d, startDate) : false;
+          const isEnd = endDate ? isSameDay(d, endDate) : false;
+          const inRange = startDate && endDate ? d > startDate && d < endDate : false;
+          const isPast = d < today;
+          const isToday = isSameDay(d, today);
+          return (
+            <button
+              key={i}
+              onClick={() => !isPast && onSelect(d)}
+              disabled={isPast}
+              className={[
+                'relative aspect-square flex items-center justify-center text-[11px] font-semibold transition-colors',
+                isStart || isEnd ? 'bg-brand-500 text-white rounded-full z-10' : '',
+                inRange ? 'bg-brand-100 text-brand-700 rounded-none' : '',
+                !isStart && !isEnd && !inRange && !isPast ? `rounded-full hover:bg-ink-200 ${isToday ? 'ring-1 ring-brand-400' : ''}` : '',
+                isPast ? 'text-ink-300 cursor-default' : 'text-ink-800',
+              ].filter(Boolean).join(' ')}
+            >
+              {d.getDate()}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

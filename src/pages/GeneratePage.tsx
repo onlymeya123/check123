@@ -209,6 +209,49 @@ export default function GeneratePage() {
                     >
                       <RefreshCw className="w-3.5 h-3.5" /> Re-roll suggestions
                     </button>
+
+                    {/* Recommendations */}
+                    {alternatives(itinerary.map((p) => p.id)).length > 0 && (
+                      <div className="mt-6">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[11px] font-bold tracking-widest text-ink-500">RECOMMENDATIONS</span>
+                          <span className="text-[10px] text-ink-400">Tap + to add to plan</span>
+                        </div>
+                        <div className="space-y-2">
+                          {alternatives(itinerary.map((p) => p.id)).slice(0, 4).map((p) => {
+                            const deals = getDealsForPlace(p.id);
+                            return (
+                              <motion.div
+                                key={p.id}
+                                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                                className="bg-ink-50/60 border border-ink-100 rounded-2xl p-3 flex items-center gap-3"
+                              >
+                                <img src={p.image} alt={p.name} className="w-14 h-14 rounded-xl object-cover shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-semibold text-ink-900 text-sm truncate">{p.name}</div>
+                                  <div className="flex items-center gap-1.5 text-xs text-ink-500 mt-0.5">
+                                    <Star className="w-3 h-3 fill-amber-400 text-amber-400" />{p.rating}
+                                    <span className="text-ink-300">·</span>{p.category}
+                                  </div>
+                                  <div className="text-xs text-brand-600 font-semibold mt-0.5">{formatRp(p.cost)}</div>
+                                  {deals.length > 0 && (
+                                    <div className="mt-1 inline-flex items-center gap-1 bg-amber-50 rounded-full px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                                      <Tag className="w-3 h-3" /> {deals[0].discount}
+                                    </div>
+                                  )}
+                                </div>
+                                <button
+                                  onClick={() => { addStop(p); show(`${p.name} added`, 'success'); }}
+                                  className="w-9 h-9 rounded-full bg-brand-500 text-white flex items-center justify-center press shadow-soft shrink-0"
+                                >
+                                  <Plus className="w-4 h-4" />
+                                </button>
+                              </motion.div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Sticky CTA — above bottom nav */}
