@@ -355,7 +355,7 @@ export default function HomePage() {
               {/* Edit plan CTA */}
               <div className="mt-4 flex gap-2">
                 <button
-                  onClick={() => nav('/generate')}
+                  onClick={() => nav('/generate?edit=1')}
                   className="flex-1 h-10 rounded-xl border border-brand-200 text-brand-600 text-xs font-semibold press flex items-center justify-center gap-1.5"
                 >
                   <Pencil className="w-3.5 h-3.5" /> Edit Plan

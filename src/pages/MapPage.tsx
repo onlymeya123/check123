@@ -7,6 +7,7 @@ import {
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StatusBar from '../components/StatusBar';
+import PageHeader from '../components/PageHeader';
 import { useApp } from '../context/AppContext';
 import { formatRp } from '../lib/format';
 import { useToast } from '../components/Toast';
@@ -50,35 +51,31 @@ export default function MapPage() {
       <StatusBar />
 
       {/* Header */}
-      <div className="px-5 pt-3 pb-3 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <Map className="w-5 h-5 text-brand-500 shrink-0" />
-          <div className="min-w-0">
-            <span className="font-bold text-ink-900 text-lg font-display">Map</span>
-            <div className="text-xs text-ink-500">
-              {destinations.length > 0
-                ? `${destinations[activeDestIdx]?.name ?? 'My Trip'} · ${activeItinerary.length} stops`
-                : `${activeItinerary.length} stop${activeItinerary.length !== 1 ? 's' : ''}`}
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {activeItinerary.length > 0 && (
+      <PageHeader
+        icon={Map}
+        title="Map"
+        sub={destinations.length > 0
+          ? `${destinations[activeDestIdx]?.name ?? 'My Trip'} · ${activeItinerary.length} stops`
+          : `${activeItinerary.length} stop${activeItinerary.length !== 1 ? 's' : ''}`}
+        right={
+          <>
+            {activeItinerary.length > 0 && (
+              <button
+                onClick={() => nav('/generate?edit=1')}
+                className="press flex items-center gap-1.5 px-3 h-9 rounded-full bg-brand-50 text-brand-600 text-xs font-semibold border border-brand-100"
+              >
+                <Pencil className="w-3.5 h-3.5" /> Edit
+              </button>
+            )}
             <button
-              onClick={() => nav('/generate?edit=1')}
-              className="press flex items-center gap-1.5 px-3 h-9 rounded-full bg-brand-50 text-brand-600 text-xs font-semibold border border-brand-100"
+              onClick={() => setView(view === 'map' ? 'list' : 'map')}
+              className="press flex items-center gap-1.5 px-3 h-9 rounded-full bg-ink-50 text-ink-800 text-xs font-semibold"
             >
-              <Pencil className="w-3.5 h-3.5" /> Edit
+              <List className="w-4 h-4" /> {view === 'map' ? 'List' : 'Map'}
             </button>
-          )}
-          <button
-            onClick={() => setView(view === 'map' ? 'list' : 'map')}
-            className="press flex items-center gap-1.5 px-3 h-9 rounded-full bg-ink-50 text-ink-800 text-xs font-semibold"
-          >
-            <List className="w-4 h-4" /> {view === 'map' ? 'List' : 'Map'}
-          </button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* ── Destination Switcher ── */}
       {hasMultiDest && (
