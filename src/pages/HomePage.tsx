@@ -429,7 +429,7 @@ export default function HomePage() {
             <div className="flex items-center gap-2 mb-2">
               <span className="text-[10px] font-bold tracking-widest text-ink-500">UP NEXT</span>
             </div>
-            <div className="bg-gradient-to-br from-brand-50 to-purple-50 rounded-2xl p-4 border border-brand-100 flex items-center gap-4">
+            <div className="bg-brand-50 rounded-2xl p-4 border border-brand-100 flex items-center gap-4">
               <div className="w-12 h-12 rounded-2xl bg-brand-500/10 flex items-center justify-center shrink-0">
                 <span className="text-2xl">✈️</span>
               </div>

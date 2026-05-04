@@ -208,7 +208,7 @@ export default function OnboardingPage() {
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
             className="flex-1 flex flex-col"
           >
-            <div className="relative flex-1 flex flex-col" style={{ background: 'linear-gradient(135deg, #3B5BFF 0%, #6C3BFF 50%, #A855F7 100%)' }}>
+            <div className="relative flex-1 flex flex-col bg-brand-500">
               <div className="absolute top-[-80px] right-[-60px] w-64 h-64 rounded-full bg-white/5" />
               <div className="absolute top-[60px] left-[-40px] w-40 h-40 rounded-full bg-white/5" />
 
@@ -217,7 +217,7 @@ export default function OnboardingPage() {
                   initial={{ scale: 0.5, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ delay: 0.2, type: 'spring', stiffness: 260, damping: 20 }}
-                  className="w-24 h-24 rounded-3xl bg-white/20 backdrop-blur-sm flex items-center justify-center mb-6 shadow-xl border border-white/30"
+                  className="w-24 h-24 rounded-3xl bg-white flex items-center justify-center mb-6 shadow-xl"
                 >
                   <span className="text-5xl">✈️</span>
                 </motion.div>
