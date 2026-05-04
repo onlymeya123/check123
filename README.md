@@ -1,4 +1,4 @@
-# Wandr — AI-Powered Travel Planning App
+# Pavey — AI-Powered Travel Planning App
 
 ## Overview
 
