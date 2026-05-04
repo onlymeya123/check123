@@ -60,14 +60,15 @@ export default function WalletPage() {
       <StatusBar />
 
       {/* Header */}
-      <div className="flex items-center justify-between px-5 pt-2 pb-3">
-        <div className="font-bold text-ink-900 text-lg font-display flex items-center gap-2">
-          <Wallet className="w-5 h-5 text-brand-500" /> Trip Budget
-          {tripCompleted && (
-            <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full ml-1">
-              COMPLETED
-            </span>
-          )}
+      <div className="flex items-center justify-between px-5 pt-3 pb-3 shrink-0">
+        <div className="flex items-center gap-2">
+          <Wallet className="w-5 h-5 text-brand-500" />
+          <div>
+            <span className="font-bold text-ink-900 text-lg font-display">Wallet</span>
+            {tripCompleted && (
+              <span className="ml-2 text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">COMPLETED</span>
+            )}
+          </div>
         </div>
         <button className="w-9 h-9 rounded-full bg-ink-50 flex items-center justify-center press" onClick={() => show('Notifications: 0 new', 'info')}>
           <Bell className="w-4 h-4 text-ink-700" />

@@ -1,8 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Bell, ChevronDown, Crosshair, List, Navigation, X, MapPin, Smile,
+  ChevronDown, Crosshair, List, Navigation, X, MapPin, Smile,
   Clock, Star, DollarSign, ChevronDown as ChevDown, Bookmark,
-  ChevronUp, Plus,
+  ChevronUp, Plus, Map, Pencil,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -50,26 +50,32 @@ export default function MapPage() {
       <StatusBar />
 
       {/* Header */}
-      <div className="px-5 pt-2 pb-2 flex items-center justify-between shrink-0">
-        <div>
-          <div className="font-bold text-ink-900 text-lg font-display flex items-center gap-1">
-            MAP <span className="text-ink-300 font-normal text-base">/</span> ITINERARY
-          </div>
-          <div className="text-xs text-ink-500 mt-0.5">
-            {destinations.length > 0
-              ? `${destinations[activeDestIdx]?.name ?? 'My Trip'} · ${activeItinerary.length} stops`
-              : `Day 1 · ${activeItinerary.length} stops`}
+      <div className="px-5 pt-3 pb-3 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <Map className="w-5 h-5 text-brand-500 shrink-0" />
+          <div className="min-w-0">
+            <span className="font-bold text-ink-900 text-lg font-display">Map</span>
+            <div className="text-xs text-ink-500">
+              {destinations.length > 0
+                ? `${destinations[activeDestIdx]?.name ?? 'My Trip'} · ${activeItinerary.length} stops`
+                : `${activeItinerary.length} stop${activeItinerary.length !== 1 ? 's' : ''}`}
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
+          {activeItinerary.length > 0 && (
+            <button
+              onClick={() => nav('/generate?edit=1')}
+              className="press flex items-center gap-1.5 px-3 h-9 rounded-full bg-brand-50 text-brand-600 text-xs font-semibold border border-brand-100"
+            >
+              <Pencil className="w-3.5 h-3.5" /> Edit
+            </button>
+          )}
           <button
             onClick={() => setView(view === 'map' ? 'list' : 'map')}
             className="press flex items-center gap-1.5 px-3 h-9 rounded-full bg-ink-50 text-ink-800 text-xs font-semibold"
           >
             <List className="w-4 h-4" /> {view === 'map' ? 'List' : 'Map'}
-          </button>
-          <button className="w-9 h-9 rounded-full bg-ink-50 flex items-center justify-center press" aria-label="Alerts">
-            <Bell className="w-4 h-4 text-ink-700" />
           </button>
         </div>
       </div>

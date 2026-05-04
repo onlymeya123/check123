@@ -29,7 +29,8 @@ export default function GeneratePage() {
   const { vibe, budget, buildItinerary, setItinerary, itinerary, removeStop, replaceStop, addStop, reorderStop, alternatives } = useApp();
   const { show } = useToast();
 
-  const [phase, setPhase] = useState<'loading' | 'reveal'>(isManualMode ? 'reveal' : 'loading');
+  const isEditMode = searchParams.get('edit') === '1';
+  const [phase, setPhase] = useState<'loading' | 'reveal'>((isManualMode || isEditMode) ? 'reveal' : 'loading');
   const [stepIdx, setStepIdx] = useState(0);
   const [replaceFor, setReplaceFor] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -76,7 +77,7 @@ export default function GeneratePage() {
   const [showCustomForm, setShowCustomForm] = useState(false);
 
   useEffect(() => {
-    if (!isManualMode) setItinerary(buildItinerary());
+    if (!isManualMode && !isEditMode) setItinerary(buildItinerary());
   }, []); // eslint-disable-line
 
   useEffect(() => {
@@ -133,7 +134,7 @@ export default function GeneratePage() {
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div className="font-bold text-ink-900 font-display">
-          {isManualMode ? 'Build Your Journey' : 'Your Journey'}
+          {isManualMode ? 'Build Your Journey' : isEditMode ? 'Edit Journey' : 'Your Journey'}
         </div>
         <div className="text-xs text-brand-600 font-semibold capitalize bg-brand-50 px-2 py-1 rounded-full">
           {isManualMode ? 'Manual' : `${vibe} · ${formatRp(budget)}`}
