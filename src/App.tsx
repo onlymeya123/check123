@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Navigate, Routes, Route, useLocation } from 'react-router-dom';
 import PhoneFrame from './components/PhoneFrame';
 import BottomNav from './components/BottomNav';
@@ -16,8 +15,7 @@ import WalletPage from './pages/WalletPage';
 import ProfilePage from './pages/ProfilePage';
 
 function AppShell() {
-  const [buddyOpen, setBuddyOpen] = useState(false);
-  const { onboardingComplete } = useApp();
+  const { onboardingComplete, buddyOpen, setBuddyOpen } = useApp();
   const { pathname } = useLocation();
 
   const hideChrome = pathname.startsWith('/onboarding') || pathname === '/transition';

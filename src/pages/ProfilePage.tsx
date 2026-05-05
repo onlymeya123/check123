@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Settings, Mail, Phone, MapPin, ChevronRight, Bookmark, Clock, CreditCard, HelpCircle, X, Crown,
-  Compass, Sparkles, TrendingDown, Star, Target, LogOut, User,
+  Compass, Footprints, TrendingDown, Star, Target, LogOut, User,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -55,7 +55,7 @@ export default function ProfilePage() {
     {
       id: 'places',
       label: 'Places Explored',
-      icon: Sparkles,
+      icon: Footprints,
       color: '#10B981',
       bg: '#ECFDF5',
       value: totalPlaces,

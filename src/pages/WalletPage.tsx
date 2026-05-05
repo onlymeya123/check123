@@ -28,6 +28,8 @@ export default function WalletPage() {
   } = useApp();
   const { show } = useToast();
 
+  const hasUserTrips = trips.some(t => t.id !== 'trip-default');
+
   const [sheet, setSheet] = useState<null | 'editBudget' | 'addExpense' | 'scan' | 'history' | 'splitBill' | 'newTrip' | 'currencyPicker'>(null);
   const [confirmDeleteTrip, setConfirmDeleteTrip] = useState<string | null>(null);
 
@@ -55,6 +57,39 @@ export default function WalletPage() {
   const isOnTrack = projectedTotal <= tripBudget;
 
   const fmt = (n: number) => formatCurrencyAmount(n, currency);
+
+  if (!hasUserTrips) {
+    return (
+      <div className="absolute inset-0 bg-white flex flex-col">
+        <StatusBar />
+        <PageHeader icon={Wallet} title="Wallet" right={
+          <button className="w-9 h-9 rounded-full bg-ink-50 flex items-center justify-center press" onClick={() => setSheet('newTrip')}>
+            <Plus className="w-4 h-4 text-ink-700" />
+          </button>
+        } />
+        <div className="flex-1 flex flex-col items-center justify-center px-8 text-center gap-4">
+          <div className="text-6xl">💰</div>
+          <div className="font-bold text-ink-900 text-xl font-display">No wallet yet</div>
+          <div className="text-sm text-ink-500">Create a trip to start tracking your expenses.</div>
+          <button
+            onClick={() => setSheet('newTrip')}
+            className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-brand-500 text-white font-bold shadow-glow press"
+          >
+            <Plus className="w-4 h-4" /> Create Your First Trip
+          </button>
+        </div>
+        <Sheet open={sheet === 'newTrip'} title="New Trip" onClose={() => setSheet(null)}>
+          <NewTripSheet
+            onCreate={(data) => {
+              createTrip(data);
+              show(`"${data.name}" created`, 'success');
+              setSheet(null);
+            }}
+          />
+        </Sheet>
+      </div>
+    );
+  }
 
   return (
     <div className="absolute inset-0 bg-white overflow-y-auto pb-32 no-scrollbar">

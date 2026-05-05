@@ -1,9 +1,9 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Search, SlidersHorizontal, Sparkles, CloudSun, Bookmark, Palmtree, Flame,
-  Diamond, X, Star, MapPin, Clock, Link2, Camera, Play, Pencil,
-  ChevronRight, DollarSign, Plus, Navigation,
-  ArrowRight, Compass,
+  Search, SlidersHorizontal, Wand2, CloudSun, Bookmark, Palmtree, Flame,
+  Diamond, Wind, X, Star, MapPin, Clock, Link2, Camera, Play, Pencil,
+  ChevronRight, DollarSign, Plus, Navigation, RefreshCw,
+  ArrowRight, Compass, Trash2, AlertTriangle,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import StatusBar from '../components/StatusBar';
@@ -46,7 +46,7 @@ const SOCIAL_MOCK: Record<string, { platform: string; name: string; category: st
 export default function HomePage() {
   const nav = useNavigate();
   const {
-    vibe, setVibe, budget, setBudget, itinerary,
+    vibe, setVibe, budget, setBudget, itinerary, setItinerary,
     savedPlaces, savePlace, removeSavedPlace, isSaved, addStop,
     authUser, onboardingComplete,
     destinations, activeDestIdx, setActiveDestIdx, addDestination, setDestinations, removeDestination,
@@ -61,6 +61,8 @@ export default function HomePage() {
   const [socialUrl, setSocialUrl] = useState('');
   const [socialParsing, setSocialParsing] = useState(false);
   const [socialResult, setSocialResult] = useState<typeof SOCIAL_MOCK[string] | null>(null);
+  const [socialError, setSocialError] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const socialInputRef = useRef<HTMLInputElement>(null);
   const [detailPlace, setDetailPlace] = useState<Place | null>(null);
   const [addDestSheet, setAddDestSheet] = useState(false);
@@ -101,14 +103,19 @@ export default function HomePage() {
 
   const parseSocialLink = () => {
     if (!socialUrl.trim()) return;
+    const lower = socialUrl.toLowerCase();
+    const isValid = lower.includes('tiktok.com') || lower.includes('instagram.com') || lower.includes('ig.me') || lower.includes('instagr.am');
+    if (!isValid) {
+      setSocialError(true);
+      return;
+    }
+    setSocialError(false);
     setSocialParsing(true);
     setSocialResult(null);
     setTimeout(() => {
       setSocialParsing(false);
-      const lower = socialUrl.toLowerCase();
       if (lower.includes('tiktok')) setSocialResult(SOCIAL_MOCK.tiktok);
-      else if (lower.includes('instagram') || lower.includes('ig') || lower.includes('reel')) setSocialResult(SOCIAL_MOCK.instagram);
-      else setSocialResult(SOCIAL_MOCK.tiktok);
+      else setSocialResult(SOCIAL_MOCK.instagram);
     }, 1800);
   };
 
@@ -366,6 +373,12 @@ export default function HomePage() {
             {/* Edit plan CTA — outside timeline container so line doesn't bleed in */}
             <div className="mt-4 flex gap-2">
               <button
+                onClick={() => setShowClearConfirm(true)}
+                className="h-10 px-3 rounded-xl border border-red-200 text-red-500 text-xs font-semibold press flex items-center justify-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Clear
+              </button>
+              <button
                 onClick={() => nav('/generate?edit=1')}
                 className="flex-1 h-10 rounded-xl border border-brand-200 text-brand-600 text-xs font-semibold press flex items-center justify-center gap-1.5"
               >
@@ -378,6 +391,28 @@ export default function HomePage() {
                 <MapPin className="w-3.5 h-3.5" /> View Map
               </button>
             </div>
+
+            {/* Clear plan confirmation modal */}
+            <AnimatePresence>
+              {showClearConfirm && (
+                <>
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowClearConfirm(false)} className="absolute inset-0 z-40 bg-ink-900/50" />
+                  <motion.div
+                    initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+                    className="absolute inset-x-8 top-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl p-5 shadow-card text-center"
+                  >
+                    <div className="text-4xl mb-2">🗑️</div>
+                    <div className="font-bold text-ink-900 font-display">Clear today's plan?</div>
+                    <div className="text-sm text-ink-500 mt-1">This will remove all {itinerary.length} stops from your plan.</div>
+                    <div className="flex gap-2 mt-4">
+                      <button onClick={() => setShowClearConfirm(false)} className="flex-1 h-11 rounded-xl bg-ink-50 text-ink-700 font-semibold press">Keep it</button>
+                      <button onClick={() => { setItinerary([]); setShowClearConfirm(false); show('Plan cleared', 'info'); }} className="flex-1 h-11 rounded-xl bg-red-500 text-white font-semibold press">Clear plan</button>
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
           </div>
         )}
 
@@ -398,7 +433,7 @@ export default function HomePage() {
 
             <div className="grid grid-cols-2 gap-3">
               <ActionCard
-                icon={<Sparkles className="w-5 h-5 text-white" />}
+                icon={<Wand2 className="w-5 h-5 text-white" />}
                 label="AI Generate"
                 sub="Let Buddy plan it"
                 variant="primary"
@@ -487,7 +522,7 @@ export default function HomePage() {
         <div className="mt-3 grid grid-cols-4 gap-2">
           {VIBES.map((v) => {
             const active = v.id === vibe;
-            const Icon = v.id === 'chill' ? Palmtree : v.id === 'chaos' ? Flame : v.id === 'zen' ? Sparkles : Diamond;
+            const Icon = v.id === 'chill' ? Palmtree : v.id === 'chaos' ? Flame : v.id === 'zen' ? Wind : Diamond;
             return (
               <motion.button
                 key={v.id}
@@ -528,7 +563,7 @@ export default function HomePage() {
             className="mx-5 mt-3 flex items-center justify-between bg-brand-50 border border-brand-200 rounded-2xl px-4 py-3"
           >
             <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-brand-500 shrink-0" />
+              <RefreshCw className="w-4 h-4 text-brand-500 shrink-0" />
               <span className="text-sm text-brand-800 font-medium">Preferences updated</span>
             </div>
             <button
@@ -550,7 +585,7 @@ export default function HomePage() {
             className="rounded-2xl p-4 text-left flex flex-col gap-2 press bg-brand-500 shadow-glow"
           >
             <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-white" />
+              <Wand2 className="w-5 h-5 text-white" />
             </div>
             <div>
               <div className="font-bold text-white text-sm font-display leading-tight">
@@ -640,7 +675,7 @@ export default function HomePage() {
               <Link2 className="w-4 h-4 text-ink-400 shrink-0" />
               <input
                 ref={socialInputRef}
-                value={socialUrl} onChange={(e) => { setSocialUrl(e.target.value); setSocialResult(null); }}
+                value={socialUrl} onChange={(e) => { setSocialUrl(e.target.value); setSocialResult(null); setSocialError(false); }}
                 placeholder="Paste a TikTok or Instagram link…"
                 className="flex-1 bg-transparent outline-none text-sm text-ink-800 placeholder:text-ink-400"
               />
@@ -654,12 +689,17 @@ export default function HomePage() {
               {socialParsing ? '…' : 'Parse'}
             </button>
           </div>
+          {socialError && (
+            <motion.p initial={{opacity:0,y:-4}} animate={{opacity:1,y:0}} className="text-xs text-red-500 mt-2 flex items-center gap-1">
+              <AlertTriangle className="w-3.5 h-3.5" /> Please paste a valid TikTok or Instagram link
+            </motion.p>
+          )}
           <AnimatePresence>
             {socialParsing && (
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mt-3 overflow-hidden">
                 <div className="flex items-center gap-2 text-xs text-brand-600 font-semibold mb-2">
                   <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
-                    <Sparkles className="w-3.5 h-3.5" />
+                    <RefreshCw className="w-3.5 h-3.5" />
                   </motion.div>
                   Extracting place information…
                 </div>

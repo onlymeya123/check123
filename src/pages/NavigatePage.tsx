@@ -17,7 +17,7 @@ const PROMPTS = [
 
 export default function NavigatePage() {
   const nav = useNavigate();
-  const { itinerary, navIndex, setNavIndex, markVisited, setIsNavigating, completeTrip } = useApp();
+  const { itinerary, navIndex, setNavIndex, markVisited, setIsNavigating, completeTrip, setBuddyOpen } = useApp();
   const { show } = useToast();
 
   const [paused, setPaused] = useState(false);
@@ -406,7 +406,7 @@ export default function NavigatePage() {
               <div className="grid grid-cols-3 gap-2 mb-2.5">
                 <ActionBtn icon={<CheckCircle2 className="w-4 h-4" />} label="Visited" onClick={onMarkVisited} />
                 <ActionBtn icon={<SkipForward className="w-4 h-4" />} label="Skip" onClick={onSkip} />
-                <ActionBtn icon={<Smile className="w-4 h-4" />} label="Buddy" onClick={() => show('Tap the Buddy button to get help', 'info')} />
+                <ActionBtn icon={<Smile className="w-4 h-4" />} label="Buddy" onClick={() => setBuddyOpen(true)} />
               </div>
 
               {/* Cancel button */}

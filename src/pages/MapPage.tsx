@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronDown, Crosshair, List, Navigation, X, MapPin,
   Clock, Star, DollarSign, Bookmark, Smile,
-  ChevronUp, Plus, Map,
+  ChevronUp, Plus, Map, Pencil,
 } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -135,6 +135,9 @@ export default function MapPage() {
             <button onClick={() => show('Recentered on you', 'info')} className="w-10 h-10 rounded-full bg-white shadow-card flex items-center justify-center press">
               <Crosshair className="w-4 h-4 text-ink-700" />
             </button>
+            <button onClick={() => nav('/generate?edit=1')} className="w-10 h-10 rounded-full bg-white shadow-card flex items-center justify-center press">
+              <Pencil className="w-4 h-4 text-ink-700" />
+            </button>
             <button onClick={startNavigation} disabled={activeItinerary.length === 0} className="w-10 h-10 rounded-full bg-brand-500 disabled:bg-ink-300 shadow-glow flex items-center justify-center press">
               <Navigation className="w-4 h-4 text-white" />
             </button>
@@ -146,7 +149,7 @@ export default function MapPage() {
               onGenerate={() => nav('/generate')}
             />
           ) : (
-            <ItineraryBottomSheet itinerary={activeItinerary} totals={totals} onStart={startNavigation} onRemove={handleRemoveStop} />
+            <ItineraryBottomSheet itinerary={activeItinerary} totals={totals} onStart={startNavigation} onRemove={handleRemoveStop} onEdit={() => nav('/generate?edit=1')} />
           )}
         </div>
       ) : (
@@ -158,7 +161,7 @@ export default function MapPage() {
               inline
             />
           ) : (
-            <ListView itinerary={activeItinerary} onStart={startNavigation} totals={totals} onPin={setSelected} onRemove={handleRemoveStop} />
+            <ListView itinerary={activeItinerary} onStart={startNavigation} totals={totals} onPin={setSelected} onRemove={handleRemoveStop} onEdit={() => nav('/generate?edit=1')} />
           )}
         </div>
       )}
@@ -311,8 +314,8 @@ function MapStage({ itinerary, onPin }: { itinerary: Place[]; onPin: (p: Place) 
 
 /* --------------- BOTTOM SHEET (collapsible) --------------- */
 
-function ItineraryBottomSheet({ itinerary, totals, onStart, onRemove }: {
-  itinerary: Place[]; totals: { cost: number; time: number; dist: number }; onStart: () => void; onRemove: (p: Place) => void;
+function ItineraryBottomSheet({ itinerary, totals, onStart, onRemove, onEdit }: {
+  itinerary: Place[]; totals: { cost: number; time: number; dist: number }; onStart: () => void; onRemove: (p: Place) => void; onEdit: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -383,7 +386,10 @@ function ItineraryBottomSheet({ itinerary, totals, onStart, onRemove }: {
         )}
       </AnimatePresence>
 
-      <div className="px-5">
+      <div className="px-5 space-y-2">
+        <button onClick={onEdit} className="w-full h-10 rounded-2xl border border-brand-200 text-brand-600 text-xs font-semibold press flex items-center justify-center gap-1.5">
+          <Pencil className="w-3.5 h-3.5" /> Edit Plan
+        </button>
         <button onClick={onStart} disabled={itinerary.length === 0} className="w-full h-12 bg-brand-500 disabled:bg-ink-200 disabled:text-ink-400 text-white font-bold rounded-2xl flex items-center justify-center gap-2 shadow-glow press disabled:shadow-none">
           <Navigation className="w-4 h-4" /> Start Navigation
         </button>
@@ -410,8 +416,8 @@ function nineColon(i: number, addMin = 0) {
 
 /* ----------------- LIST VIEW ----------------- */
 
-function ListView({ itinerary, onStart, totals, onPin, onRemove }: {
-  itinerary: Place[]; onStart: () => void; totals: { cost: number; time: number; dist: number }; onPin: (p: Place) => void; onRemove: (p: Place) => void;
+function ListView({ itinerary, onStart, totals, onPin, onRemove, onEdit }: {
+  itinerary: Place[]; onStart: () => void; totals: { cost: number; time: number; dist: number }; onPin: (p: Place) => void; onRemove: (p: Place) => void; onEdit: () => void;
 }) {
   return (
     <div className="pt-2">
@@ -483,9 +489,14 @@ function ListView({ itinerary, onStart, totals, onPin, onRemove }: {
           </div>
         ))}
       </div>
-      <button onClick={onStart} disabled={itinerary.length === 0} className="mt-5 w-full h-12 bg-brand-500 disabled:bg-ink-200 disabled:text-ink-400 text-white font-bold rounded-2xl shadow-glow press disabled:shadow-none flex items-center justify-center gap-2">
-        <Navigation className="w-4 h-4" /> Start Navigation
-      </button>
+      <div className="mt-5 space-y-2">
+        <button onClick={onEdit} className="w-full h-10 rounded-2xl border border-brand-200 text-brand-600 text-xs font-semibold press flex items-center justify-center gap-1.5">
+          <Pencil className="w-3.5 h-3.5" /> Edit Plan
+        </button>
+        <button onClick={onStart} disabled={itinerary.length === 0} className="w-full h-12 bg-brand-500 disabled:bg-ink-200 disabled:text-ink-400 text-white font-bold rounded-2xl shadow-glow press disabled:shadow-none flex items-center justify-center gap-2">
+          <Navigation className="w-4 h-4" /> Start Navigation
+        </button>
+      </div>
     </div>
   );
 }

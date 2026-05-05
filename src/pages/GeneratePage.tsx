@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  ArrowLeft, ArrowDown, Check, GripVertical, Plus, RefreshCw, Sparkles, X,
+  ArrowLeft, ArrowDown, Check, GripVertical, Plus, RefreshCw, Wand2, X,
   Clock, Star, DollarSign, Pencil, Search, ChevronUp, ChevronDown,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -168,7 +168,7 @@ export default function GeneratePage() {
                   {/* Summary card */}
                   <div className="mx-5 mt-2 p-4 rounded-2xl bg-brand-600 text-white shrink-0">
                     <div className="flex items-center gap-2 text-sm font-semibold opacity-90">
-                      <Sparkles className="w-4 h-4" /> Crafted for your {vibe} day
+                      <Wand2 className="w-4 h-4" /> Crafted for your {vibe} day
                     </div>
                     <div className="grid grid-cols-3 gap-3 mt-3">
                       <SummStat label="Stops" value={String(itinerary.length)} />
@@ -316,7 +316,7 @@ export default function GeneratePage() {
                   <div className="text-sm font-bold">{manualStops.length} stops · {formatRp(totals.cost)}</div>
                 </div>
                 <button onClick={importAi} className="text-xs font-semibold press flex items-center gap-1 bg-white/20 rounded-full px-3 py-1.5">
-                  <Sparkles className="w-3.5 h-3.5" /> Mix AI
+                  <Wand2 className="w-3.5 h-3.5" /> Mix AI
                 </button>
               </div>
             )}
@@ -480,7 +480,7 @@ export default function GeneratePage() {
                   <div className="font-semibold text-ink-700">No stops yet</div>
                   <div className="text-sm text-ink-500 mt-1">Search above or pick from recommendations</div>
                   <button onClick={importAi} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-brand-50 text-brand-600 text-sm font-semibold press">
-                    <Sparkles className="w-4 h-4" /> Import AI suggestions
+                    <Wand2 className="w-4 h-4" /> Import AI suggestions
                   </button>
                 </div>
               )}
@@ -594,7 +594,7 @@ function LoadingState({ stepIdx }: { stepIdx: number }) {
     <motion.div key="loading" initial={{ opacity: 1 }} exit={{ opacity: 0, y: -8 }} className="flex-1 px-5 pt-4 flex flex-col">
       <div className="flex items-center gap-2 text-brand-600 font-semibold">
         <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.6, ease: 'linear' }}>
-          <Sparkles className="w-5 h-5" />
+          <RefreshCw className="w-5 h-5" />
         </motion.div>
         <AnimatePresence mode="wait">
           <motion.span key={stepIdx} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }} className="text-[15px]">

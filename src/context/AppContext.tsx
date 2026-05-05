@@ -96,6 +96,10 @@ interface AppState {
   // Journey settings
   journeyStart: { date: string; time: string; days: number };
   setJourneyStart: (s: { date: string; time: string; days: number }) => void;
+
+  // Buddy
+  buddyOpen: boolean;
+  setBuddyOpen: (v: boolean) => void;
 }
 
 const Ctx = createContext<AppState | null>(null);
@@ -140,6 +144,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     PLACES[0], PLACES[1], PLACES[2], PLACES[3],
   ]);
   const [isNavigating, setIsNavigating] = useState(false);
+  const [buddyOpen, setBuddyOpen] = useState(false);
   const [navIndex, setNavIndex] = useState(0);
   const [visited, setVisited] = useState<Set<string>>(new Set());
   const [savedPlaces, setSavedPlaces] = useState<Place[]>(persisted?.savedPlaces ?? []);
@@ -153,7 +158,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [tripCompleted, setTripCompleted] = useState(false);
 
   // Multi-trip state
-  const [trips, setTrips] = useState<Trip[]>(persisted?.trips ?? [DEFAULT_TRIP]);
+  const [trips, setTrips] = useState<Trip[]>(persisted?.trips ?? []);
   const [activeTripId, setActiveTripId] = useState<string>(persisted?.activeTripId ?? DEFAULT_TRIP.id);
 
   // Issue 35: persist key state to localStorage
@@ -168,7 +173,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [isAuthenticated, authUser, onboardingComplete, vibe, budget, itinerary, savedPlaces, destinations, trips, activeTripId, journeyStart]);
 
   const activeTrip = useMemo(
-    () => trips.find((t) => t.id === activeTripId) ?? trips[0],
+    () => trips.find((t) => t.id === activeTripId) ?? trips[0] ?? DEFAULT_TRIP,
     [trips, activeTripId],
   );
 
@@ -240,7 +245,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       transactions: [],
       createdAt: new Date().toISOString(),
     };
-    setTrips((prev) => [...prev, newTrip]);
+    setTrips([newTrip]);
     setActiveTripId(id);
 
     setOnboardingComplete(true);
@@ -381,6 +386,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     isSaved: (id) => savedPlaces.some((p) => p.id === id),
     journeyStart,
     setJourneyStart,
+
+    buddyOpen,
+    setBuddyOpen,
   };
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
