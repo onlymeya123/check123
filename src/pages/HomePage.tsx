@@ -3,17 +3,19 @@ import {
   Search, SlidersHorizontal, Wand2, CloudSun, Bookmark, Palmtree, Flame,
   Diamond, Wind, X, Star, MapPin, Clock, Link2, Camera, Play, Pencil,
   ChevronRight, DollarSign, Plus, Navigation, RefreshCw,
-  ArrowRight, Compass, Trash2, AlertTriangle,
+  ArrowRight, Compass, Trash2, AlertTriangle, Zap, Umbrella,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import StatusBar from '../components/StatusBar';
 import { useApp } from '../context/AppContext';
 import { HERO_IMAGE, USER } from '../data/user';
 import { formatRp } from '../lib/format';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useToast } from '../components/Toast';
 import { PLACES, type Category, type Vibe } from '../data/places';
 import type { Place } from '../data/places';
+import type { TransitMode } from '../context/AppContext';
+import { CURRENCY_SYMBOLS } from '../data/wallet';
 
 const VIBES: { id: Vibe; label: string; icon: string; tint: string }[] = [
   { id: 'chill', label: 'Chill', icon: '🌴', tint: '#10B981' },
@@ -43,6 +45,21 @@ const SOCIAL_MOCK: Record<string, { platform: string; name: string; category: st
   },
 };
 
+const TRANSIT_ICONS: Record<TransitMode, string> = {
+  flight: '✈️', train: '🚅', bus: '🚌', drive: '🚗', ferry: '⛴️',
+};
+
+const TRANSIT_LABELS: Record<TransitMode, string> = {
+  flight: 'Flight', train: 'Train', bus: 'Bus', drive: 'Drive', ferry: 'Ferry',
+};
+
+// Quick Plan durations
+const QUICK_PLAN_OPTIONS = [
+  { label: '2h', hours: 2 },
+  { label: '4h', hours: 4 },
+  { label: 'Half day', hours: 6 },
+];
+
 export default function HomePage() {
   const nav = useNavigate();
   const {
@@ -50,7 +67,8 @@ export default function HomePage() {
     savedPlaces, savePlace, removeSavedPlace, isSaved, addStop,
     authUser, onboardingComplete,
     destinations, activeDestIdx, setActiveDestIdx, addDestination, setDestinations, removeDestination,
-    isNavigating,
+    isNavigating, activeTrip, totalSpent, tripBudget, tripDaysRemaining, dailyAllowance,
+    currency, setCurrency, rainyDayMode, setRainyDayMode, journeyStart,
   } = useApp();
   const { show } = useToast();
 
@@ -68,12 +86,40 @@ export default function HomePage() {
   const [addDestSheet, setAddDestSheet] = useState(false);
   const [newDestName, setNewDestName] = useState('');
   const [newDestDays, setNewDestDays] = useState(2);
+  const [newDestArriveDate, setNewDestArriveDate] = useState('');
+  const [newDestDepartDate, setNewDestDepartDate] = useState('');
+  const [newDestTransitMode, setNewDestTransitMode] = useState<TransitMode>('flight');
+  const [newDestVisaNote, setNewDestVisaNote] = useState('');
+  const [showVisaNote, setShowVisaNote] = useState(false);
   // Issue 27: vibe/budget change prompt
   const [vibeChangedPrompt, setVibeChangedPrompt] = useState(false);
   // Issue 28: explore nearby sheet
   const [exploreSheet, setExploreSheet] = useState(false);
   // Issue 30: manage destinations sheet
   const [manageDestsSheet, setManageDestsSheet] = useState(false);
+  // Route strip view toggle
+  const [routeView, setRouteView] = useState<'destinations' | 'timeline'>('destinations');
+  // Currency banner
+  const [showCurrencyBanner, setShowCurrencyBanner] = useState(false);
+  const [currencyBannerDest, setCurrencyBannerDest] = useState('');
+  const [currencyBannerCurrency, setCurrencyBannerCurrency] = useState('');
+  const prevDestIdxRef = useRef(activeDestIdx);
+  // Quick Plan sheet
+  const [quickPlanSheet, setQuickPlanSheet] = useState(false);
+  const [quickPlanHours, setQuickPlanHours] = useState(2);
+
+  // 1.4 - Currency switch banner
+  useEffect(() => {
+    if (activeDestIdx === prevDestIdxRef.current) return;
+    prevDestIdxRef.current = activeDestIdx;
+    const dest = destinations[activeDestIdx];
+    if (!dest) return;
+    if (dest.currency !== activeTrip.currency) {
+      setCurrencyBannerDest(dest.name.split(',')[0]);
+      setCurrencyBannerCurrency(dest.currency);
+      setShowCurrencyBanner(true);
+    }
+  }, [activeDestIdx, destinations, activeTrip.currency]);
 
   const sliderPct = useMemo(() => {
     const min = 50_000, max = 1_000_000;
@@ -101,6 +147,49 @@ export default function HomePage() {
 
   const displayName = authUser?.name?.split(' ')[0] ?? USER.firstName;
 
+  // UI1 — Day header computation
+  const dayHeaderInfo = useMemo(() => {
+    let dayNum = 1;
+    let dateStr = '';
+    if (journeyStart.date === 'today') {
+      const today = new Date();
+      dateStr = today.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+    } else {
+      const start = new Date(journeyStart.date);
+      const today = new Date();
+      const diff = Math.floor((today.getTime() - start.getTime()) / 86400000);
+      dayNum = Math.max(1, diff + 1);
+      dateStr = today.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+    }
+    const cityName = activeDest?.name?.split(',')[0] ?? 'Your Trip';
+    return { dayNum, dateStr, cityName };
+  }, [journeyStart, activeDest]);
+
+  // UI4 — Budget Pulse
+  const budgetPulseInfo = useMemo(() => {
+    const todayTransactions = activeTrip.transactions.filter((t) => {
+      const d = new Date(t.date);
+      const today = new Date();
+      return d.toDateString() === today.toDateString() && t.amount < 0;
+    });
+    const todaySpent = todayTransactions.reduce((s, t) => s + Math.abs(t.amount), 0);
+    const daysRemaining = tripDaysRemaining;
+    const totalBudgetPerDay = tripBudget / Math.max(1, activeTrip.daysTotal);
+    const isOnTrack = todaySpent <= totalBudgetPerDay;
+    return { todaySpent, totalBudgetPerDay, daysRemaining, isOnTrack };
+  }, [activeTrip, tripBudget, tripDaysRemaining]);
+
+  // Auto-calculate days from dates in add dest sheet
+  const calcedDays = useMemo(() => {
+    if (newDestArriveDate && newDestDepartDate) {
+      const a = new Date(newDestArriveDate);
+      const b = new Date(newDestDepartDate);
+      const diff = Math.max(1, Math.round((b.getTime() - a.getTime()) / 86400000));
+      return diff;
+    }
+    return null;
+  }, [newDestArriveDate, newDestDepartDate]);
+
   const parseSocialLink = () => {
     if (!socialUrl.trim()) return;
     const lower = socialUrl.toLowerCase();
@@ -121,11 +210,31 @@ export default function HomePage() {
 
   const handleAddDest = () => {
     if (!newDestName.trim()) return;
-    addDestination({ name: newDestName.trim(), days: newDestDays });
+    const days = calcedDays ?? newDestDays;
+    addDestination({
+      name: newDestName.trim(),
+      days,
+      arriveDate: newDestArriveDate || undefined,
+      departDate: newDestDepartDate || undefined,
+      transitMode: newDestTransitMode,
+      visaNote: newDestVisaNote || undefined,
+    });
     setNewDestName('');
     setNewDestDays(2);
+    setNewDestArriveDate('');
+    setNewDestDepartDate('');
+    setNewDestVisaNote('');
+    setShowVisaNote(false);
     setAddDestSheet(false);
     show(`${newDestName.trim()} added to your trip`, 'success');
+  };
+
+  const handleQuickPlan = () => {
+    const stops = Math.round((quickPlanHours * 60) / 90);
+    const trimmed = itinerary.slice(0, Math.max(1, stops));
+    setItinerary(trimmed.length > 0 ? trimmed : itinerary.slice(0, 1));
+    setQuickPlanSheet(false);
+    nav('/map');
   };
 
   return (
@@ -185,13 +294,56 @@ export default function HomePage() {
             <div className="text-ink-900 font-bold leading-snug font-display">Hidden Treasures kind of day ✨</div>
             <div className="text-xs text-ink-500 mt-0.5">3 spots near you · Est. {formatRp(120000)}</div>
           </div>
-          <div className="shrink-0 text-right">
-            <div className="text-[10px] text-ink-400">Humidity</div>
-            <div className="text-sm font-bold text-ink-700">74%</div>
-            <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">✓ Great day</div>
+          <div className="shrink-0 text-right flex flex-col items-end gap-1">
+            <div>
+              <div className="text-[10px] text-ink-400">Humidity</div>
+              <div className="text-sm font-bold text-ink-700">74%</div>
+              <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">✓ Great day</div>
+            </div>
+            {/* Rainy Day Mode toggle */}
+            <button
+              onClick={() => { setRainyDayMode(!rainyDayMode); show(rainyDayMode ? 'Rainy day mode off' : 'Rainy day mode on — showing indoor alternatives', 'info'); }}
+              className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-semibold press transition-colors ${rainyDayMode ? 'bg-blue-100 text-blue-700' : 'bg-ink-100 text-ink-500'}`}
+            >
+              <Umbrella className="w-3 h-3" /> {rainyDayMode ? 'Indoor' : 'Rainy?'}
+            </button>
           </div>
         </motion.div>
+
+        {/* Rainy Day Banner */}
+        <AnimatePresence>
+          {rainyDayMode && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+              className="mt-2 flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2"
+            >
+              <Umbrella className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+              <span className="text-xs text-blue-700 font-medium">Rainy Day Mode on — showing indoor alternatives</span>
+              <button onClick={() => setRainyDayMode(false)} className="ml-auto shrink-0 press">
+                <X className="w-3.5 h-3.5 text-blue-400" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
+
+      {/* Currency switch banner */}
+      <AnimatePresence>
+        {showCurrencyBanner && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+            className="mx-5 mt-3 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5"
+          >
+            <span className="text-sm">💱</span>
+            <span className="text-xs text-amber-800 font-medium flex-1">You're now in {currencyBannerDest} · Switch wallet to {currencyBannerCurrency}?</span>
+            <button
+              onClick={() => { setCurrency(currencyBannerCurrency as Parameters<typeof setCurrency>[0]); setShowCurrencyBanner(false); show(`Wallet switched to ${currencyBannerCurrency}`, 'success'); }}
+              className="text-xs font-bold text-amber-700 press px-2 py-1 bg-amber-100 rounded-lg"
+            >Switch</button>
+            <button onClick={() => setShowCurrencyBanner(false)} className="text-xs text-amber-500 font-medium press">Keep</button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Multi-Destination Trip Strip ── */}
       {hasMultiDest && (
@@ -199,6 +351,17 @@ export default function HomePage() {
           <div className="flex items-center justify-between mb-2">
             <span className="text-[10px] font-bold tracking-widest text-ink-500">YOUR ROUTE</span>
             <div className="flex items-center gap-2">
+              {/* View toggle */}
+              <div className="flex items-center bg-ink-50 rounded-lg p-0.5">
+                <button
+                  onClick={() => setRouteView('destinations')}
+                  className={`px-2 py-1 rounded-md text-[10px] font-semibold press transition-colors ${routeView === 'destinations' ? 'bg-white text-ink-900 shadow-soft' : 'text-ink-500'}`}
+                >Destinations</button>
+                <button
+                  onClick={() => setRouteView('timeline')}
+                  className={`px-2 py-1 rounded-md text-[10px] font-semibold press transition-colors ${routeView === 'timeline' ? 'bg-white text-ink-900 shadow-soft' : 'text-ink-500'}`}
+                >Timeline</button>
+              </div>
               {/* Issue 30: manage destinations */}
               <button onClick={() => setManageDestsSheet(true)} className="text-xs text-ink-500 font-semibold press">Manage</button>
               <button
@@ -209,33 +372,65 @@ export default function HomePage() {
               </button>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
-            {destinations.map((d, i) => (
-              <div key={d.id} className="flex items-center gap-1 shrink-0">
-                <button
-                  onClick={() => setActiveDestIdx(i)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold press transition-colors whitespace-nowrap ${
-                    i === activeDestIdx
-                      ? 'bg-brand-500 text-white shadow-glow'
-                      : 'bg-ink-50 text-ink-700 border border-ink-100'
-                  }`}
-                >
-                  {i === activeDestIdx && <span className="w-1.5 h-1.5 rounded-full bg-white/80" />}
-                  {d.name.split(',')[0]}
-                  <span className={`text-[10px] ${i === activeDestIdx ? 'text-white/70' : 'text-ink-400'}`}>{d.days}d</span>
-                </button>
-                {i < destinations.length - 1 && (
-                  <ArrowRight className="w-3 h-3 text-ink-300 shrink-0" />
-                )}
-              </div>
-            ))}
-            <button
-              onClick={() => setAddDestSheet(true)}
-              className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-full border border-dashed border-brand-300 text-brand-500 text-xs font-semibold press"
-            >
-              <Plus className="w-3 h-3" />
-            </button>
-          </div>
+
+          {routeView === 'destinations' && (
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+              {destinations.map((d, i) => (
+                <div key={d.id} className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => setActiveDestIdx(i)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold press transition-colors whitespace-nowrap ${
+                      i === activeDestIdx
+                        ? 'bg-brand-500 text-white shadow-glow'
+                        : 'bg-ink-50 text-ink-700 border border-ink-100'
+                    }`}
+                  >
+                    {i === activeDestIdx && <span className="w-1.5 h-1.5 rounded-full bg-white/80" />}
+                    {d.name.split(',')[0]}
+                    <span className={`text-[10px] ${i === activeDestIdx ? 'text-white/70' : 'text-ink-400'}`}>{d.days}d</span>
+                    {d.visaNote && <span className="text-[10px]">⚠️</span>}
+                  </button>
+                  {i < destinations.length - 1 && (
+                    <ArrowRight className="w-3 h-3 text-ink-300 shrink-0" />
+                  )}
+                </div>
+              ))}
+              <button
+                onClick={() => setAddDestSheet(true)}
+                className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-full border border-dashed border-brand-300 text-brand-500 text-xs font-semibold press"
+              >
+                <Plus className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+
+          {routeView === 'timeline' && (
+            <div className="space-y-1">
+              {destinations.map((d, i) => (
+                <div key={d.id}>
+                  <button
+                    onClick={() => setActiveDestIdx(i)}
+                    className={`w-full flex items-start gap-3 p-2.5 rounded-xl press transition-colors ${i === activeDestIdx ? 'bg-brand-50 border border-brand-100' : 'bg-ink-50 border border-ink-100'}`}
+                  >
+                    <div className="text-left flex-1 min-w-0">
+                      <div className={`font-semibold text-sm ${i === activeDestIdx ? 'text-brand-700' : 'text-ink-900'}`}>{d.name.split(',')[0]}</div>
+                      <div className="text-xs text-ink-500 mt-0.5">
+                        {d.arriveDate ? d.arriveDate : `Day ${i + 1}`}
+                        {d.arriveDate && d.departDate ? ` → ${d.departDate}` : ` · ${d.days}d`}
+                      </div>
+                    </div>
+                    {d.visaNote && <span className="text-xs shrink-0">⚠️</span>}
+                  </button>
+                  {i < destinations.length - 1 && (
+                    <div className="flex items-center gap-2 pl-4 py-1 text-xs text-ink-400">
+                      <span>{destinations[i + 1].transitMode ? TRANSIT_ICONS[destinations[i + 1].transitMode!] : '✈️'}</span>
+                      <span>{destinations[i + 1].transitMode ? TRANSIT_LABELS[destinations[i + 1].transitMode!] : 'Transit'}</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -297,6 +492,15 @@ export default function HomePage() {
         {/* ── CASE A: Has today's plan ── */}
         {hasTodayPlan && (
           <div>
+            {/* UI1 — Day header */}
+            <div className="mb-3 flex items-center gap-2">
+              <span className="text-xs font-bold text-brand-600">DAY {dayHeaderInfo.dayNum}</span>
+              <span className="text-xs text-ink-500">—</span>
+              <span className="text-xs text-ink-600">{dayHeaderInfo.dateStr}</span>
+              <span className="text-xs text-ink-400">·</span>
+              <span className="text-xs font-semibold text-ink-700">{dayHeaderInfo.cityName}</span>
+            </div>
+
             {/* Active nav indicator */}
             {isNavigating && (
               <motion.button
@@ -391,6 +595,26 @@ export default function HomePage() {
                 <MapPin className="w-3.5 h-3.5" /> View Map
               </button>
             </div>
+
+            {/* UI7 — Plan tomorrow shortcut */}
+            {destinations.length > 1 && activeDestIdx < destinations.length - 1 && (
+              <motion.div
+                initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                className="mt-3 flex items-center justify-between bg-brand-50 rounded-xl p-3"
+              >
+                <div className="text-sm">
+                  <span className="text-ink-500">Tomorrow: </span>
+                  <span className="font-semibold text-ink-900">{destinations[activeDestIdx + 1].name.split(',')[0]}</span>
+                  <span className="text-ink-400 ml-1">— No plan yet</span>
+                </div>
+                <button
+                  onClick={() => { setActiveDestIdx(activeDestIdx + 1); nav('/generate'); }}
+                  className="flex items-center gap-1 text-xs font-bold text-brand-600 press"
+                >
+                  Plan Now <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </motion.div>
+            )}
 
             {/* Clear plan confirmation modal */}
             <AnimatePresence>
@@ -514,6 +738,40 @@ export default function HomePage() {
         )}
       </div>
 
+      {/* UI4 — Budget Pulse card */}
+      {activeTrip.transactions.length > 0 && (
+        <div className="px-5 mt-5">
+          <motion.button
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+            onClick={() => nav('/wallet')}
+            className="w-full bg-white rounded-2xl p-4 shadow-card text-left press border border-ink-100"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span className="text-base">💰</span>
+                <span className="font-bold text-ink-900 font-display text-sm">Budget Pulse</span>
+              </div>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${budgetPulseInfo.isOnTrack ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
+                {budgetPulseInfo.isOnTrack ? 'On track' : 'Over budget'}
+              </span>
+            </div>
+            <div className="text-xs text-ink-600">
+              Spent {CURRENCY_SYMBOLS[currency]}{Math.round(totalSpent / 1000)}K of {CURRENCY_SYMBOLS[currency]}{Math.round(tripBudget / 1000)}K
+              {tripDaysRemaining > 0 && ` · ${tripDaysRemaining} day${tripDaysRemaining !== 1 ? 's' : ''} left`}
+            </div>
+            <div className="text-xs text-ink-500 mt-0.5">
+              {CURRENCY_SYMBOLS[currency]}{Math.round(dailyAllowance / 1000)}K/day remaining
+            </div>
+            <div className="mt-2 h-1.5 bg-ink-100 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${budgetPulseInfo.isOnTrack ? 'bg-emerald-400' : 'bg-red-400'}`}
+                style={{ width: `${Math.min(100, (totalSpent / tripBudget) * 100)}%` }}
+              />
+            </div>
+          </motion.button>
+        </div>
+      )}
+
       {/* Vibe picker */}
       <div className="px-5 mt-6">
         <div className="flex items-center justify-between">
@@ -546,7 +804,7 @@ export default function HomePage() {
           type="range" min={50_000} max={1_000_000} step={10_000}
           value={budget} onChange={(e) => { setBudget(Number(e.target.value)); if (itinerary.length > 0) setVibeChangedPrompt(true); }}
           className="vibe-slider mt-2 mb-1"
-          style={{ ['--val' as any]: `${sliderPct}%` }}
+          style={{ ['--val' as string]: `${sliderPct}%` } as React.CSSProperties}
         />
         <div className="flex justify-between text-xs text-ink-500">
           <span>{formatRp(50_000)}</span>
@@ -576,7 +834,7 @@ export default function HomePage() {
         )}
       </AnimatePresence>
 
-      {/* CTA — Two equal-weight options */}
+      {/* CTA — Generate options */}
       <div className="px-5 mt-5">
         <div className="grid grid-cols-2 gap-3">
           <motion.button
@@ -607,6 +865,22 @@ export default function HomePage() {
               <div className="font-bold text-ink-900 text-sm font-display leading-tight">Plan Manually</div>
               <div className="text-[11px] text-ink-500 mt-0.5 leading-tight">Your way, your stops</div>
             </div>
+          </motion.button>
+
+          {/* 3I — Quick Plan card */}
+          <motion.button
+            whileTap={{ scale: 0.96 }} whileHover={{ scale: 1.01 }}
+            onClick={() => setQuickPlanSheet(true)}
+            className="col-span-2 rounded-2xl p-4 text-left flex items-center gap-3 press bg-amber-50 border border-amber-200"
+          >
+            <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+              <Zap className="w-5 h-5 text-amber-600" />
+            </div>
+            <div className="flex-1">
+              <div className="font-bold text-amber-800 text-sm font-display leading-tight">Quick Plan</div>
+              <div className="text-[11px] text-amber-600 mt-0.5 leading-tight">2h or 4h · Go now</div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-amber-400" />
           </motion.button>
         </div>
       </div>
@@ -721,7 +995,7 @@ export default function HomePage() {
                   {/* Issue 26: renamed buttons */}
                   <button
                     onClick={() => {
-                      const place: Place = { id: `social-${Date.now()}`, name: socialResult!.name, category: 'Hidden Gem', tags: ['Social Import'], vibes: ['chill','chaos','zen','luxury'], image: socialResult!.image, cost: socialResult!.cost, priceRange: { min: socialResult!.cost, max: socialResult!.cost }, durationMin: 60, distanceKm: 1.0, lat: -8.5055, lng: 115.2620, rating: 4.5, description: socialResult!.desc, openingHours: 'All day' };
+                      const place: Place = { id: `social-${Date.now()}`, name: socialResult!.name, category: 'Hidden Gem', tags: ['Social Import'], vibes: ['chill','chaos','zen','luxury'], image: socialResult!.image, cost: socialResult!.cost, priceRange: { min: socialResult!.cost, max: socialResult!.cost }, durationMin: 60, distanceKm: 1.0, lat: -8.5055, lng: 115.2620, rating: 4.5, description: socialResult!.desc, openingHours: 'All day', indoor: false, openHour: 0, closeHour: 24 };
                       addStop(place);
                       show(`${socialResult!.name} added to plan`, 'success');
                       setSocialResult(null);
@@ -734,7 +1008,7 @@ export default function HomePage() {
                   </button>
                   <button
                     onClick={() => {
-                      const place: Place = { id: `social-${Date.now()}`, name: socialResult!.name, category: 'Hidden Gem', tags: ['Social Import'], vibes: ['chill','chaos','zen','luxury'], image: socialResult!.image, cost: socialResult!.cost, priceRange: { min: socialResult!.cost, max: socialResult!.cost }, durationMin: 60, distanceKm: 1.0, lat: -8.5055, lng: 115.2620, rating: 4.5, description: socialResult!.desc, openingHours: 'All day' };
+                      const place: Place = { id: `social-${Date.now()}`, name: socialResult!.name, category: 'Hidden Gem', tags: ['Social Import'], vibes: ['chill','chaos','zen','luxury'], image: socialResult!.image, cost: socialResult!.cost, priceRange: { min: socialResult!.cost, max: socialResult!.cost }, durationMin: 60, distanceKm: 1.0, lat: -8.5055, lng: 115.2620, rating: 4.5, description: socialResult!.desc, openingHours: 'All day', indoor: false, openHour: 0, closeHour: 24 };
                       savePlace(place);
                       show(`${socialResult!.name} saved for later`, 'success');
                       setSocialResult(null);
@@ -759,7 +1033,7 @@ export default function HomePage() {
             <motion.div
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className="absolute inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl shadow-card pb-10"
+              className="absolute inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl shadow-card pb-10 max-h-[90%] overflow-y-auto"
             >
               <div className="w-12 h-1.5 bg-ink-100 rounded-full mx-auto mt-3" />
               <div className="px-5 pt-3 pb-4 flex items-center justify-between">
@@ -767,6 +1041,7 @@ export default function HomePage() {
                 <button onClick={() => setAddDestSheet(false)} className="w-8 h-8 rounded-full bg-ink-50 flex items-center justify-center press"><X className="w-4 h-4" /></button>
               </div>
               <div className="px-5 space-y-4">
+                {/* City name */}
                 <div>
                   <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-1.5">DESTINATION</div>
                   <div className="flex items-center gap-2 bg-ink-50 rounded-xl px-3 py-2.5 border-2 border-transparent focus-within:border-brand-400 transition-colors">
@@ -781,21 +1056,142 @@ export default function HomePage() {
                     />
                   </div>
                 </div>
+
+                {/* Date range */}
                 <div>
-                  <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-1.5">DAYS PLANNED</div>
-                  <div className="flex items-center gap-3">
-                    <button onClick={() => setNewDestDays((d) => Math.max(1, d - 1))} className="w-10 h-10 rounded-full bg-ink-50 border border-ink-200 flex items-center justify-center press font-bold text-ink-700 text-lg">−</button>
-                    <div className="flex-1 text-center text-2xl font-extrabold text-ink-900 font-display">{newDestDays}</div>
-                    <button onClick={() => setNewDestDays((d) => d + 1)} className="w-10 h-10 rounded-full bg-brand-500 flex items-center justify-center press font-bold text-white text-lg">+</button>
+                  <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-1.5">DATES</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <div className="text-[10px] text-ink-400 mb-1">📅 Arrive</div>
+                      <input
+                        type="date"
+                        value={newDestArriveDate}
+                        onChange={(e) => setNewDestArriveDate(e.target.value)}
+                        className="w-full bg-ink-50 rounded-xl px-3 py-2.5 text-sm text-ink-900 border border-ink-200 outline-none focus:border-brand-400"
+                      />
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-ink-400 mb-1">📅 Depart</div>
+                      <input
+                        type="date"
+                        value={newDestDepartDate}
+                        onChange={(e) => setNewDestDepartDate(e.target.value)}
+                        className="w-full bg-ink-50 rounded-xl px-3 py-2.5 text-sm text-ink-900 border border-ink-200 outline-none focus:border-brand-400"
+                      />
+                    </div>
                   </div>
-                  <div className="text-center text-xs text-ink-500 mt-1">day{newDestDays !== 1 ? 's' : ''}</div>
+                  {calcedDays !== null ? (
+                    <div className="mt-2 text-xs text-brand-600 font-semibold">{calcedDays} day{calcedDays !== 1 ? 's' : ''} calculated from dates</div>
+                  ) : (
+                    <div className="mt-2">
+                      <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-1.5">DAYS PLANNED</div>
+                      <div className="flex items-center gap-3">
+                        <button onClick={() => setNewDestDays((d) => Math.max(1, d - 1))} className="w-10 h-10 rounded-full bg-ink-50 border border-ink-200 flex items-center justify-center press font-bold text-ink-700 text-lg">−</button>
+                        <div className="flex-1 text-center text-2xl font-extrabold text-ink-900 font-display">{newDestDays}</div>
+                        <button onClick={() => setNewDestDays((d) => d + 1)} className="w-10 h-10 rounded-full bg-brand-500 flex items-center justify-center press font-bold text-white text-lg">+</button>
+                      </div>
+                      <div className="text-center text-xs text-ink-500 mt-1">day{newDestDays !== 1 ? 's' : ''}</div>
+                    </div>
+                  )}
                 </div>
+
+                {/* Transit mode */}
+                <div>
+                  <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-1.5">GETTING HERE BY</div>
+                  <div className="flex items-center gap-2">
+                    {(['flight', 'train', 'bus', 'drive', 'ferry'] as TransitMode[]).map((mode) => (
+                      <button
+                        key={mode}
+                        onClick={() => setNewDestTransitMode(mode)}
+                        className={`flex-1 flex flex-col items-center gap-1 py-2 rounded-xl text-[10px] font-semibold press transition-colors ${newDestTransitMode === mode ? 'bg-brand-50 border-2 border-brand-400 text-brand-700' : 'bg-ink-50 border border-ink-200 text-ink-600'}`}
+                      >
+                        <span className="text-base">{TRANSIT_ICONS[mode]}</span>
+                        <span>{TRANSIT_LABELS[mode]}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Visa note */}
+                <div>
+                  <button
+                    onClick={() => setShowVisaNote((v) => !v)}
+                    className="flex items-center gap-2 text-xs text-ink-600 font-semibold press"
+                  >
+                    <span>⚠️</span>
+                    <span>Visa / entry note</span>
+                    <ChevronRight className={`w-3.5 h-3.5 transition-transform ${showVisaNote ? 'rotate-90' : ''}`} />
+                  </button>
+                  <AnimatePresence>
+                    {showVisaNote && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden mt-2"
+                      >
+                        <textarea
+                          value={newDestVisaNote}
+                          onChange={(e) => setNewDestVisaNote(e.target.value)}
+                          placeholder="e.g. Visa on arrival, 30 days max…"
+                          className="w-full bg-ink-50 rounded-xl px-3 py-2.5 text-sm text-ink-900 border border-ink-200 outline-none focus:border-brand-400 resize-none"
+                          rows={2}
+                        />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
                 <button
                   onClick={handleAddDest}
                   disabled={!newDestName.trim()}
                   className="w-full h-12 rounded-2xl bg-brand-500 disabled:bg-ink-200 text-white font-bold press shadow-glow flex items-center justify-center gap-2"
                 >
                   <Plus className="w-4 h-4" /> Add to Trip
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── Quick Plan Sheet ── */}
+      <AnimatePresence>
+        {quickPlanSheet && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setQuickPlanSheet(false)} className="absolute inset-0 z-40 bg-ink-900/40" />
+            <motion.div
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              className="absolute inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl shadow-card pb-10"
+            >
+              <div className="w-12 h-1.5 bg-ink-100 rounded-full mx-auto mt-3" />
+              <div className="px-5 pt-3 pb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-amber-500" />
+                  <div className="font-bold text-ink-900 font-display">Quick Plan</div>
+                </div>
+                <button onClick={() => setQuickPlanSheet(false)} className="w-8 h-8 rounded-full bg-ink-50 flex items-center justify-center press"><X className="w-4 h-4" /></button>
+              </div>
+              <div className="px-5 space-y-4">
+                <div className="text-sm text-ink-600">How long do you have?</div>
+                <div className="flex gap-2">
+                  {QUICK_PLAN_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.label}
+                      onClick={() => setQuickPlanHours(opt.hours)}
+                      className={`flex-1 py-3 rounded-xl font-semibold text-sm press transition-colors ${quickPlanHours === opt.hours ? 'bg-amber-500 text-white' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="text-xs text-ink-500 bg-ink-50 rounded-xl p-3">
+                  <span className="font-semibold text-ink-700">{Math.round((quickPlanHours * 60) / 90)} stop{Math.round((quickPlanHours * 60) / 90) !== 1 ? 's' : ''}</span> from your current vibe + budget itinerary
+                </div>
+                <button
+                  onClick={handleQuickPlan}
+                  className="w-full h-12 rounded-2xl bg-amber-500 text-white font-bold press shadow-glow flex items-center justify-center gap-2"
+                >
+                  <Zap className="w-4 h-4" /> Generate & Go
                 </button>
               </div>
             </motion.div>
@@ -936,7 +1332,10 @@ export default function HomePage() {
                   <div key={d.id} className="flex items-center gap-3 bg-white border border-ink-100 rounded-2xl px-3 py-2.5">
                     <div className="w-6 h-6 rounded-full bg-brand-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">{i + 1}</div>
                     <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-ink-900 text-sm truncate">{d.name}</div>
+                      <div className="font-semibold text-ink-900 text-sm truncate flex items-center gap-1">
+                        {d.name}
+                        {d.visaNote && <span className="text-[10px]">⚠️</span>}
+                      </div>
                       <div className="text-xs text-ink-500">{d.days} day{d.days !== 1 ? 's' : ''} · {d.currency}</div>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
@@ -1066,4 +1465,3 @@ function InfoChip({ icon, label, value }: { icon: React.ReactNode; label: string
     </div>
   );
 }
-

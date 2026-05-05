@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowLeft, ArrowDown, Check, GripVertical, Plus, RefreshCw, Wand2, X,
-  Clock, Star, DollarSign, Pencil, Search, ChevronUp, ChevronDown,
+  Clock, Star, DollarSign, Pencil, Search, ChevronUp, ChevronDown, AlertTriangle,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -36,6 +36,8 @@ export default function GeneratePage() {
   const [generationError, setGenerationError] = useState(false);
   const [replaceFor, setReplaceFor] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  // UI5 — what-if comparison: { currentPlace, alt }
+  const [whatIf, setWhatIf] = useState<{ current: Place; alt: Place } | null>(null);
   const [confirmingPulse, setConfirmingPulse] = useState(false);
   const [stopTimes, setStopTimes] = useState<Record<string, string>>({});
   const [editingTimeFor, setEditingTimeFor] = useState<string | null>(null);
@@ -108,6 +110,15 @@ export default function GeneratePage() {
     const h = Math.floor(start / 60) % 24;
     const m = start % 60;
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  };
+
+  // UI2 — conflict detection: returns true if scheduled end time exceeds closeHour
+  const hasConflict = (place: Place, timeStr: string) => {
+    const [hStr, mStr] = timeStr.split(':');
+    const startMin = parseInt(hStr) * 60 + parseInt(mStr);
+    const endMin = startMin + place.durationMin;
+    const closeMin = place.closeHour * 60;
+    return endMin > closeMin;
   };
 
   const onConfirm = () => {
@@ -212,11 +223,14 @@ export default function GeneratePage() {
                       <AnimatePresence>
                         {itinerary.map((p, i) => {
                           const intel = getCulturalIntel(p.id, p.category);
+                          const timeStr = getTime(p.id, i);
+                          const conflict = hasConflict(p, timeStr);
                           return (
                             <div key={p.id}>
                               <StopCard
                                 index={i} total={itinerary.length} place={p}
-                                scheduledTime={getTime(p.id, i)}
+                                scheduledTime={timeStr}
+                                hasConflict={conflict}
                                 onTimeEdit={() => setEditingTimeFor(p.id)}
                                 onRemove={() => removeWithUndo(p, i, false)}
                                 onReplace={() => setReplaceFor(p.id)}
@@ -259,27 +273,37 @@ export default function GeneratePage() {
                           <span className="text-[10px] text-ink-400">Tap + to add to plan</span>
                         </div>
                         <div className="space-y-2">
-                          {alternatives(itinerary.map((p) => p.id)).slice(0, 4).map((p) => (
+                          {alternatives(itinerary.map((p) => p.id)).slice(0, 4).map((altP) => (
                             <motion.div
-                              key={p.id}
+                              key={altP.id}
                               initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                               className="bg-ink-50/60 border border-ink-100 rounded-2xl p-3 flex items-center gap-3"
                             >
-                              <img src={p.image} alt={p.name} className="w-14 h-14 rounded-xl object-cover shrink-0" />
+                              <img src={altP.image} alt={altP.name} className="w-14 h-14 rounded-xl object-cover shrink-0" />
                               <div className="flex-1 min-w-0">
-                                <div className="font-semibold text-ink-900 text-sm truncate">{p.name}</div>
+                                <div className="font-semibold text-ink-900 text-sm truncate">{altP.name}</div>
                                 <div className="flex items-center gap-1.5 text-xs text-ink-500 mt-0.5">
-                                  <Star className="w-3 h-3 fill-amber-400 text-amber-400" />{p.rating}
-                                  <span className="text-ink-300">·</span>{p.category}
+                                  <Star className="w-3 h-3 fill-amber-400 text-amber-400" />{altP.rating}
+                                  <span className="text-ink-300">·</span>{altP.category}
                                 </div>
-                                <div className="text-xs text-brand-600 font-semibold mt-0.5">{formatRp(p.cost)}</div>
+                                <div className="text-xs text-brand-600 font-semibold mt-0.5">{formatRp(altP.cost)}</div>
                               </div>
-                              <button
-                                onClick={() => { addStop(p); show(`${p.name} added`, 'success'); }}
-                                className="w-9 h-9 rounded-full bg-brand-500 text-white flex items-center justify-center press shadow-soft shrink-0"
-                              >
-                                <Plus className="w-4 h-4" />
-                              </button>
+                              {/* UI5 — "Try instead" opens what-if comparison if plan has stops */}
+                              {itinerary.length > 0 ? (
+                                <button
+                                  onClick={() => setWhatIf({ current: itinerary[itinerary.length - 1], alt: altP })}
+                                  className="text-[10px] font-semibold text-brand-600 bg-brand-50 border border-brand-200 px-2.5 py-1.5 rounded-lg press shrink-0"
+                                >
+                                  Try instead
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => { addStop(altP); show(`${altP.name} added`, 'success'); }}
+                                  className="w-9 h-9 rounded-full bg-brand-500 text-white flex items-center justify-center press shadow-soft shrink-0"
+                                >
+                                  <Plus className="w-4 h-4" />
+                                </button>
+                              )}
                             </motion.div>
                           ))}
                         </div>
@@ -574,6 +598,56 @@ export default function GeneratePage() {
         onPick={(p) => { addStop(p); setShowAdd(false); show(`${p.name} added`, 'success'); }}
         alternatives={alternatives}
       />
+
+      {/* UI5 — What-if comparison modal */}
+      <AnimatePresence>
+        {whatIf && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setWhatIf(null)} className="absolute inset-0 z-40 bg-ink-900/50" />
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.92, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 28 }}
+              className="absolute inset-x-4 top-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl shadow-card overflow-hidden"
+            >
+              <div className="p-4 border-b border-ink-100">
+                <div className="font-bold text-ink-900 font-display text-center">Try instead?</div>
+              </div>
+              <div className="grid grid-cols-2 divide-x divide-ink-100">
+                {[
+                  { label: 'CURRENT', place: whatIf.current, isPrimary: false },
+                  { label: 'ALTERNATIVE', place: whatIf.alt, isPrimary: true },
+                ].map(({ label, place, isPrimary }) => (
+                  <div key={place.id} className={`p-3 ${isPrimary ? 'bg-brand-50/30' : ''}`}>
+                    <div className={`text-[9px] font-bold tracking-widest mb-2 ${isPrimary ? 'text-brand-600' : 'text-ink-400'}`}>{label}</div>
+                    <img src={place.image} alt={place.name} className="w-full h-20 object-cover rounded-xl mb-2" />
+                    <div className="font-semibold text-ink-900 text-xs leading-snug mb-1">{place.name}</div>
+                    <div className="flex items-center gap-1 text-[10px] text-ink-500 mb-0.5">
+                      <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
+                      <span className="font-semibold text-ink-700">{place.rating}</span>
+                      <span>· {formatRp(place.cost)}</span>
+                    </div>
+                    <div className="text-[10px] text-ink-400">{place.durationMin}min · {place.distanceKm}km</div>
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-2 p-3 border-t border-ink-100">
+                <button
+                  onClick={() => setWhatIf(null)}
+                  className="h-10 rounded-xl bg-ink-50 text-ink-700 text-sm font-semibold press"
+                >Keep Current</button>
+                <button
+                  onClick={() => {
+                    replaceStop(whatIf.current.id, whatIf.alt);
+                    setWhatIf(null);
+                    show(`Switched to ${whatIf.alt.name}`, 'success');
+                  }}
+                  className="h-10 rounded-xl bg-brand-500 text-white text-sm font-semibold press shadow-glow"
+                >Switch</button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -691,10 +765,10 @@ function CulturalCard({ intel, onDismiss }: { intel: CulturalIntel; onDismiss: (
 
 /* ── Stop Card ── */
 function StopCard({
-  index, total, place, scheduledTime, onTimeEdit, onRemove, onReplace, onMoveUp, onMoveDown, isManual,
+  index, total, place, scheduledTime, hasConflict, onTimeEdit, onRemove, onReplace, onMoveUp, onMoveDown, isManual,
 }: {
   index: number; total: number; place: Place;
-  scheduledTime: string; onTimeEdit: () => void;
+  scheduledTime: string; hasConflict?: boolean; onTimeEdit: () => void;
   onRemove: () => void; onReplace: () => void; onMoveUp: () => void; onMoveDown: () => void;
   isManual?: boolean;
 }) {
@@ -752,7 +826,7 @@ function StopCard({
             <span className="text-xs font-semibold text-brand-600">{scheduledTime}</span>
             <Pencil className="w-2.5 h-2.5 text-brand-400" />
           </button>
-          <div className="flex items-center gap-1.5 text-[11px] mt-1.5">
+          <div className="flex items-center gap-1.5 text-[11px] mt-1.5 flex-wrap">
             <Clock className="w-3 h-3 text-ink-400" />
             <span className="text-ink-400">{place.openingHours}</span>
             <span className="text-ink-300">·</span>
@@ -760,6 +834,11 @@ function StopCard({
             <span className="text-brand-600 font-semibold">
               {formatRp(place.priceRange.min)}{place.priceRange.max !== place.priceRange.min ? '+' : ''}
             </span>
+            {hasConflict && (
+              <span className="flex items-center gap-0.5 text-amber-600 font-semibold ml-1">
+                <AlertTriangle className="w-3 h-3" /> Closes before visit ends
+              </span>
+            )}
           </div>
         </div>
 
@@ -805,7 +884,7 @@ function CustomPlaceForm({ onAdd }: { onAdd: (p: Place) => void }) {
         </div>
       </div>
       <button disabled={!name.trim()} onClick={() => {
-        onAdd({ id: `custom-${Date.now()}`, name: name.trim(), category: category as import('../data/places').Category, tags: ['Custom'], vibes: ['chill','chaos','zen','luxury'], image: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=800&q=80', cost: Number(cost) || 0, priceRange: { min: Number(cost) || 0, max: Number(cost) || 0 }, durationMin: Number(dur) || 60, distanceKm: 1.0, lat: -8.5055, lng: 115.2620, rating: 0, description: 'Custom stop.', openingHours: 'All day' });
+        onAdd({ id: `custom-${Date.now()}`, name: name.trim(), category: category as import('../data/places').Category, tags: ['Custom'], vibes: ['chill','chaos','zen','luxury'], image: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=800&q=80', cost: Number(cost) || 0, priceRange: { min: Number(cost) || 0, max: Number(cost) || 0 }, durationMin: Number(dur) || 60, distanceKm: 1.0, lat: -8.5055, lng: 115.2620, rating: 0, description: 'Custom stop.', openingHours: 'All day', indoor: true, openHour: 0, closeHour: 24 });
       }} className="w-full h-10 rounded-xl bg-brand-500 disabled:bg-ink-300 text-white font-semibold press flex items-center justify-center gap-2">
         <Plus className="w-4 h-4" /> Add Custom Stop
       </button>

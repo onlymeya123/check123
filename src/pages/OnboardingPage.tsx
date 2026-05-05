@@ -480,6 +480,40 @@ export default function OnboardingPage() {
                       <Plus className="w-4 h-4" />
                     </button>
                   </div>
+                  {/* UI10 — Country-level detection */}
+                  {(() => {
+                    const COUNTRY_CITIES: Record<string, string[]> = {
+                      japan: ['Tokyo', 'Kyoto', 'Osaka', 'Sapporo', 'Hiroshima'],
+                      france: ['Paris', 'Nice', 'Lyon', 'Bordeaux'],
+                      usa: ['New York', 'Los Angeles', 'San Francisco', 'Chicago'],
+                      australia: ['Sydney', 'Melbourne', 'Brisbane', 'Gold Coast'],
+                      indonesia: ['Bali', 'Jakarta', 'Yogyakarta', 'Lombok'],
+                      bali: ['Ubud', 'Seminyak', 'Canggu', 'Nusa Dua'],
+                      singapore: ['Singapore'],
+                      thailand: ['Bangkok', 'Chiang Mai', 'Phuket', 'Koh Samui'],
+                      korea: ['Seoul', 'Busan', 'Jeju', 'Incheon'],
+                    };
+                    const lower = destInput.toLowerCase().trim();
+                    const match = Object.entries(COUNTRY_CITIES).find(([key]) => lower === key || lower.startsWith(key));
+                    if (!match) return null;
+                    const [country, cities] = match;
+                    return (
+                      <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="mt-2 bg-brand-50 rounded-xl p-3 border border-brand-100">
+                        <div className="text-xs font-semibold text-brand-700 mb-2 capitalize">{country} is a big one! Which cities?</div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {cities.map((city) => (
+                            <button
+                              key={city}
+                              onClick={() => { setDestList((prev) => prev.includes(city) ? prev : [...prev, city]); setDestInput(''); }}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-white border border-brand-200 text-brand-700 text-xs font-semibold press"
+                            >
+                              <Plus className="w-3 h-3" /> {city}
+                            </button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    );
+                  })()}
                   {/* Issue 4: prompt when no destination added yet */}
                   {destList.length === 0 && (
                     <p className="text-xs text-amber-600 font-medium mt-2">Add at least one destination to continue.</p>
