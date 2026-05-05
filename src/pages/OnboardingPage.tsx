@@ -4,7 +4,6 @@ import {
   Diamond, Eye, EyeOff, Flame, GripVertical, Lock,
   Mail, MapPin, Palmtree, Plus, Wind, RefreshCw, User, X,
 } from 'lucide-react';
-import PaveyLogo, { PaveyLogoMark } from '../components/PaveyLogo';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
@@ -139,7 +138,21 @@ export default function OnboardingPage() {
     setAuthLoading(true);
     setTimeout(() => {
       setAuthLoading(false);
-      go('vibe');
+      if (authMode === 'login') {
+        justCompletedRef.current = true;
+        completeOnboarding({
+          name: name || email.split('@')[0],
+          email,
+          vibe: 'zen',
+          destinations: [{ name: 'My Destination', days: 3 }],
+          totalDays: 3,
+          budget: 500_000,
+          startDate: 'today',
+        });
+        nav('/', { replace: true });
+      } else {
+        go('vibe');
+      }
     }, 1200);
   };
 
@@ -270,7 +283,8 @@ export default function OnboardingPage() {
                   transition={{ delay: 0.2, type: 'spring', stiffness: 260, damping: 20 }}
                   className="mb-4"
                 >
-                  <PaveyLogo variant="vertical" color="white" size={56} />
+                  {/* Replace public/mascot.svg with your full mascot logo */}
+                  <img src="/mascot.svg" alt="Pavey" className="w-28 h-28 object-contain" />
                 </motion.div>
                 <motion.p
                   initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
@@ -324,7 +338,8 @@ export default function OnboardingPage() {
                 <span className="text-xs text-ink-400 font-semibold">Step 1 of 8</span>
               </div>
               <div className="flex items-center gap-3 mb-3">
-                <PaveyLogoMark size={36} color="#3B5BFF" />
+                {/* Replace public/mascot-icon.svg with your mascot icon */}
+                <img src="/mascot-icon.svg" alt="" className="w-9 h-9 object-contain" />
                 <div>
                   <h2 className="text-2xl font-extrabold text-ink-900 font-display leading-tight">
                     {authMode === 'signup' ? 'Create your account' : 'Welcome back'}
@@ -810,7 +825,7 @@ export default function OnboardingPage() {
             {/* Brand header */}
             <div className="bg-brand-500 px-5 pt-14 pb-5">
               <div className="flex items-center gap-3 mb-1">
-                <PaveyLogoMark size={32} color="white" />
+                <img src="/mascot-icon.svg" alt="" className="w-8 h-8 object-contain brightness-0 invert" />
                 <div className="text-white font-extrabold text-lg font-display leading-tight">
                   {destList.length > 0 ? `${destList[0].split(',')[0]} awaits` : 'Your trip awaits'}
                 </div>

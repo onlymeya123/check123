@@ -779,6 +779,7 @@ function StopCard({
   onRemove: () => void; onReplace: () => void; onMoveUp: () => void; onMoveDown: () => void;
   isManual?: boolean;
 }) {
+  const { activeTrip } = useApp();
   const [dragX, setDragX] = useState(0);
 
   return (
@@ -904,6 +905,7 @@ function AlternativesSheet({ open, onClose, excludeIds, onPick, title, alternati
   open: boolean; onClose: () => void; excludeIds: string[]; title: string;
   onPick: (p: Place) => void; alternatives: (ids: string[]) => Place[];
 }) {
+  const { activeTrip } = useApp();
   const [query, setQuery] = useState('');
   const list = useMemo(() => {
     if (!query.trim()) return alternatives(excludeIds);
