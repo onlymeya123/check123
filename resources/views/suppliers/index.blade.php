@@ -2,11 +2,16 @@
 
 @section('title', 'Supplier')
 @section('page_title', 'Supplier')
-@section('page_actions')
-    <a href="{{ route('suppliers.create') }}" class="rounded-xl bg-orange-600 px-4 py-2 text-sm font-semibold text-white">Tambah Supplier</a>
-@endsection
-
 @section('content')
+    <div class="mb-6 flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900">Supplier</h1>
+            <p class="text-sm text-slate-500">Data pemasok dan kontak pembelian.</p>
+        </div>
+        @can('suppliers.manage')
+            <a href="{{ route('suppliers.create') }}" class="rounded-xl bg-orange-600 px-4 py-2 text-sm font-semibold text-white">Tambah Supplier</a>
+        @endcan
+    </div>
     <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
         <table class="min-w-full divide-y divide-slate-100">
             <thead class="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
@@ -24,7 +29,9 @@
                         <td class="px-4 py-3">{{ $supplier->contact ?? '-' }}</td>
                         <td class="px-4 py-3">{{ $supplier->phone ?? '-' }}</td>
                         <td class="px-4 py-3 text-right">
-                            <a href="{{ route('suppliers.edit', $supplier) }}" class="text-orange-700">Edit</a>
+                            @can('suppliers.manage')
+                                <a href="{{ route('suppliers.edit', $supplier) }}" class="text-orange-700">Edit</a>
+                            @endcan
                         </td>
                     </tr>
                 @empty

@@ -21,12 +21,12 @@ class PurchaseOrderController extends Controller
             ->latest()
             ->paginate(12);
 
-        return view('purchase_orders.index', compact('orders'));
+        return view('purchase-orders.index', compact('orders'));
     }
 
     public function create(): View
     {
-        return view('purchase_orders.create', [
+        return view('purchase-orders.create', [
             'suppliers' => Supplier::query()->orderBy('name')->get(),
             'products' => Product::query()->orderBy('name')->get(),
         ]);
@@ -99,6 +99,6 @@ class PurchaseOrderController extends Controller
     {
         $purchaseOrder->load(['supplier', 'items.product', 'user']);
 
-        return view('purchase_orders.show', ['order' => $purchaseOrder]);
+        return view('purchase-orders.show', ['order' => $purchaseOrder]);
     }
 }

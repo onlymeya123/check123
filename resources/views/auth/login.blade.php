@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('guest')
+@section('content')
     <div class="min-h-screen bg-slate-950 px-6 py-10 text-white">
         <div class="mx-auto grid max-w-5xl gap-10 lg:grid-cols-[1.1fr_0.9fr]">
             <div class="flex flex-col justify-center">

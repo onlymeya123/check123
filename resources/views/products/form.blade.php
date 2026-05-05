@@ -5,11 +5,11 @@
 @section('description', 'Kelola SKU, barcode, harga, stok, dan alert minimum.')
 
 @section('content')
-    <form method="POST" action="{{ isset($product) ? route('products.update', $product) : route('products.store') }}" class="grid gap-6 lg:grid-cols-3">
+    <form method="POST" action="{{ $product->exists ? route('products.update', $product) : route('products.store') }}" class="grid gap-6 lg:grid-cols-3">
         @csrf
-        @isset($product)
+        @if($product->exists)
             @method('PUT')
-        @endisset
+        @endif
         <section class="lg:col-span-2 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <div class="grid gap-4 md:grid-cols-2">
                 <label class="space-y-2 md:col-span-2">

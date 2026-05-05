@@ -18,7 +18,7 @@ class SupplierController extends Controller
 
     public function create(): View
     {
-        return view('suppliers.create');
+        return view('suppliers.form', ['supplier' => new Supplier()]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -30,7 +30,7 @@ class SupplierController extends Controller
 
     public function edit(Supplier $supplier): View
     {
-        return view('suppliers.edit', compact('supplier'));
+        return view('suppliers.form', compact('supplier'));
     }
 
     public function update(Request $request, Supplier $supplier): RedirectResponse

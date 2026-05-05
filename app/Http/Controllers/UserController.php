@@ -20,6 +20,14 @@ class UserController extends Controller
         ]);
     }
 
+    public function create(): View
+    {
+        return view('users.form', [
+            'user' => new User(),
+            'roles' => Role::query()->orderBy('name')->get(),
+        ]);
+    }
+
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
@@ -44,12 +52,30 @@ class UserController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user)],
+            'password' => ['nullable', 'string', 'min:8'],
             'role' => ['required', Rule::exists('roles', 'name')],
         ]);
 
-        $user->update($validated);
+        $payload = [
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+        ];
+
+        if (! empty($validated['password'])) {
+            $payload['password'] = Hash::make($validated['password']);
+        }
+
+        $user->update($payload);
         $user->syncRoles([$validated['role']]);
 
         return back()->with('status', 'User berhasil diperbarui.');
+    }
+
+    public function edit(User $user): View
+    {
+        return view('users.form', [
+            'user' => $user->load('roles'),
+            'roles' => Role::query()->orderBy('name')->get(),
+        ]);
     }
 }

@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('guest')
+@section('content')
 <div class="min-h-screen grid place-items-center px-4 py-12">
     <div class="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl border border-slate-100">
         <h1 class="text-2xl font-black text-slate-950">Reset password</h1>

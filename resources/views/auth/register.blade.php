@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('body')
+@section('guest')
     <div class="min-h-screen bg-slate-100 flex items-center justify-center px-4">
         <div class="w-full max-w-md bg-white rounded-3xl shadow-sm border border-slate-200 p-8">
             <div class="mb-6">

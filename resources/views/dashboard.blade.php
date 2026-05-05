@@ -20,7 +20,7 @@
                 </div>
                 <a href="{{ route('reports.sales') }}" class="text-sm font-semibold text-blue-600 hover:text-blue-700">Lihat laporan</a>
             </div>
-            <canvas class="mt-4" id="salesChart" height="130"></canvas>
+            <canvas class="mt-4" id="salesChart" height="130" data-sales='@json($salesChart)'></canvas>
         </section>
 
         <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -68,10 +68,16 @@
         <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 class="text-lg font-semibold text-slate-900">Aksi Cepat</h2>
             <div class="mt-4 grid gap-3 sm:grid-cols-2">
-                <a href="{{ route('pos.index') }}" class="rounded-xl bg-blue-600 p-4 font-semibold text-white shadow-sm hover:bg-blue-700">Buka POS</a>
-                <a href="{{ route('products.create') }}" class="rounded-xl border border-slate-200 p-4 font-semibold hover:bg-slate-50">Tambah Produk</a>
-                <a href="{{ route('inventory.opname') }}" class="rounded-xl border border-slate-200 p-4 font-semibold hover:bg-slate-50">Stok Opname</a>
-                <a href="{{ route('purchase-orders.create') }}" class="rounded-xl border border-slate-200 p-4 font-semibold hover:bg-slate-50">Buat Pembelian</a>
+                @canany(['transactions.create', 'transactions.full'])
+                    <a href="{{ route('pos.index') }}" class="rounded-xl bg-blue-600 p-4 font-semibold text-white shadow-sm hover:bg-blue-700">Buka POS</a>
+                @endcanany
+                @can('products.manage')
+                    <a href="{{ route('products.create') }}" class="rounded-xl border border-slate-200 p-4 font-semibold hover:bg-slate-50">Tambah Produk</a>
+                    <a href="{{ route('inventory.opname') }}" class="rounded-xl border border-slate-200 p-4 font-semibold hover:bg-slate-50">Stok Opname</a>
+                @endcan
+                @can('purchases.full')
+                    <a href="{{ route('purchase-orders.create') }}" class="rounded-xl border border-slate-200 p-4 font-semibold hover:bg-slate-50">Buat Pembelian</a>
+                @endcan
             </div>
         </section>
     </div>
@@ -79,21 +85,29 @@
 
 @push('scripts')
     <script>
-        const chartData = @json($salesChart);
-        new Chart(document.getElementById('salesChart'), {
-            type: 'line',
-            data: {
-                labels: chartData.map(item => item.date),
-                datasets: [{
-                    label: 'Penjualan',
-                    data: chartData.map(item => item.total),
-                    borderColor: '#2563eb',
-                    backgroundColor: 'rgba(37, 99, 235, 0.12)',
-                    fill: true,
-                    tension: 0.35
-                }]
-            },
-            options: { plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: value => 'Rp ' + Number(value).toLocaleString('id-ID') } } } }
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvas = document.getElementById('salesChart');
+            if (! canvas || ! window.Chart) return;
+
+            const chartData = JSON.parse(canvas.dataset.sales || '[]');
+            new window.Chart(canvas, {
+                type: 'line',
+                data: {
+                    labels: chartData.map(item => item.date),
+                    datasets: [{
+                        label: 'Penjualan',
+                        data: chartData.map(item => item.total),
+                        borderColor: '#2563eb',
+                        backgroundColor: 'rgba(37, 99, 235, 0.12)',
+                        fill: true,
+                        tension: 0.35
+                    }]
+                },
+                options: {
+                    plugins: { legend: { display: false } },
+                    scales: { y: { ticks: { callback: value => 'Rp ' + Number(value).toLocaleString('id-ID') } } }
+                }
+            });
         });
     </script>
 @endpush

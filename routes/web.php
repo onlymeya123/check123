@@ -27,17 +27,52 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/pos/{transaction}/receipt', [SaleController::class, 'receipt'])->name('pos.receipt');
     });
 
-    Route::resource('products', ProductController::class)->middleware('permission:products.manage|products.read');
-    Route::resource('categories', CategoryController::class)->middleware('permission:categories.manage|categories.read');
-    Route::resource('units', UnitController::class)->middleware('permission:products.manage|products.read');
-    Route::resource('customers', CustomerController::class)->middleware('permission:customers.manage|customers.create|customers.read');
-    Route::resource('suppliers', SupplierController::class)->middleware('permission:suppliers.manage|suppliers.read');
-    Route::resource('purchase-orders', PurchaseOrderController::class)
-        ->except(['edit', 'update', 'destroy'])
-        ->middleware('permission:purchases.full|purchases.read');
+    Route::resource('products', ProductController::class)
+        ->only(['index', 'show'])
+        ->middleware('permission:products.manage|products.read');
+    Route::resource('products', ProductController::class)
+        ->except(['index', 'show'])
+        ->middleware('permission:products.manage');
 
-    Route::get('/inventory/stock-opname', [InventoryController::class, 'create'])->name('inventory.opname');
-    Route::post('/inventory/stock-opname', [InventoryController::class, 'store'])->name('inventory.opname.store');
+    Route::resource('categories', CategoryController::class)
+        ->only(['index'])
+        ->middleware('permission:categories.manage|categories.read');
+    Route::resource('categories', CategoryController::class)
+        ->except(['index', 'show'])
+        ->middleware('permission:categories.manage');
+
+    Route::resource('units', UnitController::class)
+        ->only(['index'])
+        ->middleware('permission:products.manage|products.read');
+    Route::resource('units', UnitController::class)
+        ->except(['index', 'show'])
+        ->middleware('permission:products.manage');
+
+    Route::resource('customers', CustomerController::class)
+        ->only(['index'])
+        ->middleware('permission:customers.manage|customers.create|customers.read');
+    Route::resource('customers', CustomerController::class)
+        ->only(['create', 'store'])
+        ->middleware('permission:customers.manage|customers.create');
+    Route::resource('customers', CustomerController::class)
+        ->only(['edit', 'update', 'destroy'])
+        ->middleware('permission:customers.manage');
+
+    Route::resource('suppliers', SupplierController::class)
+        ->only(['index'])
+        ->middleware('permission:suppliers.manage|suppliers.read');
+    Route::resource('suppliers', SupplierController::class)
+        ->except(['index', 'show'])
+        ->middleware('permission:suppliers.manage');
+    Route::resource('purchase-orders', PurchaseOrderController::class)
+        ->only(['index', 'show'])
+        ->middleware('permission:purchases.full|purchases.read');
+    Route::resource('purchase-orders', PurchaseOrderController::class)
+        ->only(['create', 'store'])
+        ->middleware('permission:purchases.full');
+
+    Route::get('/inventory/stock-opname', [InventoryController::class, 'create'])->middleware('permission:products.manage')->name('inventory.opname');
+    Route::post('/inventory/stock-opname', [InventoryController::class, 'store'])->middleware('permission:products.manage')->name('inventory.opname.store');
 
     Route::prefix('reports')->name('reports.')->middleware('permission:reports.full|reports.read')->group(function (): void {
         Route::get('/sales', [ReportController::class, 'sales'])->name('sales');
@@ -46,7 +81,8 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/cashier', [ReportController::class, 'cashier'])->name('cashier');
     });
 
-    Route::resource('users', UserController::class)->middleware('permission:users.manage|users.read');
-    Route::get('/settings', [SettingController::class, 'edit'])->name('settings.edit');
-    Route::put('/settings', [SettingController::class, 'update'])->name('settings.update');
+    Route::resource('users', UserController::class)->only(['index'])->middleware('permission:users.manage|users.read');
+    Route::resource('users', UserController::class)->except(['index', 'show', 'destroy'])->middleware('permission:users.manage');
+    Route::get('/settings', [SettingController::class, 'edit'])->middleware('permission:settings.full|settings.limited')->name('settings.edit');
+    Route::put('/settings', [SettingController::class, 'update'])->middleware('permission:settings.full|settings.limited')->name('settings.update');
 });

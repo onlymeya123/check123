@@ -10,8 +10,8 @@
 
 @section('content')
     <form class="mb-6 flex flex-wrap gap-3 rounded-3xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-        <input class="rounded-2xl border-slate-200" type="date" name="from" value="{{ $from->toDateString() }}">
-        <input class="rounded-2xl border-slate-200" type="date" name="to" value="{{ $to->toDateString() }}">
+        <input class="rounded-2xl border-slate-200" type="date" name="start_date" value="{{ request('start_date', now()->startOfMonth()->toDateString()) }}">
+        <input class="rounded-2xl border-slate-200" type="date" name="end_date" value="{{ request('end_date', now()->toDateString()) }}">
         <button class="rounded-2xl bg-amber-500 px-5 py-2 font-semibold text-white">Generate</button>
         <button class="rounded-2xl border border-slate-200 px-5 py-2 font-semibold text-slate-700" name="export" value="csv">Export Excel</button>
         <button class="rounded-2xl border border-slate-200 px-5 py-2 font-semibold text-slate-700" name="export" value="pdf">Export PDF</button>
@@ -20,15 +20,15 @@
     <div class="grid gap-4 md:grid-cols-3">
         <div class="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
             <p class="text-sm text-slate-500">Total Omzet</p>
-            <p class="text-2xl font-bold">Rp {{ number_format($total, 0, ',', '.') }}</p>
+            <p class="text-2xl font-bold">Rp {{ number_format((float) $summary->revenue, 0, ',', '.') }}</p>
         </div>
         <div class="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
             <p class="text-sm text-slate-500">Transaksi</p>
-            <p class="text-2xl font-bold">{{ $transactions->count() }}</p>
+            <p class="text-2xl font-bold">{{ $summary->trx_count }}</p>
         </div>
         <div class="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
             <p class="text-sm text-slate-500">Rata-rata</p>
-            <p class="text-2xl font-bold">Rp {{ number_format($transactions->count() ? $total / $transactions->count() : 0, 0, ',', '.') }}</p>
+            <p class="text-2xl font-bold">Rp {{ number_format($summary->trx_count ? $summary->revenue / $summary->trx_count : 0, 0, ',', '.') }}</p>
         </div>
     </div>
 

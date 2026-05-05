@@ -14,7 +14,7 @@ class SaleController extends Controller
 {
     public function create(): View
     {
-        return view('pos.index', [
+        return view('pos.create', [
             'products' => Product::query()->active()->with('category')->orderBy('name')->get(),
             'customers' => Customer::query()->orderBy('name')->get(),
         ]);
@@ -36,6 +36,11 @@ class SaleController extends Controller
             'payments.*.reference' => ['nullable', 'string', 'max:100'],
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
+
+        $validated['items'] = collect($validated['items'])
+            ->filter(fn (array $item): bool => filled($item['product_id'] ?? null) && (int) ($item['qty'] ?? 0) > 0)
+            ->values()
+            ->all();
 
         $transaction = $service->store([
             ...$validated,

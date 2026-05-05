@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('guest')
+@section('content')
     <div class="min-h-screen bg-slate-950 flex items-center justify-center px-4">
         <form method="POST" action="{{ route('password.email') }}" class="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl">
             @csrf

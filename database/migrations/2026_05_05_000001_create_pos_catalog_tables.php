@@ -8,21 +8,21 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('categories', function (Blueprint $table) {
+        Schema::create('categories', function (Blueprint $table): void {
             $table->id();
             $table->string('name')->unique();
             $table->string('description')->nullable();
             $table->timestamps();
         });
 
-        Schema::create('units', function (Blueprint $table) {
+        Schema::create('units', function (Blueprint $table): void {
             $table->id();
             $table->string('name')->unique();
             $table->string('symbol', 20)->unique();
             $table->timestamps();
         });
 
-        Schema::create('products', function (Blueprint $table) {
+        Schema::create('products', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('category_id')->constrained()->cascadeOnDelete();
             $table->foreignId('unit_id')->constrained()->cascadeOnDelete();
@@ -38,7 +38,6 @@ return new class extends Migration
             $table->timestamps();
             $table->index(['name', 'sku']);
         });
-
     }
 
     public function down(): void

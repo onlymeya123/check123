@@ -95,49 +95,51 @@
     </aside>
 </form>
 
-<script>
-function pos(products, initialItems) {
-    return {
-        products,
-        keyword: '',
-        cart: [],
-        discount: 0,
-        paid: 0,
-        init() {
-            if (Array.isArray(initialItems) && initialItems.length) {
-                initialItems.forEach((item) => {
-                    const product = this.products.find((candidate) => candidate.id == item.product_id);
-                    if (product) {
-                        this.cart.push({ product_id: product.id, name: product.name, price: Number(product.price), stock: product.stock, qty: Number(item.qty), discount: Number(item.discount ?? 0) });
+@push('scripts')
+    <script>
+        function pos(products, initialItems) {
+            return {
+                products,
+                keyword: '',
+                cart: [],
+                discount: 0,
+                paid: 0,
+                init() {
+                    if (Array.isArray(initialItems) && initialItems.length) {
+                        initialItems.forEach((item) => {
+                            const product = this.products.find((candidate) => candidate.id == item.product_id);
+                            if (product) {
+                                this.cart.push({ product_id: product.id, name: product.name, price: Number(product.price), stock: product.stock, qty: Number(item.qty), discount: Number(item.discount ?? 0) });
+                            }
+                        });
                     }
-                });
-            }
-        },
-        get filteredProducts() {
-            const term = this.keyword.toLowerCase();
-            return this.products.filter((product) => [product.name, product.sku, product.barcode].filter(Boolean).join(' ').toLowerCase().includes(term));
-        },
-        add(product) {
-            const existing = this.cart.find((item) => item.product_id === product.id);
-            if (existing) {
-                if (existing.qty < product.stock) existing.qty++;
-                return;
-            }
-            this.cart.push({ product_id: product.id, name: product.name, price: Number(product.price), stock: product.stock, qty: 1, discount: 0 });
-        },
-        increment(index) {
-            if (this.cart[index].qty < this.cart[index].stock) this.cart[index].qty++;
-        },
-        decrement(index) {
-            if (this.cart[index].qty > 1) this.cart[index].qty--;
-        },
-        remove(index) { this.cart.splice(index, 1); },
-        lineTotal(item) { return Math.max(0, (item.price * item.qty) - Number(item.discount || 0)); },
-        get subtotal() { return this.cart.reduce((total, item) => total + this.lineTotal(item), 0); },
-        get total() { return Math.max(0, this.subtotal - Number(this.discount || 0)); },
-        get change() { return Math.max(0, Number(this.paid || 0) - this.total); },
-        money(value) { return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value || 0); },
-    };
-}
-</script>
+                },
+                get filteredProducts() {
+                    const term = this.keyword.toLowerCase();
+                    return this.products.filter((product) => [product.name, product.sku, product.barcode].filter(Boolean).join(' ').toLowerCase().includes(term));
+                },
+                add(product) {
+                    const existing = this.cart.find((item) => item.product_id === product.id);
+                    if (existing) {
+                        if (existing.qty < product.stock) existing.qty++;
+                        return;
+                    }
+                    this.cart.push({ product_id: product.id, name: product.name, price: Number(product.price), stock: product.stock, qty: 1, discount: 0 });
+                },
+                increment(index) {
+                    if (this.cart[index].qty < this.cart[index].stock) this.cart[index].qty++;
+                },
+                decrement(index) {
+                    if (this.cart[index].qty > 1) this.cart[index].qty--;
+                },
+                remove(index) { this.cart.splice(index, 1); },
+                lineTotal(item) { return Math.max(0, (item.price * item.qty) - Number(item.discount || 0)); },
+                get subtotal() { return this.cart.reduce((total, item) => total + this.lineTotal(item), 0); },
+                get total() { return Math.max(0, this.subtotal - Number(this.discount || 0)); },
+                get change() { return Math.max(0, Number(this.paid || 0) - this.total); },
+                money(value) { return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value || 0); },
+            };
+        }
+    </script>
+@endpush
 @endsection

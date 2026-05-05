@@ -8,6 +8,9 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="min-h-screen bg-slate-100 text-slate-900 antialiased">
+    @hasSection('guest')
+        @yield('guest')
+    @else
     <div class="flex min-h-screen">
         @auth
             <aside class="hidden w-72 shrink-0 border-r border-slate-200 bg-white p-6 lg:block">
@@ -17,16 +20,40 @@
                     <p class="mt-2 text-sm text-slate-500">Point of Sale web real-time untuk outlet cireng.</p>
                 </div>
                 <nav class="space-y-1 text-sm font-semibold">
-                    <x-nav-link route="dashboard" label="Dashboard" />
-                    <x-nav-link route="pos.index" label="Kasir POS" />
-                    <x-nav-link route="products.index" label="Produk & Stok" />
-                    <x-nav-link route="customers.index" label="Pelanggan" />
-                    <x-nav-link route="suppliers.index" label="Supplier" />
-                    <x-nav-link route="purchase-orders.index" label="Pembelian" />
-                    <x-nav-link route="inventory.opname" label="Stok Opname" />
-                    <x-nav-link route="reports.sales" label="Laporan" />
-                    <x-nav-link route="users.index" label="User & RBAC" />
-                    <x-nav-link route="settings.edit" label="Pengaturan" />
+                    @canany(['reports.read', 'reports.full'])
+                        <x-nav-link route="dashboard" label="Dashboard" />
+                    @endcanany
+                    @canany(['transactions.create', 'transactions.full'])
+                        <x-nav-link route="pos.index" label="Kasir POS" />
+                    @endcanany
+                    @canany(['products.read', 'products.manage'])
+                        <x-nav-link route="products.index" label="Produk & Stok" />
+                        <x-nav-link route="units.index" label="Satuan" />
+                    @endcanany
+                    @canany(['categories.read', 'categories.manage'])
+                        <x-nav-link route="categories.index" label="Kategori" />
+                    @endcanany
+                    @canany(['customers.read', 'customers.create', 'customers.manage'])
+                        <x-nav-link route="customers.index" label="Pelanggan" />
+                    @endcanany
+                    @canany(['suppliers.read', 'suppliers.manage'])
+                        <x-nav-link route="suppliers.index" label="Supplier" />
+                    @endcanany
+                    @canany(['purchases.read', 'purchases.full'])
+                        <x-nav-link route="purchase-orders.index" label="Pembelian" />
+                    @endcanany
+                    @can('products.manage')
+                        <x-nav-link route="inventory.opname" label="Stok Opname" />
+                    @endcan
+                    @canany(['reports.read', 'reports.full'])
+                        <x-nav-link route="reports.sales" label="Laporan" />
+                    @endcanany
+                    @canany(['users.read', 'users.manage'])
+                        <x-nav-link route="users.index" label="User & RBAC" />
+                    @endcanany
+                    @canany(['settings.limited', 'settings.full'])
+                        <x-nav-link route="settings.edit" label="Pengaturan" />
+                    @endcanany
                 </nav>
             </aside>
         @endauth
@@ -51,18 +78,26 @@
                         </div>
                     </div>
                     <nav class="mt-4 flex gap-2 overflow-x-auto pb-1 lg:hidden">
-                        <x-mobile-nav route="dashboard" label="Dashboard" />
-                        <x-mobile-nav route="pos.index" label="POS" />
-                        <x-mobile-nav route="products.index" label="Produk" />
-                        <x-mobile-nav route="reports.sales" label="Laporan" />
+                        @canany(['reports.read', 'reports.full'])
+                            <x-mobile-nav route="dashboard" label="Dashboard" />
+                        @endcanany
+                        @canany(['transactions.create', 'transactions.full'])
+                            <x-mobile-nav route="pos.index" label="POS" />
+                        @endcanany
+                        @canany(['products.read', 'products.manage'])
+                            <x-mobile-nav route="products.index" label="Produk" />
+                        @endcanany
+                        @canany(['reports.read', 'reports.full'])
+                            <x-mobile-nav route="reports.sales" label="Laporan" />
+                        @endcanany
                     </nav>
                 </header>
             @endauth
 
             <section class="flex-1 p-4 lg:p-8">
-                @if (session('success'))
+                @if (session('success') || session('status'))
                     <div class="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
-                        {{ session('success') }}
+                        {{ session('success') ?? session('status') }}
                     </div>
                 @endif
                 @if ($errors->any())
@@ -70,9 +105,11 @@
                         {{ $errors->first() }}
                     </div>
                 @endif
-                {{ $slot }}
+                @yield('content')
             </section>
         </main>
     </div>
+    @stack('scripts')
+    @endif
 </body>
 </html>

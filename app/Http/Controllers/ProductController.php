@@ -54,11 +54,9 @@ class ProductController extends Controller
         return redirect()->route('products.index')->with('status', 'Produk berhasil ditambahkan.');
     }
 
-    public function show(Product $product): View
+    public function show(Product $product): RedirectResponse
     {
-        return view('products.show', [
-            'product' => $product->load(['category', 'unit', 'stockMovements.user']),
-        ]);
+        return redirect()->route('products.edit', $product);
     }
 
     public function edit(Product $product): View
@@ -98,6 +96,8 @@ class ProductController extends Controller
             'stock' => ['required', 'integer', 'min:0'],
             'minimum_stock' => ['required', 'integer', 'min:0'],
             'is_active' => ['nullable', 'boolean'],
-        ]) + ['is_active' => $request->boolean('is_active')];
+        ]);
+
+        return $validated + ['is_active' => $request->boolean('is_active')];
     }
 }

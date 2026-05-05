@@ -18,8 +18,8 @@
             <tbody class="divide-y divide-slate-100">
                 @foreach ($cashiers as $cashier)
                     <tr>
-                        <td class="py-3 font-semibold">{{ $cashier->cashier?->name ?? '-' }}</td>
-                        <td class="py-3">{{ $cashier->transaction_count }}</td>
+                        <td class="py-3 font-semibold">{{ $cashier->name }}</td>
+                        <td class="py-3">{{ $cashier->trx_count }}</td>
                         <td class="py-3">Rp {{ number_format($cashier->revenue, 0, ',', '.') }}</td>
                     </tr>
                 @endforeach
