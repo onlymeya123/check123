@@ -334,8 +334,8 @@ export default function OnboardingPage() {
                 <button onClick={() => go('welcome')} className="w-10 h-10 -ml-2 flex items-center justify-center text-ink-700 press">
                   <ArrowLeft className="w-5 h-5" />
                 </button>
-                {/* Issue 7: step indicator */}
-                <span className="text-xs text-ink-400 font-semibold">Step 1 of 8</span>
+                {/* Issue 7: step indicator — only for sign up flow */}
+                {authMode === 'signup' && <span className="text-xs text-ink-400 font-semibold">Step 1 of 8</span>}
               </div>
               <div className="flex items-center gap-3 mb-3">
                 {/* Replace public/mascot-icon.svg with your mascot icon */}

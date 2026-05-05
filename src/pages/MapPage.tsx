@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronDown, Crosshair, List, Navigation, X, MapPin,
   Clock, Star, DollarSign, Bookmark,
-  ChevronUp, Plus, Map, Pencil,
+  ChevronUp, Plus, Map, Pencil, Wand2,
 } from 'lucide-react';
 import { PaveyLogoMark } from '../components/PaveyLogo';
 import { useMemo, useRef, useState } from 'react';
@@ -148,7 +148,8 @@ export default function MapPage() {
           {activeItinerary.length === 0 ? (
             <EmptyDestState
               destName={destinations[activeDestIdx]?.name.split(',')[0] ?? 'this destination'}
-              onGenerate={() => nav('/generate')}
+              onAiGenerate={() => nav('/generate')}
+              onManual={() => nav('/generate?mode=manual')}
             />
           ) : (
             <ItineraryBottomSheet itinerary={activeItinerary} totals={totals} onStart={startNavigation} onRemove={handleRemoveStop} onEdit={() => nav('/generate?edit=1')} currency={activeTrip.currency} />
@@ -159,7 +160,8 @@ export default function MapPage() {
           {activeItinerary.length === 0 ? (
             <EmptyDestState
               destName={destinations[activeDestIdx]?.name.split(',')[0] ?? 'this destination'}
-              onGenerate={() => nav('/generate')}
+              onAiGenerate={() => nav('/generate')}
+              onManual={() => nav('/generate?mode=manual')}
               inline
             />
           ) : (
@@ -206,41 +208,41 @@ export default function MapPage() {
 
 /* ── Empty state for a destination with no plan ── */
 function EmptyDestState({
-  destName, onGenerate, inline = false,
+  destName, onAiGenerate, onManual, inline = false,
 }: {
-  destName: string; onGenerate: () => void; inline?: boolean;
+  destName: string; onAiGenerate: () => void; onManual: () => void; inline?: boolean;
 }) {
-  if (inline) {
-    return (
-      <div className="mt-10 text-center py-12">
-        <div className="text-5xl mb-4">🗺️</div>
-        <div className="font-bold text-ink-900 text-lg font-display">No plan for {destName}</div>
-        <div className="text-sm text-ink-500 mt-1 mb-5">Generate or build an itinerary to see stops here</div>
+  const inner = (
+    <>
+      <div className="text-4xl mb-3">🗺️</div>
+      <div className="font-bold text-ink-900 font-display">No plan for {destName}</div>
+      <div className="text-sm text-ink-500 mt-1 mb-4">How do you want to plan your day?</div>
+      <div className="grid grid-cols-2 gap-2">
         <button
-          onClick={onGenerate}
-          className="inline-flex items-center gap-2 h-12 px-6 rounded-2xl bg-brand-500 text-white font-bold shadow-glow press"
+          onClick={onAiGenerate}
+          className="h-12 rounded-2xl bg-brand-500 text-white font-bold shadow-glow press flex items-center justify-center gap-2"
         >
-          Plan {destName}
+          <Wand2 className="w-4 h-4" /> AI Plan
+        </button>
+        <button
+          onClick={onManual}
+          className="h-12 rounded-2xl border-2 border-brand-200 text-brand-600 font-bold press flex items-center justify-center gap-2"
+        >
+          <Pencil className="w-4 h-4" /> Manual
         </button>
       </div>
-    );
+    </>
+  );
+
+  if (inline) {
+    return <div className="mt-10 text-center py-8 px-4">{inner}</div>;
   }
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
       className="absolute inset-x-0 bottom-0 z-10 bg-white rounded-t-3xl shadow-card p-5 pb-28"
     >
-      <div className="text-center">
-        <div className="text-4xl mb-3">🗺️</div>
-        <div className="font-bold text-ink-900 font-display">No plan for {destName}</div>
-        <div className="text-sm text-ink-500 mt-1 mb-4">Create an itinerary to see your stops on the map</div>
-        <button
-          onClick={onGenerate}
-          className="w-full h-12 rounded-2xl bg-brand-500 text-white font-bold shadow-glow press flex items-center justify-center gap-2"
-        >
-          <Plus className="w-4 h-4" /> Plan {destName}
-        </button>
-      </div>
+      <div className="text-center">{inner}</div>
     </motion.div>
   );
 }

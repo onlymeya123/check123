@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Search, SlidersHorizontal, Wand2, CloudSun, Bookmark, Palmtree, Flame,
-  Diamond, Wind, X, Star, MapPin, Clock, Link2, Camera, Play, Pencil,
+  Diamond, Wind, X, Star, MapPin, Clock, Link2, Pencil,
   ChevronRight, DollarSign, Plus, Navigation, RefreshCw,
   ArrowRight, Compass, Trash2, AlertTriangle, Zap, Umbrella,
 } from 'lucide-react';
@@ -454,6 +454,16 @@ export default function HomePage() {
           </button>
         </div>
         <AnimatePresence>
+          {search.trim() && searchResults.length === 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+              className="mt-2 bg-white rounded-2xl border border-ink-100 shadow-card px-4 py-5 text-center"
+            >
+              <div className="text-2xl mb-1">🔍</div>
+              <div className="text-sm font-semibold text-ink-700">No places found</div>
+              <div className="text-xs text-ink-400 mt-0.5">Try a different name, category, or tag</div>
+            </motion.div>
+          )}
           {searchResults.length > 0 && (
             <motion.div
               initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
@@ -657,14 +667,14 @@ export default function HomePage() {
 
             <div className="grid grid-cols-2 gap-3">
               <ActionCard
-                icon={<Wand2 className="w-5 h-5 text-white" />}
+                icon={<MascotIcon src="/icon-ai-generate.svg" fallback={<Wand2 className="w-5 h-5 text-white" />} bg="bg-white/20" />}
                 label="AI Generate"
                 sub="Let Buddy plan it"
                 variant="primary"
                 onClick={() => nav('/generate')}
               />
               <ActionCard
-                icon={<Pencil className="w-5 h-5 text-brand-600" />}
+                icon={<MascotIcon src="/icon-plan-manually.svg" fallback={<Pencil className="w-5 h-5 text-brand-600" />} />}
                 label="Plan Manually"
                 sub="Your way, your stops"
                 variant="outline"
@@ -842,13 +852,12 @@ export default function HomePage() {
             onClick={() => nav('/generate')}
             className="rounded-2xl p-4 text-left flex flex-col gap-2 press bg-brand-500 shadow-glow"
           >
+            {/* public/icon-ai-generate.svg — replace with your mascot expression */}
             <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
-              <Wand2 className="w-5 h-5 text-white" />
+              <MascotIcon src="/icon-ai-generate.svg" fallback={<Wand2 className="w-5 h-5 text-white" />} />
             </div>
             <div>
-              <div className="font-bold text-white text-sm font-display leading-tight">
-                AI Generate
-              </div>
+              <div className="font-bold text-white text-sm font-display leading-tight">AI Generate</div>
               <div className="text-[11px] text-white/75 mt-0.5 leading-tight">Let Buddy plan it</div>
             </div>
           </motion.button>
@@ -858,8 +867,9 @@ export default function HomePage() {
             onClick={() => nav('/generate?mode=manual')}
             className="rounded-2xl p-4 text-left flex flex-col gap-2 press bg-white border-2 border-brand-200 hover:border-brand-400 transition-colors"
           >
+            {/* public/icon-plan-manually.svg — replace with your mascot expression */}
             <div className="w-9 h-9 rounded-xl bg-brand-50 flex items-center justify-center">
-              <Pencil className="w-5 h-5 text-brand-600" />
+              <MascotIcon src="/icon-plan-manually.svg" fallback={<Pencil className="w-5 h-5 text-brand-600" />} />
             </div>
             <div>
               <div className="font-bold text-ink-900 text-sm font-display leading-tight">Plan Manually</div>
@@ -867,20 +877,21 @@ export default function HomePage() {
             </div>
           </motion.button>
 
-          {/* 3I — Quick Plan card */}
+          {/* 3I — Quick Plan card — neon yellow highlight */}
           <motion.button
-            whileTap={{ scale: 0.96 }} whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.96 }} whileHover={{ scale: 1.02 }}
             onClick={() => setQuickPlanSheet(true)}
-            className="col-span-2 rounded-2xl p-4 text-left flex items-center gap-3 press bg-amber-50 border border-amber-200"
+            className="col-span-2 rounded-2xl p-4 text-left flex items-center gap-3 press"
+            style={{ background: '#FFE600', boxShadow: '0 0 22px rgba(255,230,0,0.6), 0 4px 12px rgba(0,0,0,0.08)' }}
           >
-            <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
-              <Zap className="w-5 h-5 text-amber-600" />
+            <div className="w-9 h-9 rounded-xl bg-black/10 flex items-center justify-center shrink-0">
+              <Zap className="w-5 h-5 text-zinc-900" />
             </div>
             <div className="flex-1">
-              <div className="font-bold text-amber-800 text-sm font-display leading-tight">Quick Plan</div>
-              <div className="text-[11px] text-amber-600 mt-0.5 leading-tight">2h or 4h · Go now</div>
+              <div className="font-bold text-zinc-900 text-sm font-display leading-tight">Quick Plan</div>
+              <div className="text-[11px] text-zinc-700 mt-0.5 leading-tight">2h or 4h · Go now</div>
             </div>
-            <ChevronRight className="w-4 h-4 text-amber-400" />
+            <ChevronRight className="w-4 h-4 text-zinc-700" />
           </motion.button>
         </div>
       </div>
@@ -937,10 +948,14 @@ export default function HomePage() {
         <div className="bg-ink-50 rounded-2xl p-4">
           <div className="flex items-center gap-2 mb-3">
             <div className="flex items-center gap-1.5 bg-white rounded-xl px-2.5 py-1.5 text-xs font-semibold text-ink-700 border border-ink-100">
-              <Play className="w-3 h-3 fill-black" /> TikTok
+              {/* TikTok logo */}
+              <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.27 6.27 0 0 0-.79-.05A6.34 6.34 0 0 0 3.15 15.3a6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.59a8.19 8.19 0 0 0 4.79 1.54V6.68a4.85 4.85 0 0 1-1.02.01z"/></svg>
+              TikTok
             </div>
             <div className="flex items-center gap-1.5 bg-white rounded-xl px-2.5 py-1.5 text-xs font-semibold text-ink-700 border border-ink-100">
-              <Camera className="w-3 h-3" /> Instagram
+              {/* Instagram logo */}
+              <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+              Instagram
             </div>
             <span className="text-xs text-ink-400">links supported</span>
           </div>
@@ -1455,6 +1470,13 @@ function ActionCard({
       </div>
     </motion.button>
   );
+}
+
+/* Renders your custom mascot SVG, falls back to the given element if file isn't added yet */
+function MascotIcon({ src, fallback }: { src: string; fallback: React.ReactNode }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return <>{fallback}</>;
+  return <img src={src} alt="" className="w-5 h-5 object-contain" onError={() => setFailed(true)} />;
 }
 
 function InfoChip({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
