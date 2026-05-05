@@ -4,6 +4,7 @@ import {
   Diamond, Eye, EyeOff, Flame, GripVertical, Lock,
   Mail, MapPin, Palmtree, Plus, Wind, RefreshCw, User, X,
 } from 'lucide-react';
+import PaveyLogo, { PaveyLogoMark } from '../components/PaveyLogo';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
@@ -240,21 +241,14 @@ export default function OnboardingPage() {
                   initial={{ scale: 0.5, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ delay: 0.2, type: 'spring', stiffness: 260, damping: 20 }}
-                  className="w-24 h-24 rounded-3xl bg-white flex items-center justify-center mb-6 shadow-xl"
+                  className="mb-4"
                 >
-                  <span className="text-5xl">✈️</span>
+                  <PaveyLogo variant="vertical" color="white" size={56} />
                 </motion.div>
-                <motion.h1
-                  initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-                  transition={{ delay: 0.35 }}
-                  className="text-4xl font-extrabold text-white font-display leading-tight"
-                >
-                  Plan smarter.<br />Travel better.
-                </motion.h1>
                 <motion.p
                   initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
                   transition={{ delay: 0.45 }}
-                  className="mt-3 text-white/80 text-base leading-relaxed"
+                  className="mt-4 text-white/80 text-base leading-relaxed"
                 >
                   AI-powered trip planning that adapts to your style — from multi-city adventures to weekend escapes.
                 </motion.p>
@@ -302,12 +296,17 @@ export default function OnboardingPage() {
                 {/* Issue 7: step indicator */}
                 <span className="text-xs text-ink-400 font-semibold">Step 1 of 8</span>
               </div>
-              <h2 className="text-2xl font-extrabold text-ink-900 font-display">
-                {authMode === 'signup' ? 'Create your account' : 'Welcome back'}
-              </h2>
-              <p className="text-sm text-ink-500 mt-1">
-                {authMode === 'signup' ? 'Join thousands of smart travelers' : 'Sign in to continue your journey'}
-              </p>
+              <div className="flex items-center gap-3 mb-3">
+                <PaveyLogoMark size={36} color="#3B5BFF" />
+                <div>
+                  <h2 className="text-2xl font-extrabold text-ink-900 font-display leading-tight">
+                    {authMode === 'signup' ? 'Create your account' : 'Welcome back'}
+                  </h2>
+                  <p className="text-sm text-ink-500">
+                    {authMode === 'signup' ? 'Join thousands of smart travelers' : 'Sign in to continue your journey'}
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* Scrollable fields */}
