@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import StatusBar from '../components/StatusBar';
 import { useApp } from '../context/AppContext';
 import { HERO_IMAGE, USER } from '../data/user';
-import { formatRp } from '../lib/format';
+import { formatRp, formatCost } from '../lib/format';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useToast } from '../components/Toast';
 import { PLACES, type Category, type Vibe } from '../data/places';
@@ -470,7 +470,7 @@ export default function HomePage() {
                     <div className="font-semibold text-ink-900 text-sm truncate">{p.name}</div>
                     <div className="text-xs text-ink-500">{p.category} · ⭐ {p.rating}</div>
                   </div>
-                  <div className="text-xs font-semibold text-brand-600 shrink-0">{formatRp(p.cost)}</div>
+                  <div className="text-xs font-semibold text-brand-600 shrink-0">{formatCost(p.cost, activeTrip.currency)}</div>
                 </button>
               ))}
             </motion.div>
@@ -557,7 +557,7 @@ export default function HomePage() {
                             <span className="text-ink-400">{p.openingHours}</span>
                           </div>
                           <div className="text-xs text-brand-600 font-semibold mt-0.5">
-                            {formatRp(p.priceRange.min)}{p.priceRange.max !== p.priceRange.min && ` – ${formatRp(p.priceRange.max)}`}
+                            {formatCost(p.priceRange.min, activeTrip.currency)}{p.priceRange.max !== p.priceRange.min && ` – ${formatCost(p.priceRange.max, activeTrip.currency)}`}
                           </div>
                         </div>
                         <button
@@ -988,7 +988,7 @@ export default function HomePage() {
                     <span className="text-[10px] font-bold text-brand-500 bg-brand-50 px-1.5 py-0.5 rounded-full">From {socialResult.platform}</span>
                     <div className="font-semibold text-ink-900 text-sm truncate mt-1">{socialResult.name}</div>
                     <div className="text-xs text-ink-600 mt-0.5 line-clamp-2">{socialResult.desc}</div>
-                    <div className="text-xs text-brand-600 font-semibold mt-1">{formatRp(socialResult.cost)}</div>
+                    <div className="text-xs text-brand-600 font-semibold mt-1">{formatCost(socialResult.cost, activeTrip.currency)}</div>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 px-3 pb-3">
@@ -1232,8 +1232,8 @@ export default function HomePage() {
                     icon={<DollarSign className="w-3.5 h-3.5 text-emerald-500" />}
                     label="Price"
                     value={detailPlace.priceRange.min === detailPlace.priceRange.max
-                      ? formatRp(detailPlace.priceRange.min)
-                      : `${formatRp(detailPlace.priceRange.min)}+`}
+                      ? formatCost(detailPlace.priceRange.min, activeTrip.currency)
+                      : `${formatCost(detailPlace.priceRange.min, activeTrip.currency)}+`}
                   />
                   <InfoChip icon={<MapPin className="w-3.5 h-3.5 text-orange-500" />} label="Distance" value={`${detailPlace.distanceKm} km`} />
                 </div>
@@ -1291,7 +1291,7 @@ export default function HomePage() {
                         <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
                         <span>{p.rating}</span>
                         <span>·</span>
-                        <span>{formatRp(p.priceRange.min)}</span>
+                        <span>{formatCost(p.priceRange.min, activeTrip.currency)}</span>
                       </div>
                     </div>
                     <button

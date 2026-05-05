@@ -3,13 +3,16 @@ import {
   ArrowLeft, ArrowRight, Check, ChevronDown, ChevronUp,
   Diamond, Eye, EyeOff, Flame, GripVertical, Lock,
   Mail, MapPin, Palmtree, Plus, Wind, RefreshCw, User, X,
+  Clock, DollarSign,
 } from 'lucide-react';
 import PaveyLogo, { PaveyLogoMark } from '../components/PaveyLogo';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import type { Vibe } from '../data/places';
+import type { Place, Vibe } from '../data/places';
+import { pickItinerary } from '../data/places';
 import { suggestCurrency, CURRENCY_SYMBOLS, CURRENCY_RATES_TO_IDR } from '../data/wallet';
+import { formatCost } from '../lib/format';
 
 type AuthMode = 'signup' | 'login';
 type Step =
@@ -20,7 +23,9 @@ type Step =
   | 'dates'
   | 'budget'
   | 'interests'
-  | 'location';
+  | 'location'
+  | 'generating'
+  | 'review_itinerary';
 
 const VIBES: { id: Vibe; label: string; emoji: string; desc: string }[] = [
   { id: 'chill', label: 'Chill', emoji: '🌴', desc: 'Relaxed beaches & slow mornings' },
@@ -38,12 +43,12 @@ const INTEREST_OPTIONS = [
   { label: 'Architecture', emoji: '🏙️' }, { label: 'Local Markets', emoji: '🏪' },
 ];
 
-const FLOW: Step[] = ['welcome', 'auth_form', 'vibe', 'destinations', 'dates', 'budget', 'interests', 'location'];
+const FLOW: Step[] = ['welcome', 'auth_form', 'vibe', 'destinations', 'dates', 'budget', 'interests', 'location', 'generating', 'review_itinerary'];
 const PROGRESS_STEPS: Step[] = ['vibe', 'destinations', 'dates', 'budget', 'interests', 'location'];
 
 export default function OnboardingPage() {
   const nav = useNavigate();
-  const { completeOnboarding, onboardingComplete } = useApp();
+  const { completeOnboarding, onboardingComplete, setItinerary } = useApp();
 
   // Skip onboarding if already authenticated
   useEffect(() => {
@@ -77,6 +82,11 @@ export default function OnboardingPage() {
   const [interests, setInterests] = useState<string[]>([]);
   const [locationGranted, setLocationGranted] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
+
+  // Generating + review state
+  const [onboardingItinerary, setOnboardingItinerary] = useState<Place[]>([]);
+  const [genPhase, setGenPhase] = useState(0);
+  const [confirmingPlan, setConfirmingPlan] = useState(false);
 
   const destInputRef = useRef<HTMLInputElement>(null);
 
@@ -130,7 +140,22 @@ export default function OnboardingPage() {
     }, 1200);
   };
 
-  const handleFinish = () => {
+  const handleGoToGenerate = () => {
+    go('generating');
+    setGenPhase(0);
+    const generated = pickItinerary(selectedVibe, budget);
+    setOnboardingItinerary(generated);
+    // cycle through gen phases, then show review
+    const phaseTimer = setInterval(() => {
+      setGenPhase((p) => p + 1);
+    }, 600);
+    setTimeout(() => {
+      clearInterval(phaseTimer);
+      go('review_itinerary');
+    }, 2600);
+  };
+
+  const handleFinish = (confirmedItinerary?: Place[]) => {
     const startStr = startDate
       ? `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`
       : 'today';
@@ -145,7 +170,15 @@ export default function OnboardingPage() {
       budget,
       startDate: startStr,
     });
+    if (confirmedItinerary && confirmedItinerary.length > 0) {
+      setItinerary(confirmedItinerary);
+    }
     nav('/');
+  };
+
+  const handleConfirmPlan = () => {
+    setConfirmingPlan(true);
+    setTimeout(() => handleFinish(onboardingItinerary), 600);
   };
 
   const go = (s: Step) => setStep(s);
@@ -212,8 +245,8 @@ export default function OnboardingPage() {
       onSkip: () => go('location'),
     },
     location: {
-      label: locationGranted ? 'Start exploring →' : 'Continue without location',
-      onClick: handleFinish,
+      label: locationGranted ? 'Generate My Trip →' : 'Continue without location',
+      onClick: handleGoToGenerate,
       className: locationGranted ? 'bg-emerald-500 text-white' : undefined,
     },
   };
@@ -769,6 +802,202 @@ export default function OnboardingPage() {
                 )}
               </div>
             )}
+          </motion.div>
+        )}
+
+        {/* ── GENERATING ── */}
+        {step === 'generating' && (
+          <motion.div
+            key="generating"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="flex-1 flex flex-col bg-brand-500"
+          >
+            <div className="flex-1 flex flex-col items-center justify-center px-8 text-center gap-6">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 3, ease: 'linear' }}
+              >
+                <PaveyLogoMark size={72} color="white" />
+              </motion.div>
+              <div>
+                <div className="text-2xl font-extrabold text-white font-display mb-2">
+                  Building your trip…
+                </div>
+                <div className="text-white/80 text-sm mb-6">
+                  Curating {selectedVibe} experiences
+                  {destList.length > 0 ? ` in ${destList[0].split(',')[0]}` : ''}
+                </div>
+                <div className="flex flex-col gap-2.5 text-left max-w-xs mx-auto">
+                  {[
+                    'Finding top-rated spots…',
+                    'Matching your vibe & budget…',
+                    'Optimizing your route…',
+                    'Crafting your perfect day…',
+                  ].map((msg, i) => (
+                    <motion.div
+                      key={msg}
+                      initial={{ opacity: 0, x: -12 }}
+                      animate={{ opacity: genPhase > i ? 1 : 0.3, x: 0 }}
+                      transition={{ delay: i * 0.15 }}
+                      className="flex items-center gap-2.5"
+                    >
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 transition-colors ${genPhase > i ? 'bg-white' : 'bg-white/20'}`}>
+                        {genPhase > i
+                          ? <Check className="w-3 h-3 text-brand-500" />
+                          : <div className="w-2 h-2 rounded-full bg-white/50" />}
+                      </div>
+                      <span className={`text-sm transition-colors ${genPhase > i ? 'text-white font-semibold' : 'text-white/50'}`}>{msg}</span>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── REVIEW ITINERARY ── */}
+        {step === 'review_itinerary' && (
+          <motion.div
+            key="review_itinerary"
+            variants={slideVariants} initial="enter" animate="center" exit="exit"
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            className="flex-1 flex flex-col overflow-hidden"
+          >
+            {/* Header */}
+            <div className="px-5 pt-12 pb-4 shrink-0">
+              <div className="flex items-center gap-3 mb-1">
+                <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                  <Check className="w-4 h-4 text-emerald-600" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-extrabold text-ink-900 font-display leading-tight">Your trip is ready!</h2>
+                  <p className="text-xs text-ink-500">Review your plan — edit before confirming</p>
+                </div>
+              </div>
+              {/* Summary bar */}
+              <div className="mt-3 flex items-center gap-3 bg-brand-50 border border-brand-100 rounded-2xl px-4 py-2.5">
+                <div className="flex items-center gap-1.5 text-xs text-brand-700 font-semibold">
+                  <MapPin className="w-3.5 h-3.5" />
+                  {onboardingItinerary.length} stops
+                </div>
+                <div className="w-px h-4 bg-brand-200" />
+                <div className="flex items-center gap-1.5 text-xs text-brand-700 font-semibold">
+                  <Clock className="w-3.5 h-3.5" />
+                  {Math.round(onboardingItinerary.reduce((s, p) => s + p.durationMin, 0) / 60 * 10) / 10}h
+                </div>
+                <div className="w-px h-4 bg-brand-200" />
+                <div className="flex items-center gap-1.5 text-xs text-brand-700 font-semibold">
+                  <DollarSign className="w-3.5 h-3.5" />
+                  {formatCost(onboardingItinerary.reduce((s, p) => s + p.cost, 0), budgetCurrency)}
+                </div>
+                <div className="ml-auto">
+                  <button
+                    onClick={() => {
+                      const regenerated = pickItinerary(selectedVibe, budget);
+                      setOnboardingItinerary(regenerated);
+                    }}
+                    className="flex items-center gap-1 text-[11px] text-brand-500 font-semibold press"
+                  >
+                    <RefreshCw className="w-3 h-3" /> Regenerate
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Scrollable stop list */}
+            <div className="flex-1 overflow-y-auto no-scrollbar px-5 pb-4 space-y-3">
+              <AnimatePresence>
+                {onboardingItinerary.map((place, idx) => (
+                  <motion.div
+                    key={place.id}
+                    layout
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+                    transition={{ delay: idx * 0.05 }}
+                    className="flex items-start gap-3 bg-white border border-ink-100 rounded-2xl p-3 shadow-soft"
+                  >
+                    {/* Step number */}
+                    <div className="w-7 h-7 rounded-full bg-brand-500 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+                      {idx + 1}
+                    </div>
+                    {/* Place info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-ink-900 text-sm leading-snug">{place.name}</div>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <span className="text-[10px] bg-ink-50 text-ink-600 rounded-full px-2 py-0.5 font-semibold">{place.category}</span>
+                        <span className="text-[10px] text-ink-400 flex items-center gap-0.5">
+                          <Clock className="w-2.5 h-2.5" /> {place.durationMin}min
+                        </span>
+                        <span className="text-[10px] text-brand-600 font-semibold">
+                          {formatCost(place.cost, budgetCurrency)}
+                        </span>
+                      </div>
+                    </div>
+                    {/* Reorder + remove */}
+                    <div className="flex flex-col gap-0.5 shrink-0">
+                      <button
+                        onClick={() => setOnboardingItinerary((prev) => {
+                          if (idx === 0) return prev;
+                          const next = prev.slice();
+                          [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+                          return next;
+                        })}
+                        disabled={idx === 0}
+                        className="w-6 h-6 flex items-center justify-center text-ink-300 disabled:opacity-20 press"
+                      >
+                        <ChevronUp className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setOnboardingItinerary((prev) => {
+                          if (idx === prev.length - 1) return prev;
+                          const next = prev.slice();
+                          [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+                          return next;
+                        })}
+                        disabled={idx === onboardingItinerary.length - 1}
+                        className="w-6 h-6 flex items-center justify-center text-ink-300 disabled:opacity-20 press"
+                      >
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <button
+                      onClick={() => setOnboardingItinerary((prev) => prev.filter((p) => p.id !== place.id))}
+                      className="w-7 h-7 flex items-center justify-center text-ink-300 hover:text-red-400 press shrink-0"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+              {onboardingItinerary.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-12 text-center gap-3">
+                  <div className="text-4xl">🗺️</div>
+                  <div className="text-sm text-ink-500">All stops removed.<br />Tap Regenerate to start fresh.</div>
+                </div>
+              )}
+            </div>
+
+            {/* Confirm CTA */}
+            <div className="px-5 pt-3 pb-8 bg-white shrink-0 border-t border-ink-50">
+              <button
+                onClick={handleConfirmPlan}
+                disabled={confirmingPlan || onboardingItinerary.length === 0}
+                className="w-full h-14 rounded-2xl bg-brand-500 disabled:bg-brand-300 text-white font-bold text-base press shadow-glow flex items-center justify-center gap-2"
+              >
+                {confirmingPlan ? (
+                  <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
+                    <RefreshCw className="w-5 h-5" />
+                  </motion.div>
+                ) : (
+                  <>Confirm Plan <ArrowRight className="w-4 h-4" /></>
+                )}
+              </button>
+              <p className="text-center text-xs text-ink-400 mt-2">
+                You can always edit your plan from the home screen
+              </p>
+            </div>
           </motion.div>
         )}
 
