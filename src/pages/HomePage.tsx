@@ -292,7 +292,7 @@ export default function HomePage() {
           <div className="flex-1 min-w-0">
             <div className="text-[10px] font-bold tracking-widest text-brand-500">TODAY'S VIBE</div>
             <div className="text-ink-900 font-bold leading-snug font-display">Hidden Treasures kind of day ✨</div>
-            <div className="text-xs text-ink-500 mt-0.5">3 spots near you · Est. {formatRp(120000)}</div>
+            <div className="text-xs text-ink-500 mt-0.5">3 spots near you · Est. {formatCost(120000, activeTrip.currency)}</div>
           </div>
           <div className="shrink-0 text-right flex flex-col items-end gap-1">
             <div>
@@ -807,9 +807,9 @@ export default function HomePage() {
           style={{ ['--val' as string]: `${sliderPct}%` } as React.CSSProperties}
         />
         <div className="flex justify-between text-xs text-ink-500">
-          <span>{formatRp(50_000)}</span>
-          <span className="text-brand-600 font-semibold">{formatRp(budget)}</span>
-          <span>{formatRp(1_000_000)}+</span>
+          <span>{formatCost(50_000, activeTrip.currency)}</span>
+          <span className="text-brand-600 font-semibold">{formatCost(budget, activeTrip.currency)}</span>
+          <span>{formatCost(1_000_000, activeTrip.currency)}+</span>
         </div>
       </div>
 

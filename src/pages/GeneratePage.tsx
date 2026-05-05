@@ -30,6 +30,7 @@ export default function GeneratePage() {
   const { show } = useToast();
 
   const isEditMode = searchParams.get('edit') === '1';
+  const isPostOnboarding = searchParams.get('after') === 'onboarding';
   const [phase, setPhase] = useState<'loading' | 'reveal'>((isManualMode || isEditMode) ? 'reveal' : 'loading');
   const [stepIdx, setStepIdx] = useState(0);
   // Issue 8: AI generation error state
@@ -127,8 +128,8 @@ export default function GeneratePage() {
     setUndoItem(null);
     if (isManualMode) setItinerary(manualStops);
     setConfirmingPulse(true);
-    show('Journey confirmed ✨', 'success');
-    setTimeout(() => nav('/transition', { replace: true }), 700);
+    show(isPostOnboarding ? 'Your trip is ready! 🎉' : 'Journey confirmed ✨', 'success');
+    setTimeout(() => nav(isPostOnboarding ? '/' : '/transition', { replace: true }), 700);
   };
 
   const manualSearchResults = useMemo(() => {
@@ -155,10 +156,10 @@ export default function GeneratePage() {
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div className="font-bold text-ink-900 font-display">
-          {isManualMode ? 'Build Your Journey' : isEditMode ? 'Edit Journey' : 'Your Journey'}
+          {isManualMode ? 'Build Your Journey' : isPostOnboarding ? 'Review Your Plan' : isEditMode ? 'Edit Journey' : 'Your Journey'}
         </div>
         <div className="text-xs text-brand-600 font-semibold capitalize bg-brand-50 px-2 py-1 rounded-full">
-          {isManualMode ? 'Manual' : `${vibe} · ${formatRp(budget)}`}
+          {isManualMode ? 'Manual' : isPostOnboarding ? 'AI Generated' : `${vibe} · ${formatRp(budget)}`}
         </div>
       </div>
 
@@ -322,8 +323,14 @@ export default function GeneratePage() {
                       disabled={itinerary.length === 0}
                       className="w-full h-14 rounded-2xl bg-brand-500 disabled:bg-ink-300 text-white font-bold text-base flex items-center justify-center gap-2 pointer-events-auto"
                     >
-                      <Check className="w-5 h-5" /> Confirm My Journey
+                      <Check className="w-5 h-5" />
+                      {isPostOnboarding ? 'Start My Trip →' : 'Confirm My Journey'}
                     </motion.button>
+                    {isPostOnboarding && (
+                      <p className="text-center text-[11px] text-ink-400 mt-1.5 pointer-events-auto">
+                        Edit or add stops above · You can change this anytime
+                      </p>
+                    )}
                   </div>
                 </motion.div>
               )}
