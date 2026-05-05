@@ -47,9 +47,9 @@ export default function HomePage() {
   const nav = useNavigate();
   const {
     vibe, setVibe, budget, setBudget, itinerary,
-    savedPlaces, savePlace, removeSavedPlace, isSaved,
+    savedPlaces, savePlace, removeSavedPlace, isSaved, addStop,
     authUser, onboardingComplete,
-    destinations, activeDestIdx, setActiveDestIdx, addDestination,
+    destinations, activeDestIdx, setActiveDestIdx, addDestination, setDestinations, removeDestination,
     isNavigating,
   } = useApp();
   const { show } = useToast();
@@ -66,6 +66,12 @@ export default function HomePage() {
   const [addDestSheet, setAddDestSheet] = useState(false);
   const [newDestName, setNewDestName] = useState('');
   const [newDestDays, setNewDestDays] = useState(2);
+  // Issue 27: vibe/budget change prompt
+  const [vibeChangedPrompt, setVibeChangedPrompt] = useState(false);
+  // Issue 28: explore nearby sheet
+  const [exploreSheet, setExploreSheet] = useState(false);
+  // Issue 30: manage destinations sheet
+  const [manageDestsSheet, setManageDestsSheet] = useState(false);
 
   const sliderPct = useMemo(() => {
     const min = 50_000, max = 1_000_000;
@@ -185,12 +191,16 @@ export default function HomePage() {
         <div className="px-5 mt-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[10px] font-bold tracking-widest text-ink-500">YOUR ROUTE</span>
-            <button
-              onClick={() => setAddDestSheet(true)}
-              className="flex items-center gap-1 text-xs text-brand-600 font-semibold press"
-            >
-              <Plus className="w-3 h-3" /> Add stop
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Issue 30: manage destinations */}
+              <button onClick={() => setManageDestsSheet(true)} className="text-xs text-ink-500 font-semibold press">Manage</button>
+              <button
+                onClick={() => setAddDestSheet(true)}
+                className="flex items-center gap-1 text-xs text-brand-600 font-semibold press"
+              >
+                <Plus className="w-3 h-3" /> Add stop
+              </button>
+            </div>
           </div>
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
             {destinations.map((d, i) => (
@@ -401,19 +411,22 @@ export default function HomePage() {
                 variant="outline"
                 onClick={() => nav('/generate?mode=manual')}
               />
+              {/* Issue 28: Explore Nearby opens a sheet */}
               <ActionCard
                 icon={<Compass className="w-5 h-5 text-orange-500" />}
                 label="Explore Nearby"
                 sub="Discover around you"
                 variant="light"
-                onClick={() => nav('/map')}
+                onClick={() => setExploreSheet(true)}
               />
+              {/* Issue 29: disabled when no saved places */}
               <ActionCard
-                icon={<Bookmark className="w-5 h-5 text-purple-500" />}
+                icon={<Bookmark className={`w-5 h-5 ${savedPlaces.length > 0 ? 'text-purple-500' : 'text-ink-300'}`} />}
                 label="Saved Places"
-                sub={savedPlaces.length > 0 ? `${savedPlaces.length} saved` : 'Your favorites'}
+                sub={savedPlaces.length > 0 ? `${savedPlaces.length} saved` : 'Bookmark places to see them here'}
                 variant="light"
-                onClick={() => {}}
+                onClick={savedPlaces.length > 0 ? () => {} : undefined}
+                disabled={savedPlaces.length === 0}
               />
             </div>
           </motion.div>
@@ -479,7 +492,7 @@ export default function HomePage() {
               <motion.button
                 key={v.id}
                 whileTap={{ scale: 0.94 }}
-                onClick={() => setVibe(v.id)}
+                onClick={() => { setVibe(v.id); if (itinerary.length > 0) setVibeChangedPrompt(true); }}
                 animate={{ scale: active ? 1.04 : 1, opacity: 1 }}
                 className={`relative aspect-square rounded-2xl flex flex-col items-center justify-center gap-1 border-2 transition-colors ${active ? 'border-brand-500 bg-brand-50' : 'border-ink-100 bg-white'}`}
               >
@@ -496,7 +509,7 @@ export default function HomePage() {
         <div className="font-bold text-ink-900 font-display">Budget <span className="text-ink-400 font-normal text-sm">(per stop)</span></div>
         <input
           type="range" min={50_000} max={1_000_000} step={10_000}
-          value={budget} onChange={(e) => setBudget(Number(e.target.value))}
+          value={budget} onChange={(e) => { setBudget(Number(e.target.value)); if (itinerary.length > 0) setVibeChangedPrompt(true); }}
           className="vibe-slider mt-2 mb-1"
           style={{ ['--val' as any]: `${sliderPct}%` }}
         />
@@ -506,6 +519,27 @@ export default function HomePage() {
           <span>{formatRp(1_000_000)}+</span>
         </div>
       </div>
+
+      {/* Issue 27: regenerate prompt when vibe/budget changed */}
+      <AnimatePresence>
+        {vibeChangedPrompt && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
+            className="mx-5 mt-3 flex items-center justify-between bg-brand-50 border border-brand-200 rounded-2xl px-4 py-3"
+          >
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-brand-500 shrink-0" />
+              <span className="text-sm text-brand-800 font-medium">Preferences updated</span>
+            </div>
+            <button
+              onClick={() => { setVibeChangedPrompt(false); nav('/generate'); }}
+              className="flex items-center gap-1 text-xs text-brand-600 font-bold press"
+            >
+              Regenerate <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* CTA — Two equal-weight options */}
       <div className="px-5 mt-5">
@@ -644,14 +678,31 @@ export default function HomePage() {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 px-3 pb-3">
-                  <button className="h-9 rounded-xl bg-ink-50 text-ink-800 text-xs font-semibold press flex items-center justify-center gap-1">
-                    <MapPin className="w-3.5 h-3.5" /> Add to Map
-                  </button>
+                  {/* Issue 26: renamed buttons */}
                   <button
-                    onClick={() => { show(`${socialResult.name} added to itinerary`, 'success'); setSocialResult(null); setSocialUrl(''); }}
+                    onClick={() => {
+                      const place: Place = { id: `social-${Date.now()}`, name: socialResult!.name, category: 'Hidden Gem', tags: ['Social Import'], vibes: ['chill','chaos','zen','luxury'], image: socialResult!.image, cost: socialResult!.cost, priceRange: { min: socialResult!.cost, max: socialResult!.cost }, durationMin: 60, distanceKm: 1.0, lat: -8.5055, lng: 115.2620, rating: 4.5, description: socialResult!.desc, openingHours: 'All day' };
+                      addStop(place);
+                      show(`${socialResult!.name} added to plan`, 'success');
+                      setSocialResult(null);
+                      setSocialUrl('');
+                      nav('/map');
+                    }}
                     className="h-9 rounded-xl bg-brand-500 text-white text-xs font-semibold press flex items-center justify-center gap-1 shadow-glow"
                   >
-                    <Sparkles className="w-3.5 h-3.5" /> Add to Itinerary
+                    <MapPin className="w-3.5 h-3.5" /> Add to Plan
+                  </button>
+                  <button
+                    onClick={() => {
+                      const place: Place = { id: `social-${Date.now()}`, name: socialResult!.name, category: 'Hidden Gem', tags: ['Social Import'], vibes: ['chill','chaos','zen','luxury'], image: socialResult!.image, cost: socialResult!.cost, priceRange: { min: socialResult!.cost, max: socialResult!.cost }, durationMin: 60, distanceKm: 1.0, lat: -8.5055, lng: 115.2620, rating: 4.5, description: socialResult!.desc, openingHours: 'All day' };
+                      savePlace(place);
+                      show(`${socialResult!.name} saved for later`, 'success');
+                      setSocialResult(null);
+                      setSocialUrl('');
+                    }}
+                    className="h-9 rounded-xl bg-ink-50 text-ink-800 text-xs font-semibold press flex items-center justify-center gap-1"
+                  >
+                    <Bookmark className="w-3.5 h-3.5" /> Save for Later
                   </button>
                 </div>
               </motion.div>
@@ -777,6 +828,107 @@ export default function HomePage() {
         )}
       </AnimatePresence>
 
+      {/* Issue 28: Explore Nearby Sheet */}
+      <AnimatePresence>
+        {exploreSheet && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setExploreSheet(false)} className="absolute inset-0 z-40 bg-ink-900/40" />
+            <motion.div
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              className="absolute inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl shadow-card pb-10 max-h-[80%] flex flex-col"
+            >
+              <div className="w-12 h-1.5 bg-ink-100 rounded-full mx-auto mt-3 shrink-0" />
+              <div className="px-5 pt-3 pb-4 flex items-center justify-between shrink-0">
+                <div className="font-bold text-ink-900 font-display flex items-center gap-2"><Compass className="w-4 h-4 text-orange-500" /> Explore Nearby</div>
+                <button onClick={() => setExploreSheet(false)} className="w-8 h-8 rounded-full bg-ink-50 flex items-center justify-center press"><X className="w-4 h-4" /></button>
+              </div>
+              <div className="overflow-y-auto no-scrollbar px-5 pb-4 space-y-2">
+                {PLACES.slice(0, 10).map((p) => (
+                  <div key={p.id} className="flex items-center gap-3 bg-white border border-ink-100 rounded-2xl p-2.5">
+                    <img src={p.image} alt={p.name} className="w-12 h-12 rounded-xl object-cover shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-ink-900 truncate text-sm">{p.name}</div>
+                      <div className="text-xs text-ink-500 flex items-center gap-1 mt-0.5">
+                        <span>{p.category}</span>
+                        <span>·</span>
+                        <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                        <span>{p.rating}</span>
+                        <span>·</span>
+                        <span>{formatRp(p.priceRange.min)}</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => { addStop(p); show(`${p.name} added to plan`, 'success'); }}
+                      className="w-8 h-8 rounded-full bg-brand-500 flex items-center justify-center press shrink-0"
+                      aria-label="Add to plan"
+                    >
+                      <Plus className="w-4 h-4 text-white" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Issue 30: Manage Destinations Sheet */}
+      <AnimatePresence>
+        {manageDestsSheet && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setManageDestsSheet(false)} className="absolute inset-0 z-40 bg-ink-900/40" />
+            <motion.div
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              className="absolute inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl shadow-card pb-10"
+            >
+              <div className="w-12 h-1.5 bg-ink-100 rounded-full mx-auto mt-3" />
+              <div className="px-5 pt-3 pb-4 flex items-center justify-between">
+                <div className="font-bold text-ink-900 font-display">Manage Destinations</div>
+                <button onClick={() => setManageDestsSheet(false)} className="w-8 h-8 rounded-full bg-ink-50 flex items-center justify-center press"><X className="w-4 h-4" /></button>
+              </div>
+              <div className="px-5 space-y-2 pb-4">
+                {destinations.length === 0 && (
+                  <div className="py-8 text-center text-ink-500 text-sm">No destinations added yet.</div>
+                )}
+                {destinations.map((d, i) => (
+                  <div key={d.id} className="flex items-center gap-3 bg-white border border-ink-100 rounded-2xl px-3 py-2.5">
+                    <div className="w-6 h-6 rounded-full bg-brand-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">{i + 1}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-ink-900 text-sm truncate">{d.name}</div>
+                      <div className="text-xs text-ink-500">{d.days} day{d.days !== 1 ? 's' : ''} · {d.currency}</div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        disabled={i === 0}
+                        onClick={() => { const next = destinations.slice(); const [item] = next.splice(i, 1); next.splice(i - 1, 0, item); setDestinations(next); }}
+                        className="w-7 h-7 flex items-center justify-center text-ink-400 disabled:opacity-20 press"
+                      >
+                        <ChevronRight className="w-4 h-4 -rotate-90" />
+                      </button>
+                      <button
+                        disabled={i === destinations.length - 1}
+                        onClick={() => { const next = destinations.slice(); const [item] = next.splice(i, 1); next.splice(i + 1, 0, item); setDestinations(next); }}
+                        className="w-7 h-7 flex items-center justify-center text-ink-400 disabled:opacity-20 press"
+                      >
+                        <ChevronRight className="w-4 h-4 rotate-90" />
+                      </button>
+                      <button
+                        onClick={() => { removeDestination(d.id); show(`${d.name.split(',')[0]} removed`, 'info'); }}
+                        className="w-7 h-7 flex items-center justify-center text-red-400 hover:text-red-600 press"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* Filter Sheet */}
       <AnimatePresence>
         {filterOpen && (
@@ -840,20 +992,21 @@ export default function HomePage() {
 }
 
 function ActionCard({
-  icon, label, sub, variant, onClick,
+  icon, label, sub, variant, onClick, disabled,
 }: {
   icon: React.ReactNode; label: string; sub: string;
   variant: 'primary' | 'outline' | 'light';
-  onClick: () => void;
+  onClick?: () => void;
+  disabled?: boolean;
 }) {
   const base = 'rounded-2xl p-4 text-left flex flex-col gap-2 press';
   const styles = {
     primary: 'bg-brand-500 shadow-glow',
     outline: 'bg-white border-2 border-brand-200 hover:border-brand-400 transition-colors',
-    light: 'bg-ink-50 border border-ink-100',
+    light: `bg-ink-50 border border-ink-100 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`,
   };
   return (
-    <motion.button whileTap={{ scale: 0.96 }} onClick={onClick} className={`${base} ${styles[variant]}`}>
+    <motion.button whileTap={{ scale: disabled ? 1 : 0.96 }} onClick={disabled ? undefined : onClick} className={`${base} ${styles[variant]}`}>
       <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${variant === 'primary' ? 'bg-white/20' : 'bg-white'}`}>
         {icon}
       </div>

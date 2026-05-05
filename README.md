@@ -2,7 +2,7 @@
 
 ## Overview
 
-Wandr is a mobile-first travel planning application built with React 19, TypeScript, Vite, TailwindCSS, and Framer Motion. It enables users to plan, navigate, and budget multi-destination trips through an AI-assisted or fully manual workflow. The app adapts to the user's travel style ("vibe"), filters places by budget, and provides turn-by-turn itinerary navigation with a real-time wallet tracker.
+Pavey is a mobile-first travel planning application built with React 19, TypeScript, Vite, TailwindCSS, and Framer Motion. It enables users to plan, navigate, and budget multi-destination trips through an AI-assisted or fully manual workflow. The app adapts to the user's travel style ("vibe"), filters places by budget, and provides turn-by-turn itinerary navigation with a real-time wallet tracker.
 
 **Core value proposition:** Plan a full day of travel in seconds — or build it stop by stop — then navigate and track spending, all in one app.
 
