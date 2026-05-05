@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowLeft, ArrowRight, Check, ChevronDown, ChevronUp,
   Diamond, Eye, EyeOff, Flame, GripVertical, Lock,
-  Mail, MapPin, Palmtree, Plus, Sparkles, User, X,
+  Mail, MapPin, Palmtree, Plus, Wind, RefreshCw, User, X,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -269,7 +269,7 @@ export default function OnboardingPage() {
                   onClick={() => { setAuthMode('signup'); go('auth_form'); }}
                   className="w-full h-14 rounded-2xl bg-brand-500 text-white font-bold text-base press shadow-glow flex items-center justify-center gap-2 mb-3"
                 >
-                  <Sparkles className="w-5 h-5" /> Get Started — it's free
+                  <ArrowRight className="w-5 h-5" /> Get Started — it's free
                 </button>
                 <button
                   onClick={() => { setAuthMode('login'); go('auth_form'); }}
@@ -367,7 +367,7 @@ export default function OnboardingPage() {
               >
                 {authLoading ? (
                   <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
-                    <Sparkles className="w-5 h-5" />
+                    <RefreshCw className="w-5 h-5" />
                   </motion.div>
                 ) : (
                   <>{authMode === 'signup' ? 'Create Account' : 'Sign In'} <ArrowRight className="w-4 h-4" /></>
@@ -433,7 +433,7 @@ export default function OnboardingPage() {
                   <div className="grid grid-cols-2 gap-3 mt-4">
                     {VIBES.map((v) => {
                       const active = selectedVibe === v.id;
-                      const Icon = v.id === 'chill' ? Palmtree : v.id === 'chaos' ? Flame : v.id === 'zen' ? Sparkles : Diamond;
+                      const Icon = v.id === 'chill' ? Palmtree : v.id === 'chaos' ? Flame : v.id === 'zen' ? Wind : Diamond;
                       return (
                         <motion.button
                           key={v.id} whileTap={{ scale: 0.96 }}
