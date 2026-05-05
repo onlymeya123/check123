@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { PLACES, pickItinerary, type Place, type Vibe } from '../data/places';
 import { DEFAULT_TRIP, BUDGET_TOTAL, type Transaction, type Trip, type Currency, suggestCurrency } from '../data/wallet';
 
@@ -100,34 +100,72 @@ interface AppState {
 
 const Ctx = createContext<AppState | null>(null);
 
+const PERSIST_KEY = 'pavey_state';
+
+function loadPersistedState() {
+  try {
+    const raw = localStorage.getItem(PERSIST_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as {
+      isAuthenticated: boolean;
+      authUser: { name: string; email: string } | null;
+      onboardingComplete: boolean;
+      vibe: Vibe;
+      budget: number;
+      itinerary: Place[];
+      savedPlaces: Place[];
+      destinations: Destination[];
+      trips: Trip[];
+      activeTripId: string;
+      journeyStart: { date: string; time: string; days: number };
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
+  // Issue 35: load persisted state on mount
+  const persisted = useMemo(() => loadPersistedState(), []);
+
   // Auth
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authUser, setAuthUser] = useState<{ name: string; email: string } | null>(null);
-  const [onboardingComplete, setOnboardingComplete] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(persisted?.isAuthenticated ?? false);
+  const [authUser, setAuthUser] = useState<{ name: string; email: string } | null>(persisted?.authUser ?? null);
+  const [onboardingComplete, setOnboardingComplete] = useState(persisted?.onboardingComplete ?? false);
 
   // Vibe & itinerary
-  const [vibe, setVibe] = useState<Vibe>('zen');
-  const [budget, setBudget] = useState<number>(500_000);
-  const [itinerary, setItinerary] = useState<Place[]>([
+  const [vibe, setVibe] = useState<Vibe>(persisted?.vibe ?? 'zen');
+  const [budget, setBudget] = useState<number>(persisted?.budget ?? 500_000);
+  const [itinerary, setItinerary] = useState<Place[]>(persisted?.itinerary ?? [
     PLACES[0], PLACES[1], PLACES[2], PLACES[3],
   ]);
   const [isNavigating, setIsNavigating] = useState(false);
   const [navIndex, setNavIndex] = useState(0);
   const [visited, setVisited] = useState<Set<string>>(new Set());
-  const [savedPlaces, setSavedPlaces] = useState<Place[]>([]);
-  const [journeyStart, setJourneyStart] = useState({ date: 'today', time: '09:00', days: 1 });
+  const [savedPlaces, setSavedPlaces] = useState<Place[]>(persisted?.savedPlaces ?? []);
+  const [journeyStart, setJourneyStart] = useState(persisted?.journeyStart ?? { date: 'today', time: '09:00', days: 1 });
 
   // Multi-destination
-  const [destinations, setDestinations] = useState<Destination[]>([]);
+  const [destinations, setDestinations] = useState<Destination[]>(persisted?.destinations ?? []);
   const [activeDestIdx, setActiveDestIdx] = useState(0);
 
   // Trip completion
   const [tripCompleted, setTripCompleted] = useState(false);
 
   // Multi-trip state
-  const [trips, setTrips] = useState<Trip[]>([DEFAULT_TRIP]);
-  const [activeTripId, setActiveTripId] = useState<string>(DEFAULT_TRIP.id);
+  const [trips, setTrips] = useState<Trip[]>(persisted?.trips ?? [DEFAULT_TRIP]);
+  const [activeTripId, setActiveTripId] = useState<string>(persisted?.activeTripId ?? DEFAULT_TRIP.id);
+
+  // Issue 35: persist key state to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(PERSIST_KEY, JSON.stringify({
+        isAuthenticated, authUser, onboardingComplete,
+        vibe, budget, itinerary, savedPlaces, destinations,
+        trips, activeTripId, journeyStart,
+      }));
+    } catch { /* storage full — ignore */ }
+  }, [isAuthenticated, authUser, onboardingComplete, vibe, budget, itinerary, savedPlaces, destinations, trips, activeTripId, journeyStart]);
 
   const activeTrip = useMemo(
     () => trips.find((t) => t.id === activeTripId) ?? trips[0],
@@ -229,6 +267,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setSavedPlaces([]);
       setIsNavigating(false);
       setNavIndex(0);
+      // Issue 31: also clear wallet state on logout
+      setTrips([DEFAULT_TRIP]);
+      setActiveTripId(DEFAULT_TRIP.id);
+      setTripCompleted(false);
+      setDestinations([]);
+      // Issue 35: clear persisted state on logout
+      try { localStorage.removeItem(PERSIST_KEY); } catch { /* ignore */ }
     },
 
     vibe, setVibe,

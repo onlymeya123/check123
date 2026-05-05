@@ -22,6 +22,8 @@ function AppShell() {
 
   const hideChrome = pathname.startsWith('/onboarding') || pathname === '/transition';
   const hideNav = pathname.startsWith('/navigate') || hideChrome;
+  // Issue 33: Hide Buddy on /generate (confusing during loading skeleton)
+  const hideBuddy = hideChrome || pathname.startsWith('/generate');
 
   return (
     <div className="flex-1 relative overflow-hidden">
@@ -48,7 +50,7 @@ function AppShell() {
       </Routes>
 
       {!hideNav && <BottomNav onBuddyOpen={() => setBuddyOpen(true)} />}
-      {!hideChrome && <Buddy open={buddyOpen} onClose={() => setBuddyOpen(false)} />}
+      {!hideBuddy && <Buddy open={buddyOpen} onClose={() => setBuddyOpen(false)} />}
     </div>
   );
 }

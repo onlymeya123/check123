@@ -23,8 +23,13 @@ export default function NavigatePage() {
   const [paused, setPaused] = useState(false);
   const [progress, setProgress] = useState(0); // 0..1
   const [arrived, setArrived] = useState(false);
+  const [nearArrival, setNearArrival] = useState(false); // Issue 16
   const [prompt, setPrompt] = useState<string | null>(null);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [showFinishConfirm, setShowFinishConfirm] = useState(false); // Issue 19
+  const [showBackTooltip, setShowBackTooltip] = useState(false); // Issue 17
+  const backTappedRef = useRef(false);
+  const backTooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const promptedRef = useRef(false);
 
   const current = itinerary[navIndex];
@@ -35,8 +40,8 @@ export default function NavigatePage() {
     if (paused || arrived || !current) return;
     const id = setInterval(() => {
       setProgress((p) => {
-        const np = Math.min(1, p + 0.012);
-        if (np >= 1) setArrived(true);
+        const np = Math.min(0.999, p + 0.012); // Issue 16: never auto-arrive
+        if (np >= 0.97 && !nearArrival) setNearArrival(true);
         if (np > 0.55 && !promptedRef.current) {
           promptedRef.current = true;
           setPrompt(PROMPTS[Math.floor(Math.random() * PROMPTS.length)]);
@@ -45,7 +50,14 @@ export default function NavigatePage() {
       });
     }, 120);
     return () => clearInterval(id);
-  }, [paused, arrived, current]);
+  }, [paused, arrived, current, nearArrival]);
+
+  // Issue 16: pause simulation when app is backgrounded
+  useEffect(() => {
+    const onVisibility = () => { if (document.hidden) setPaused(true); };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
 
   const eta = useMemo(() => {
     if (!current) return '0m';
@@ -65,18 +77,25 @@ export default function NavigatePage() {
 
   const onNext = () => {
     if (isLastStop) {
-      show('Trip complete! 🎉', 'success');
-      setIsNavigating(false);
-      completeTrip();
-      setTimeout(() => nav('/profile'), 600);
+      // Issue 19: require confirmation before finishing
+      setShowFinishConfirm(true);
       return;
     }
     setNavIndex(navIndex + 1);
     setProgress(0);
     setArrived(false);
+    setNearArrival(false); // Issue 16: reset near-arrival for next stop
     promptedRef.current = false;
     setPrompt(null);
     show(`Heading to ${itinerary[navIndex + 1].name}`, 'info');
+  };
+
+  const confirmFinish = () => {
+    show('Trip complete! 🎉', 'success');
+    setIsNavigating(false);
+    completeTrip();
+    setShowFinishConfirm(false);
+    setTimeout(() => nav('/profile'), 600);
   };
 
   const onSkip = () => {
@@ -108,13 +127,35 @@ export default function NavigatePage() {
 
       {/* ── Persistent top bar — destination + ETA + pause ── */}
       <div className="px-4 pb-2 flex items-center gap-2 shrink-0">
-        <button
-          onClick={() => nav('/map')}
-          className="w-10 h-10 -ml-1 flex items-center justify-center text-ink-700 press"
-          aria-label="Back to map"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
+        {/* Issue 17: back button with one-time tooltip */}
+        <div className="relative">
+          <button
+            onClick={() => {
+              if (!backTappedRef.current) {
+                backTappedRef.current = true;
+                setShowBackTooltip(true);
+                if (backTooltipTimer.current) clearTimeout(backTooltipTimer.current);
+                backTooltipTimer.current = setTimeout(() => { setShowBackTooltip(false); backTappedRef.current = false; }, 3000);
+              } else {
+                nav('/map');
+              }
+            }}
+            className="w-10 h-10 -ml-1 flex items-center justify-center text-ink-700 press"
+            aria-label="Back to map"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <AnimatePresence>
+            {showBackTooltip && (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                className="absolute top-12 left-0 bg-ink-900 text-white text-xs font-medium rounded-xl px-3 py-2 whitespace-nowrap z-50 shadow-lg"
+              >
+                Tap again to exit navigation
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
         <div className="flex-1 bg-brand-500 text-white rounded-2xl px-4 py-2.5 shadow-glow">
           <div className="flex items-center gap-2">
@@ -215,6 +256,23 @@ export default function NavigatePage() {
           )}
         </AnimatePresence>
 
+        {/* Issue 16: "I've arrived!" button when near destination */}
+        <AnimatePresence>
+          {nearArrival && !arrived && (
+            <motion.div
+              initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
+              className="absolute bottom-4 inset-x-4 z-20"
+            >
+              <button
+                onClick={() => { setArrived(true); setNearArrival(false); setProgress(1); }}
+                className="w-full h-14 rounded-2xl bg-emerald-500 text-white font-bold shadow-glow press flex items-center justify-center gap-2"
+              >
+                <CheckCircle2 className="w-5 h-5" /> I've arrived!
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* All stops mini list (top-right) */}
         <div className="absolute top-3 right-3 z-10 space-y-1">
           {itinerary.map((p, i) => (
@@ -255,6 +313,32 @@ export default function NavigatePage() {
               <div className="flex gap-2">
                 <button onClick={() => setShowCancelConfirm(false)} className="flex-1 h-12 rounded-xl bg-ink-50 text-ink-700 font-semibold press">Keep Going</button>
                 <button onClick={confirmCancel} className="flex-1 h-12 rounded-xl bg-red-500 text-white font-semibold press">Cancel Trip</button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Issue 19: finish trip confirmation modal */}
+      <AnimatePresence>
+        {showFinishConfirm && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowFinishConfirm(false)} className="absolute inset-0 z-40 bg-ink-900/50" />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+              className="absolute inset-x-6 top-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl p-5 shadow-card"
+            >
+              <div className="text-center mb-4">
+                <div className="text-4xl mb-2">🏁</div>
+                <div className="font-bold text-ink-900 font-display text-lg">Finish your trip?</div>
+                <div className="text-sm text-ink-500 mt-1">
+                  You've completed all {itinerary.length} stops. This will end navigation.
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setShowFinishConfirm(false)} className="flex-1 h-12 rounded-xl bg-ink-50 text-ink-700 font-semibold press">Not yet</button>
+                <button onClick={confirmFinish} className="flex-1 h-12 rounded-xl bg-brand-500 text-white font-semibold press shadow-glow">Finish trip 🎉</button>
               </div>
             </motion.div>
           </>

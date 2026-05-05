@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  ArrowLeft, Check, GripVertical, Plus, RefreshCw, Sparkles, X,
+  ArrowLeft, ArrowDown, Check, GripVertical, Plus, RefreshCw, Sparkles, X,
   Clock, Star, DollarSign, Pencil, Search, ChevronUp, ChevronDown,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -32,6 +32,8 @@ export default function GeneratePage() {
   const isEditMode = searchParams.get('edit') === '1';
   const [phase, setPhase] = useState<'loading' | 'reveal'>((isManualMode || isEditMode) ? 'reveal' : 'loading');
   const [stepIdx, setStepIdx] = useState(0);
+  // Issue 8: AI generation error state
+  const [generationError, setGenerationError] = useState(false);
   const [replaceFor, setReplaceFor] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [confirmingPulse, setConfirmingPulse] = useState(false);
@@ -83,9 +85,14 @@ export default function GeneratePage() {
   useEffect(() => {
     if (phase !== 'loading') return;
     const t1 = setInterval(() => setStepIdx((s) => (s + 1) % STEPS.length), 700);
-    const t2 = setTimeout(() => setPhase('reveal'), 2200);
+    const t2 = setTimeout(() => {
+      setPhase('reveal');
+      if (!isManualMode && !isEditMode && itinerary.length === 0) {
+        setGenerationError(true);
+      }
+    }, 2200);
     return () => { clearInterval(t1); clearTimeout(t2); };
-  }, [phase]);
+  }, [phase]); // eslint-disable-line
 
   const activeItinerary = isManualMode ? manualStops : itinerary;
 
@@ -104,10 +111,13 @@ export default function GeneratePage() {
   };
 
   const onConfirm = () => {
+    // Issue 9: Cancel pending undo on confirm
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    setUndoItem(null);
     if (isManualMode) setItinerary(manualStops);
     setConfirmingPulse(true);
     show('Journey confirmed ✨', 'success');
-    setTimeout(() => nav('/transition'), 700);
+    setTimeout(() => nav('/transition', { replace: true }), 700);
   };
 
   const manualSearchResults = useMemo(() => {
@@ -173,6 +183,20 @@ export default function GeneratePage() {
 
                   {/* Stop list */}
                   <div className="flex-1 overflow-y-auto no-scrollbar mt-3 px-5 pb-28">
+                    {/* Issue 8: Error state when generation yields empty itinerary */}
+                    {generationError && itinerary.length === 0 ? (
+                      <div className="flex-1 flex flex-col items-center justify-center px-8 text-center gap-4 py-12">
+                        <div className="text-5xl">😕</div>
+                        <div className="font-bold text-ink-900 text-lg font-display">Couldn't generate a plan</div>
+                        <div className="text-sm text-ink-500">Check your vibe and budget settings and try again.</div>
+                        <button
+                          onClick={() => { setGenerationError(false); setPhase('loading'); setItinerary(buildItinerary()); }}
+                          className="h-12 px-6 rounded-2xl bg-brand-500 text-white font-bold press shadow-glow flex items-center gap-2"
+                        >
+                          <RefreshCw className="w-4 h-4" /> Try Again
+                        </button>
+                      </div>
+                    ) : (<>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[11px] font-bold tracking-widest text-ink-500">ITINERARY · {itinerary.length} STOPS</span>
                       <button className="text-xs text-brand-600 font-semibold press" onClick={() => setShowAdd(true)}>+ Add stop</button>
@@ -261,6 +285,7 @@ export default function GeneratePage() {
                         </div>
                       </div>
                     )}
+                    </>)}
                   </div>
 
                   {/* Sticky CTA — above bottom nav */}
@@ -343,6 +368,14 @@ export default function GeneratePage() {
                     <div className="flex-1 h-px bg-ink-100" />
                   </div>
                 </>
+              )}
+
+              {/* Issue 10: empty plan nudge */}
+              {manualStops.length === 0 && (
+                <div className="flex flex-col items-center gap-2 py-6 text-ink-400">
+                  <ArrowDown className="w-5 h-5 animate-bounce" />
+                  <p className="text-sm font-medium">Search below to add your first stop</p>
+                </div>
               )}
 
               {/* ── SEARCH & ADD ── */}
@@ -493,6 +526,10 @@ export default function GeneratePage() {
                   onChange={(t) => setStopTimes((prev) => ({ ...prev, [editingTimeFor]: t }))}
                 />
               </div>
+              {/* Issue 11: time picker context */}
+              <p className="text-center text-xs text-ink-400 -mt-2 mb-2 px-4">
+                All stop times are estimated from this departure time.
+              </p>
             </motion.div>
           </>
         )}
@@ -738,15 +775,25 @@ function StopCard({
 }
 
 /* ── Custom Place Form ── */
+const CUSTOM_CATEGORIES = ['Restaurant', 'Café', 'Temple', 'Market', 'Beach', 'Museum', 'Park', 'Shop', 'Hotel', 'Hidden Gem', 'Other'];
+
 function CustomPlaceForm({ onAdd }: { onAdd: (p: Place) => void }) {
   const [name, setName] = useState('');
   const [cost, setCost] = useState('50000');
   const [dur, setDur] = useState('60');
+  const [category, setCategory] = useState('Restaurant');
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => { ref.current?.focus(); }, []);
   return (
     <div className="bg-ink-50 rounded-2xl p-3 space-y-2">
       <input ref={ref} value={name} onChange={(e) => setName(e.target.value)} placeholder="Place name" className="w-full bg-white rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-300 border border-ink-100" />
+      {/* Issue 12: category selector */}
+      <div className="bg-white rounded-xl px-3 py-2 border border-ink-100">
+        <div className="text-[10px] text-ink-400 mb-0.5">Category</div>
+        <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full bg-transparent text-sm font-bold text-ink-900 outline-none">
+          {CUSTOM_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="bg-white rounded-xl px-3 py-2 border border-ink-100">
           <div className="text-[10px] text-ink-400">Cost (Rp)</div>
@@ -758,7 +805,7 @@ function CustomPlaceForm({ onAdd }: { onAdd: (p: Place) => void }) {
         </div>
       </div>
       <button disabled={!name.trim()} onClick={() => {
-        onAdd({ id: `custom-${Date.now()}`, name: name.trim(), category: 'Hidden Gem', tags: ['Custom'], vibes: ['chill','chaos','zen','luxury'], image: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=800&q=80', cost: Number(cost) || 0, priceRange: { min: Number(cost) || 0, max: Number(cost) || 0 }, durationMin: Number(dur) || 60, distanceKm: 1.0, lat: -8.5055, lng: 115.2620, rating: 0, description: 'Custom stop.', openingHours: 'All day' });
+        onAdd({ id: `custom-${Date.now()}`, name: name.trim(), category: category as import('../data/places').Category, tags: ['Custom'], vibes: ['chill','chaos','zen','luxury'], image: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=800&q=80', cost: Number(cost) || 0, priceRange: { min: Number(cost) || 0, max: Number(cost) || 0 }, durationMin: Number(dur) || 60, distanceKm: 1.0, lat: -8.5055, lng: 115.2620, rating: 0, description: 'Custom stop.', openingHours: 'All day' });
       }} className="w-full h-10 rounded-xl bg-brand-500 disabled:bg-ink-300 text-white font-semibold press flex items-center justify-center gap-2">
         <Plus className="w-4 h-4" /> Add Custom Stop
       </button>
