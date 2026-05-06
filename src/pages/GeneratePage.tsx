@@ -241,6 +241,7 @@ export default function GeneratePage() {
                                 <div className="mb-2">
                                   <CulturalCard
                                     intel={intel}
+                                    autoExpand={i === 0}
                                     onDismiss={() => setDismissedCultural((s) => new Set(s).add(p.id))}
                                   />
                                 </div>
@@ -380,6 +381,7 @@ export default function GeneratePage() {
                               <div className="mb-2">
                                 <CulturalCard
                                   intel={intel}
+                                  autoExpand={i === 0}
                                   onDismiss={() => setDismissedCultural((s) => new Set(s).add(p.id))}
                                 />
                               </div>
@@ -716,8 +718,8 @@ function StopConnector({ distanceKm, fromTime, durationMin }: { distanceKm: numb
 }
 
 /* ── Cultural Intelligence Card ── */
-function CulturalCard({ intel, onDismiss }: { intel: CulturalIntel; onDismiss: () => void }) {
-  const [expanded, setExpanded] = useState(false);
+function CulturalCard({ intel, autoExpand, onDismiss }: { intel: CulturalIntel; autoExpand?: boolean; onDismiss: () => void }) {
+  const [expanded, setExpanded] = useState(autoExpand ?? false);
   const visibleTips = expanded ? intel.tips : intel.tips.slice(0, 1);
   const extraCount = intel.tips.length - 1;
 
