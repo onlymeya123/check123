@@ -281,18 +281,10 @@ export default function OnboardingPage() {
                   initial={{ scale: 0.5, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ delay: 0.2, type: 'spring', stiffness: 260, damping: 20 }}
-                  className="mb-4"
                 >
-                  {/* Replace public/mascot.svg with your full mascot logo */}
-                  <img src="/mascot.svg" alt="Pavey" className="w-28 h-28 object-contain" />
+                  {/* Replace public/mascot.svg with your logo */}
+                  <img src="/mascot.svg" alt="Pavey" className="w-40 h-40 object-contain" />
                 </motion.div>
-                <motion.p
-                  initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-                  transition={{ delay: 0.45 }}
-                  className="mt-4 text-white/80 text-base leading-relaxed"
-                >
-                  AI-powered trip planning that adapts to your style — from multi-city adventures to weekend escapes.
-                </motion.p>
               </div>
 
               <motion.div

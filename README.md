@@ -177,7 +177,7 @@ The CTA is **outside** the scroll container — it is always visible regardless 
 
 #### Step: `welcome`
 
-**Design:** Solid brand-blue (`bg-brand-500`) full-screen background. White logo card (✈️ on white rounded square). Bottom white sheet slides up with two CTAs.
+**Design:** Solid brand-blue (`bg-brand-500`) full-screen background. Centered SVG logo placeholder (`/mascot.svg`, 160×160) — no app description or tagline text. Bottom white sheet slides up with two CTAs.
 
 **Actions:**
 - "Get Started — it's free" → sets `authMode = 'signup'`, goes to `auth_form`
