@@ -272,10 +272,7 @@ export default function OnboardingPage() {
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
             className="flex-1 flex flex-col"
           >
-            <div className="relative flex-1 flex flex-col bg-brand-500">
-              <div className="absolute top-[-80px] right-[-60px] w-64 h-64 rounded-full bg-white/5" />
-              <div className="absolute top-[60px] left-[-40px] w-40 h-40 rounded-full bg-white/5" />
-
+            <div className="relative flex-1 flex flex-col bg-white">
               <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-8 text-center">
                 <motion.div
                   initial={{ scale: 0.5, opacity: 0 }}
@@ -290,7 +287,7 @@ export default function OnboardingPage() {
               <motion.div
                 initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: 0.55, type: 'spring', stiffness: 280, damping: 30 }}
-                className="relative z-10 bg-white rounded-t-3xl px-6 pt-6 pb-10"
+                className="relative z-10 px-6 pt-6 pb-10"
               >
                 <button
                   onClick={() => { setAuthMode('signup'); go('auth_form'); }}
