@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import StatusBar from '../components/StatusBar';
 import { useApp } from '../context/AppContext';
 import { HERO_IMAGE, USER } from '../data/user';
-import { formatRp, formatCost } from '../lib/format';
+import { formatCost } from '../lib/format';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useToast } from '../components/Toast';
 import { PLACES, type Category, type Vibe } from '../data/places';
@@ -1639,7 +1639,7 @@ export default function HomePage() {
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <button onClick={() => { setFilterCats([]); setFilterMinRating(0); }} className="h-11 rounded-2xl bg-ink-50 text-ink-700 font-semibold press">Clear All</button>
-                  <button onClick={() => { setFilterOpen(false); if (search.trim()) show(`Filters applied (${activeFilters})`, 'success'); }} className="h-11 rounded-2xl bg-brand-500 text-white font-bold shadow-glow press">
+                  <button onClick={() => { setFilterOpen(false); if (search?.trim()) show(`Filters applied (${activeFilters})`, 'success'); }} className="h-11 rounded-2xl bg-brand-500 text-white font-bold shadow-glow press">
                     Apply{activeFilters > 0 ? ` (${activeFilters})` : ''}
                   </button>
                 </div>
@@ -1652,32 +1652,6 @@ export default function HomePage() {
   );
 }
 
-function ActionCard({
-  icon, label, sub, variant, onClick, disabled,
-}: {
-  icon: React.ReactNode; label: string; sub: string;
-  variant: 'primary' | 'outline' | 'light';
-  onClick?: () => void;
-  disabled?: boolean;
-}) {
-  const base = 'rounded-2xl p-4 text-left flex flex-col gap-2 press';
-  const styles = {
-    primary: 'bg-brand-500 shadow-glow',
-    outline: 'bg-white border-2 border-brand-200 hover:border-brand-400 transition-colors',
-    light: `bg-ink-50 border border-ink-100 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`,
-  };
-  return (
-    <motion.button whileTap={{ scale: disabled ? 1 : 0.96 }} onClick={disabled ? undefined : onClick} className={`${base} ${styles[variant]}`}>
-      <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${variant === 'primary' ? 'bg-white/20' : 'bg-white'}`}>
-        {icon}
-      </div>
-      <div>
-        <div className={`font-bold text-sm font-display leading-tight ${variant === 'primary' ? 'text-white' : 'text-ink-900'}`}>{label}</div>
-        <div className={`text-[11px] mt-0.5 leading-tight ${variant === 'primary' ? 'text-white/75' : 'text-ink-500'}`}>{sub}</div>
-      </div>
-    </motion.button>
-  );
-}
 
 /* Renders your custom mascot SVG, falls back to the given element if file isn't added yet */
 function MascotIcon({ src, fallback }: { src: string; fallback: React.ReactNode }) {

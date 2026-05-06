@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronDown, Crosshair, List, Navigation, X, MapPin,
   Clock, Star, DollarSign, Bookmark,
-  ChevronUp, Plus, Map, Pencil, Wand2,
+  ChevronUp, Map, Pencil, Wand2,
 } from 'lucide-react';
 import { PaveyLogoMark } from '../components/PaveyLogo';
 import { useMemo, useRef, useState } from 'react';
