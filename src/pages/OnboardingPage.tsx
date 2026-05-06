@@ -281,7 +281,7 @@ export default function OnboardingPage() {
                   transition={{ delay: 0.2, type: 'spring', stiffness: 260, damping: 20 }}
                 >
                   {/* Replace public/mascot.svg with your logo */}
-                  <img src="/mascot.svg" alt="Pavey" className="w-[80vw] h-[80vw] max-w-[512px] max-h-[512px] object-contain drop-shadow-xl" />
+                  <img src="/mascot.svg" alt="Pavey" className="w-[48vw] h-[48vw] max-w-[307px] max-h-[307px] object-contain" />
                 </motion.div>
               </div>
 
