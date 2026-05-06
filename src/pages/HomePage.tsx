@@ -3,7 +3,7 @@ import {
   Search, SlidersHorizontal, Wand2, CloudSun, Bookmark, Palmtree, Flame,
   Diamond, Wind, X, Star, MapPin, Clock, Pencil,
   ChevronRight, DollarSign, Plus, Navigation, RefreshCw,
-  ArrowRight, Compass, Trash2, Zap, Umbrella,
+  ArrowRight, Compass, Trash2, Zap, Umbrella, Link2, AlertTriangle,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import StatusBar from '../components/StatusBar';
@@ -25,6 +25,25 @@ const VIBES: { id: Vibe; label: string; icon: string; tint: string }[] = [
 ];
 
 const CATEGORIES: Category[] = ['Cafe', 'Nature', 'Cultural', 'Historic', 'Foodie', 'Hidden Gem', 'Cozy'];
+
+const SOCIAL_MOCK: Record<string, { platform: string; name: string; category: string; desc: string; image: string; cost: number }> = {
+  tiktok: {
+    platform: 'TikTok',
+    name: 'Warung Sunset Cliff Bali',
+    category: 'Hidden Gem',
+    desc: 'Cliffside warung with jaw-dropping ocean sunset views, found viral on TikTok.',
+    image: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?auto=format&fit=crop&w=800&q=80',
+    cost: 65000,
+  },
+  instagram: {
+    platform: 'Instagram',
+    name: 'Pura Tirta Gangga Pool',
+    category: 'Scenic',
+    desc: 'Ancient royal water palace with lotus ponds perfect for an Instagram shot.',
+    image: 'https://images.unsplash.com/photo-1604999333679-b86d54738315?auto=format&fit=crop&w=800&q=80',
+    cost: 30000,
+  },
+};
 
 const TRANSIT_ICONS: Record<TransitMode, string> = {
   flight: '✈️', train: '🚅', bus: '🚌', drive: '🚗', ferry: '⛴️',
@@ -57,6 +76,11 @@ export default function HomePage() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [filterCats, setFilterCats] = useState<Category[]>([]);
   const [filterMinRating, setFilterMinRating] = useState(0);
+  const [socialUrl, setSocialUrl] = useState('');
+  const [socialParsing, setSocialParsing] = useState(false);
+  const [socialResult, setSocialResult] = useState<typeof SOCIAL_MOCK[string] | null>(null);
+  const [socialError, setSocialError] = useState(false);
+  const socialInputRef = useRef<HTMLInputElement>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [detailPlace, setDetailPlace] = useState<Place | null>(null);
   const [addDestSheet, setAddDestSheet] = useState(false);
@@ -167,6 +191,24 @@ export default function HomePage() {
     }
     return null;
   }, [newDestArriveDate, newDestDepartDate]);
+
+  const parseSocialLink = () => {
+    if (!socialUrl.trim()) return;
+    const lower = socialUrl.toLowerCase();
+    const isValid = lower.includes('tiktok.com') || lower.includes('instagram.com') || lower.includes('ig.me') || lower.includes('instagr.am');
+    if (!isValid) {
+      setSocialError(true);
+      return;
+    }
+    setSocialError(false);
+    setSocialParsing(true);
+    setSocialResult(null);
+    setTimeout(() => {
+      setSocialParsing(false);
+      if (lower.includes('tiktok')) setSocialResult(SOCIAL_MOCK.tiktok);
+      else setSocialResult(SOCIAL_MOCK.instagram);
+    }, 1800);
+  };
 
   const handleAddDest = () => {
     if (!newDestName.trim()) return;
@@ -858,6 +900,104 @@ export default function HomePage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Social Media Parser */}
+      <div className="px-5 mt-8">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-[11px] font-bold tracking-widest text-ink-500">IMPORT FROM SOCIAL</span>
+        </div>
+        <div className="bg-ink-50 rounded-2xl p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-1.5 bg-white rounded-xl px-2.5 py-1.5 text-xs font-semibold text-ink-700 border border-ink-100">
+              <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.27 6.27 0 0 0-.79-.05A6.34 6.34 0 0 0 3.15 15.3a6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.59a8.19 8.19 0 0 0 4.79 1.54V6.68a4.85 4.85 0 0 1-1.02.01z"/></svg>
+              TikTok
+            </div>
+            <div className="flex items-center gap-1.5 bg-white rounded-xl px-2.5 py-1.5 text-xs font-semibold text-ink-700 border border-ink-100">
+              <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+              Instagram
+            </div>
+            <span className="text-xs text-ink-400">links supported</span>
+          </div>
+          <div className="flex gap-2">
+            <div className="flex-1 bg-white rounded-xl px-3 py-2.5 flex items-center gap-2 border border-ink-100">
+              <Link2 className="w-4 h-4 text-ink-400 shrink-0" />
+              <input
+                ref={socialInputRef}
+                value={socialUrl}
+                onChange={(e) => { setSocialUrl(e.target.value); setSocialResult(null); setSocialError(false); }}
+                placeholder="Paste a TikTok or Instagram link…"
+                className="flex-1 bg-transparent outline-none text-sm text-ink-800 placeholder:text-ink-400"
+              />
+              {socialUrl && <button onClick={() => { setSocialUrl(''); setSocialResult(null); }}><X className="w-3.5 h-3.5 text-ink-400" /></button>}
+            </div>
+            <button
+              onClick={parseSocialLink}
+              disabled={!socialUrl.trim() || socialParsing}
+              className="shrink-0 h-10 px-4 rounded-xl bg-brand-500 disabled:bg-ink-300 text-white text-sm font-semibold press"
+            >
+              {socialParsing ? '…' : 'Parse'}
+            </button>
+          </div>
+          {socialError && (
+            <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="text-xs text-red-500 mt-2 flex items-center gap-1">
+              <AlertTriangle className="w-3.5 h-3.5" /> Please paste a valid TikTok or Instagram link
+            </motion.p>
+          )}
+          <AnimatePresence>
+            {socialParsing && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mt-3 overflow-hidden">
+                <div className="flex items-center gap-2 text-xs text-brand-600 font-semibold mb-2">
+                  <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </motion.div>
+                  Extracting place information…
+                </div>
+                <div className="h-2 rounded shimmer w-3/4" />
+              </motion.div>
+            )}
+            {socialResult && !socialParsing && (
+              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mt-3 bg-white rounded-xl border border-ink-100 overflow-hidden">
+                <div className="flex items-start gap-3 p-3">
+                  <img src={socialResult.image} alt={socialResult.name} className="w-16 h-16 rounded-xl object-cover shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[10px] font-bold text-brand-500 bg-brand-50 px-1.5 py-0.5 rounded-full">From {socialResult.platform}</span>
+                    <div className="font-semibold text-ink-900 text-sm truncate mt-1">{socialResult.name}</div>
+                    <div className="text-xs text-ink-600 mt-0.5 line-clamp-2">{socialResult.desc}</div>
+                    <div className="text-xs text-brand-600 font-semibold mt-1">{formatCost(socialResult.cost, activeTrip.currency)}</div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 px-3 pb-3">
+                  <button
+                    onClick={() => {
+                      const place: Place = { id: `social-${Date.now()}`, name: socialResult!.name, category: 'Hidden Gem', tags: ['Social Import'], vibes: ['chill','chaos','zen','luxury'], image: socialResult!.image, cost: socialResult!.cost, priceRange: { min: socialResult!.cost, max: socialResult!.cost }, durationMin: 60, distanceKm: 1.0, lat: -8.5055, lng: 115.2620, rating: 4.5, description: socialResult!.desc, openingHours: 'All day', indoor: false, openHour: 0, closeHour: 24 };
+                      addStop(place);
+                      show(`${socialResult!.name} added to plan`, 'success');
+                      setSocialResult(null);
+                      setSocialUrl('');
+                      nav('/map');
+                    }}
+                    className="h-9 rounded-xl bg-brand-500 text-white text-xs font-semibold press flex items-center justify-center gap-1 shadow-glow"
+                  >
+                    <MapPin className="w-3.5 h-3.5" /> Add to Plan
+                  </button>
+                  <button
+                    onClick={() => {
+                      const place: Place = { id: `social-${Date.now()}`, name: socialResult!.name, category: 'Hidden Gem', tags: ['Social Import'], vibes: ['chill','chaos','zen','luxury'], image: socialResult!.image, cost: socialResult!.cost, priceRange: { min: socialResult!.cost, max: socialResult!.cost }, durationMin: 60, distanceKm: 1.0, lat: -8.5055, lng: 115.2620, rating: 4.5, description: socialResult!.desc, openingHours: 'All day', indoor: false, openHour: 0, closeHour: 24 };
+                      savePlace(place);
+                      show(`${socialResult!.name} saved for later`, 'success');
+                      setSocialResult(null);
+                      setSocialUrl('');
+                    }}
+                    className="h-9 rounded-xl bg-ink-50 text-ink-800 text-xs font-semibold press flex items-center justify-center gap-1"
+                  >
+                    <Bookmark className="w-3.5 h-3.5" /> Save for Later
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
 
       {/* ── Add Destination Sheet ── */}
       <AnimatePresence>
