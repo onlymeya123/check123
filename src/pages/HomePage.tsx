@@ -95,7 +95,11 @@ export default function HomePage() {
   const [intentSheet, setIntentSheet] = useState<'ai' | 'manual' | null>(null);
   const [intentDest, setIntentDest] = useState('');
   const [intentDate, setIntentDate] = useState('');
+  const [intentEndDate, setIntentEndDate] = useState('');
   const [intentStartTime, setIntentStartTime] = useState('09:00');
+  const [intentEndTime, setIntentEndTime] = useState('17:00');
+  const [intentAnyTime, setIntentAnyTime] = useState(false);
+  const [intentEndTimeManuallySet, setIntentEndTimeManuallySet] = useState(false);
   const [intentVibe, setIntentVibe] = useState<Vibe | null>(null);
   const [intentBudget, setIntentBudget] = useState<number | null>(null);
 
@@ -200,6 +204,19 @@ export default function HomePage() {
     return null;
   }, [newDestArriveDate, newDestDepartDate]);
 
+  // Auto-fill end date from start date when end is unset
+  useEffect(() => {
+    if (intentDate && !intentEndDate) setIntentEndDate(intentDate);
+  }, [intentDate, intentEndDate]);
+
+  // Auto-fill end time = start time + 8 hours unless user already set it
+  useEffect(() => {
+    if (intentAnyTime || intentEndTimeManuallySet) return;
+    const [h, m] = intentStartTime.split(':').map(Number);
+    const eh = (h + 8) % 24;
+    setIntentEndTime(`${String(eh).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+  }, [intentStartTime, intentAnyTime, intentEndTimeManuallySet]);
+
   const parseSocialLink = () => {
     if (!socialUrl.trim()) return;
     const lower = socialUrl.toLowerCase();
@@ -246,7 +263,8 @@ export default function HomePage() {
     setIntentSheet(null);
     const params = new URLSearchParams();
     if (mode === 'manual') params.set('mode', 'manual');
-    if (intentStartTime) params.set('startTime', intentStartTime);
+    if (!intentAnyTime && intentStartTime) params.set('startTime', intentStartTime);
+    if (!intentAnyTime && intentEndTime) params.set('endTime', intentEndTime);
     nav(`/generate${params.toString() ? `?${params}` : ''}`);
   };
 
@@ -1069,11 +1087,15 @@ export default function HomePage() {
 
                 {/* When */}
                 <div>
-                  <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-2">WHEN</div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-[10px] font-bold tracking-widest text-ink-500">WHEN <span className="font-normal normal-case tracking-normal text-ink-400">— optional</span></div>
+                  </div>
+
+                  {/* Date row */}
+                  <div className="grid grid-cols-2 gap-2 mb-3">
                     <div>
-                      <div className="text-[10px] text-ink-400 mb-1 flex items-center gap-1"><CalendarDays className="w-3 h-3" /> Date</div>
-                      <div className="flex gap-1.5">
+                      <div className="text-[10px] text-ink-400 mb-1.5 flex items-center gap-1"><CalendarDays className="w-3 h-3" /> Start date</div>
+                      <div className="flex gap-1 mb-1.5">
                         {[
                           { label: 'Today', value: new Date().toISOString().split('T')[0] },
                           { label: 'Tomorrow', value: new Date(Date.now() + 86400000).toISOString().split('T')[0] },
@@ -1081,7 +1103,7 @@ export default function HomePage() {
                           <button
                             key={opt.label}
                             onClick={() => setIntentDate(intentDate === opt.value ? '' : opt.value)}
-                            className={`flex-1 py-2 rounded-xl text-xs font-semibold press border transition-colors ${intentDate === opt.value ? 'bg-brand-500 text-white border-brand-500' : 'bg-ink-50 text-ink-700 border-ink-100'}`}
+                            className={`flex-1 py-1.5 rounded-xl text-[11px] font-semibold press border transition-colors ${intentDate === opt.value ? 'bg-brand-500 text-white border-brand-500' : 'bg-ink-50 text-ink-700 border-ink-100'}`}
                           >
                             {opt.label}
                           </button>
@@ -1091,30 +1113,79 @@ export default function HomePage() {
                         type="date"
                         value={intentDate}
                         onChange={(e) => setIntentDate(e.target.value)}
-                        className="mt-1.5 w-full bg-ink-50 rounded-xl px-3 py-2 text-xs text-ink-700 border border-ink-200 outline-none focus:border-brand-400"
+                        className="w-full bg-ink-50 rounded-xl px-3 py-2 text-xs text-ink-700 border border-ink-200 outline-none focus:border-brand-400"
                       />
                     </div>
                     <div>
-                      <div className="text-[10px] text-ink-400 mb-1 flex items-center gap-1"><Clock className="w-3 h-3" /> Start time</div>
-                      <div className="flex flex-col gap-1.5">
-                        {['08:00', '09:00', '10:00', '11:00'].map((t) => (
-                          <button
-                            key={t}
-                            onClick={() => setIntentStartTime(t)}
-                            className={`py-2 rounded-xl text-xs font-semibold press border transition-colors ${intentStartTime === t ? 'bg-brand-500 text-white border-brand-500' : 'bg-ink-50 text-ink-700 border-ink-100'}`}
-                          >
-                            {t}
-                          </button>
-                        ))}
-                        <input
-                          type="time"
+                      <div className="text-[10px] text-ink-400 mb-1.5 flex items-center gap-1"><CalendarDays className="w-3 h-3" /> End date <span className="text-ink-300">(opt.)</span></div>
+                      <div className="flex gap-1 mb-1.5">
+                        {[
+                          { label: 'Same', delta: 0 },
+                          { label: '+1d', delta: 1 },
+                          { label: '+2d', delta: 2 },
+                        ].map(({ label, delta }) => {
+                          const base = intentDate || new Date().toISOString().split('T')[0];
+                          const val = new Date(new Date(base).getTime() + delta * 86400000).toISOString().split('T')[0];
+                          return (
+                            <button
+                              key={label}
+                              onClick={() => setIntentEndDate(intentEndDate === val ? '' : val)}
+                              className={`flex-1 py-1.5 rounded-xl text-[11px] font-semibold press border transition-colors ${intentEndDate === val ? 'bg-brand-500 text-white border-brand-500' : 'bg-ink-50 text-ink-700 border-ink-100'}`}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <input
+                        type="date"
+                        value={intentEndDate}
+                        min={intentDate || undefined}
+                        onChange={(e) => setIntentEndDate(e.target.value)}
+                        className="w-full bg-ink-50 rounded-xl px-3 py-2 text-xs text-ink-700 border border-ink-200 outline-none focus:border-brand-400"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Any time toggle */}
+                  <button
+                    onClick={() => setIntentAnyTime(!intentAnyTime)}
+                    className={`w-full py-2 rounded-xl text-xs font-semibold press border transition-colors flex items-center justify-center gap-2 mb-3 ${intentAnyTime ? 'bg-brand-50 border-brand-300 text-brand-700' : 'bg-ink-50 border-ink-100 text-ink-600'}`}
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    {intentAnyTime ? '✓ Any time (all-day)' : 'Any time (all-day)?'}
+                  </button>
+
+                  {/* Clock dials */}
+                  {!intentAnyTime && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="flex flex-col items-center">
+                        <div className="text-[10px] text-ink-500 font-semibold mb-1 flex items-center gap-1"><Clock className="w-3 h-3" /> Start time</div>
+                        <ClockDial
                           value={intentStartTime}
-                          onChange={(e) => setIntentStartTime(e.target.value)}
-                          className="w-full bg-ink-50 rounded-xl px-3 py-2 text-xs text-ink-700 border border-ink-200 outline-none focus:border-brand-400"
+                          onChange={(v) => setIntentStartTime(v)}
+                        />
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <div className="text-[10px] text-ink-500 font-semibold mb-1 flex items-center gap-1">
+                          <Clock className="w-3 h-3" /> End time <span className="text-ink-300">(opt.)</span>
+                        </div>
+                        <ClockDial
+                          value={intentEndTime}
+                          onChange={(v) => { setIntentEndTime(v); setIntentEndTimeManuallySet(true); }}
+                          warnIfBefore={intentDate === intentEndDate ? intentStartTime : undefined}
                         />
                       </div>
                     </div>
-                  </div>
+                  )}
+
+                  {/* End-before-start warning */}
+                  {!intentAnyTime && intentDate === intentEndDate && intentEndTime && intentEndTime <= intentStartTime && (
+                    <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 rounded-xl px-3 py-2">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      End time is before start time — please adjust.
+                    </div>
+                  )}
                 </div>
 
                 {/* Vibe */}
@@ -1652,6 +1723,131 @@ export default function HomePage() {
   );
 }
 
+
+function ClockDial({
+  value,
+  onChange,
+  warnIfBefore,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  warnIfBefore?: string;
+}) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const dragging = useRef(false);
+
+  const [rawH, rawM] = value ? value.split(':').map(Number) : [9, 0];
+  const amPm = rawH < 12 ? 'AM' : 'PM';
+  const displayH = rawH % 12 || 12;
+
+  const SIZE = 148;
+  const CX = SIZE / 2;
+  const CY = SIZE / 2;
+  const R = 52;
+
+  const hourAngleRad = (displayH / 12) * Math.PI * 2 - Math.PI / 2;
+  const thumbX = CX + R * Math.cos(hourAngleRad);
+  const thumbY = CY + R * Math.sin(hourAngleRad);
+
+  const calcHour = (clientX: number, clientY: number) => {
+    if (!svgRef.current) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const scaleX = SIZE / rect.width;
+    const scaleY = SIZE / rect.height;
+    const x = (clientX - rect.left) * scaleX - CX;
+    const y = (clientY - rect.top) * scaleY - CY;
+    const rad = Math.atan2(y, x);
+    const normalized = (rad + Math.PI / 2 + Math.PI * 2) % (Math.PI * 2);
+    const h12 = Math.round((normalized / (Math.PI * 2)) * 12) % 12 || 12;
+    const h24 = amPm === 'AM' ? (h12 === 12 ? 0 : h12) : h12 === 12 ? 12 : h12 + 12;
+    onChange(`${String(h24).padStart(2, '0')}:${String(rawM).padStart(2, '0')}`);
+  };
+
+  const toggleAmPm = () => {
+    const newH = rawH < 12 ? rawH + 12 : rawH - 12;
+    onChange(`${String(newH).padStart(2, '0')}:${String(rawM).padStart(2, '0')}`);
+  };
+
+  const setMinute = (min: number) => {
+    onChange(`${String(rawH).padStart(2, '0')}:${String(min).padStart(2, '0')}`);
+  };
+
+  const isWarn = warnIfBefore ? value <= warnIfBefore : false;
+
+  const hours = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+
+  return (
+    <div className="flex flex-col items-center w-full">
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${SIZE} ${SIZE}`}
+        className="w-full max-w-[148px] touch-none cursor-pointer select-none"
+        onMouseDown={(e) => { dragging.current = true; calcHour(e.clientX, e.clientY); }}
+        onMouseMove={(e) => { if (dragging.current) calcHour(e.clientX, e.clientY); }}
+        onMouseUp={() => { dragging.current = false; }}
+        onMouseLeave={() => { dragging.current = false; }}
+        onTouchStart={(e) => { dragging.current = true; calcHour(e.touches[0].clientX, e.touches[0].clientY); }}
+        onTouchMove={(e) => { if (dragging.current) { e.preventDefault(); calcHour(e.touches[0].clientX, e.touches[0].clientY); } }}
+        onTouchEnd={() => { dragging.current = false; }}
+      >
+        {/* Face */}
+        <circle cx={CX} cy={CY} r={CX - 2} fill={isWarn ? '#FFF7ED' : '#F4F4F8'} />
+        {/* Track ring */}
+        <circle cx={CX} cy={CY} r={R} fill="none" stroke={isWarn ? '#FED7AA' : '#E2E2EA'} strokeWidth={1.5} />
+        {/* Hand */}
+        <line x1={CX} y1={CY} x2={thumbX} y2={thumbY} stroke={isWarn ? '#F97316' : '#3B5BFF'} strokeWidth={2} strokeLinecap="round" />
+        {/* Center dot */}
+        <circle cx={CX} cy={CY} r={3.5} fill={isWarn ? '#F97316' : '#3B5BFF'} />
+        {/* Hour markers */}
+        {hours.map((hr, i) => {
+          const ang = (i / 12) * Math.PI * 2 - Math.PI / 2;
+          const mx = CX + (R + 10) * Math.cos(ang);
+          const my = CY + (R + 10) * Math.sin(ang);
+          const active = hr === displayH;
+          return (
+            <text key={hr} x={mx} y={my} textAnchor="middle" dominantBaseline="central"
+              fontSize={active ? 9.5 : 8.5} fontWeight={active ? 700 : 400}
+              fill={active ? (isWarn ? '#F97316' : '#3B5BFF') : '#9CA3AF'}>
+              {hr}
+            </text>
+          );
+        })}
+        {/* Thumb */}
+        <circle cx={thumbX} cy={thumbY} r={11} fill={isWarn ? '#F97316' : '#3B5BFF'} />
+        <text x={thumbX} y={thumbY} textAnchor="middle" dominantBaseline="central" fontSize={7.5} fontWeight={700} fill="white">
+          {displayH}
+        </text>
+        {/* Center time display */}
+        <text x={CX} y={CY - 7} textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight={700} fill={isWarn ? '#F97316' : '#1F2937'}>
+          {String(displayH).padStart(2, '0')}:{String(rawM).padStart(2, '0')}
+        </text>
+        <text x={CX} y={CY + 7} textAnchor="middle" dominantBaseline="central" fontSize={8} fill={isWarn ? '#F97316' : '#6B7280'}>
+          {amPm}
+        </text>
+      </svg>
+
+      {/* AM / PM */}
+      <div className="flex gap-1.5 mt-1.5 mb-1.5">
+        {(['AM', 'PM'] as const).map((ap) => (
+          <button key={ap} onClick={toggleAmPm}
+            className={`px-3 py-0.5 rounded-full text-[10px] font-bold press transition-colors ${amPm === ap ? (isWarn ? 'bg-amber-500 text-white' : 'bg-brand-500 text-white') : 'bg-ink-100 text-ink-600'}`}>
+            {ap}
+          </button>
+        ))}
+      </div>
+
+      {/* Minute quick-pick */}
+      <div className="flex gap-1 w-full px-0.5">
+        {[0, 15, 30, 45].map((min) => (
+          <button key={min} onClick={() => setMinute(min)}
+            className={`flex-1 py-1 rounded-lg text-[10px] font-semibold press border transition-colors ${rawM === min ? (isWarn ? 'bg-amber-500 text-white border-amber-500' : 'bg-brand-500 text-white border-brand-500') : 'bg-ink-50 text-ink-600 border-ink-100'}`}>
+            :{String(min).padStart(2, '0')}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 /* Renders your custom mascot SVG, falls back to the given element if file isn't added yet */
 function MascotIcon({ src, fallback }: { src: string; fallback: React.ReactNode }) {
