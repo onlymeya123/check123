@@ -41,7 +41,7 @@ export default function MapPage() {
     removeStop(place.id);
     setMapUndoItem(place);
     if (mapUndoTimer.current) clearTimeout(mapUndoTimer.current);
-    mapUndoTimer.current = setTimeout(() => setMapUndoItem(null), 4000);
+    mapUndoTimer.current = setTimeout(() => setMapUndoItem(null), 6000);
     show(`Removed ${place.name}`, 'info');
   };
 

@@ -12,7 +12,6 @@ import { PLACES } from '../data/places';
 import { formatRp, formatCost } from '../lib/format';
 import { useToast } from '../components/Toast';
 import { getCulturalIntel, type CulturalIntel } from '../data/cultural';
-import TimePicker from '../components/TimePicker';
 
 const STEPS = [
   'Finding nearby places…',
@@ -56,7 +55,7 @@ export default function GeneratePage() {
     }
     setUndoItem({ place, index: idx });
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-    undoTimerRef.current = setTimeout(() => setUndoItem(null), 4000);
+    undoTimerRef.current = setTimeout(() => setUndoItem(null), 6000);
   };
 
   const handleUndo = () => {
@@ -129,7 +128,7 @@ export default function GeneratePage() {
     if (isManualMode) setItinerary(manualStops);
     setConfirmingPulse(true);
     show(isPostOnboarding ? 'Your trip is ready! 🎉' : 'Journey confirmed ✨', 'success');
-    setTimeout(() => nav(isPostOnboarding ? '/' : '/transition', { replace: true }), 700);
+    setTimeout(() => nav(isPostOnboarding ? '/' : '/map', { replace: true }), 700);
   };
 
   const manualSearchResults = useMemo(() => {
@@ -324,7 +323,7 @@ export default function GeneratePage() {
                       className="w-full h-14 rounded-2xl bg-brand-500 disabled:bg-ink-300 text-white font-bold text-base flex items-center justify-center gap-2 pointer-events-auto"
                     >
                       <Check className="w-5 h-5" />
-                      {isPostOnboarding ? 'Start My Trip →' : 'Confirm My Journey'}
+                      {isPostOnboarding ? 'Start My Trip →' : isEditMode ? 'Save Changes' : 'Confirm My Journey'}
                     </motion.button>
                     {isPostOnboarding && (
                       <p className="text-center text-[11px] text-ink-400 mt-1.5 pointer-events-auto">
@@ -544,21 +543,13 @@ export default function GeneratePage() {
               <div className="w-12 h-1.5 bg-ink-100 rounded-full mx-auto mt-3" />
               <div className="px-5 pt-3 pb-2 flex items-center justify-between">
                 <div className="font-bold text-ink-900 font-display">Set arrival time</div>
-                <button
-                  onClick={() => setEditingTimeFor(null)}
-                  className="h-8 px-4 rounded-full bg-brand-500 text-white text-xs font-bold press"
-                >
-                  Done
-                </button>
+                <button onClick={() => setEditingTimeFor(null)} className="h-8 px-4 rounded-full bg-brand-500 text-white text-xs font-bold press">Done</button>
               </div>
-              <div className="px-5 py-4 flex justify-center">
-                <TimePicker
-                  value={stopTimes[editingTimeFor] ?? getTime(editingTimeFor, activeItinerary.findIndex((p) => p.id === editingTimeFor))}
-                  onChange={(t) => setStopTimes((prev) => ({ ...prev, [editingTimeFor]: t }))}
-                />
-              </div>
-              {/* Issue 11: time picker context */}
-              <p className="text-center text-xs text-ink-400 -mt-2 mb-2 px-4">
+              <TimePresetPicker
+                value={stopTimes[editingTimeFor] ?? getTime(editingTimeFor, activeItinerary.findIndex((p) => p.id === editingTimeFor))}
+                onChange={(t) => setStopTimes((prev) => ({ ...prev, [editingTimeFor]: t }))}
+              />
+              <p className="text-center text-xs text-ink-400 mt-2 mb-1 px-4">
                 All stop times are estimated from this departure time.
               </p>
             </motion.div>
@@ -683,6 +674,7 @@ function LoadingState({ stepIdx }: { stepIdx: number }) {
           </motion.span>
         </AnimatePresence>
       </div>
+      <p className="text-xs text-ink-400 mt-1 mb-3">Generating your plan with AI — just a moment…</p>
       <div className="mt-4 space-y-3">
         {[0, 1, 2].map((i) => (
           <div key={i} className="rounded-2xl border border-ink-100 p-3 flex gap-3 items-center">
@@ -968,5 +960,54 @@ function AlternativesSheet({ open, onClose, excludeIds, onPick, title, alternati
         </>
       )}
     </AnimatePresence>
+  );
+}
+
+/* ── Time Preset Picker ── */
+const TIME_PRESETS = ['08:00', '09:00', '10:00', '11:00', '13:00', '14:00', '15:00'];
+
+function TimePresetPicker({ value, onChange }: { value: string; onChange: (t: string) => void }) {
+  const [showCustom, setShowCustom] = useState(false);
+  const [customVal, setCustomVal] = useState(value);
+
+  const label = (t: string) => {
+    const [h, m] = t.split(':').map(Number);
+    const period = h < 12 ? 'AM' : 'PM';
+    const h12 = h % 12 || 12;
+    return `${h12}${m ? `:${String(m).padStart(2, '0')}` : ''} ${period}`;
+  };
+
+  return (
+    <div className="px-5">
+      <div className="flex flex-wrap gap-2 mb-3">
+        {TIME_PRESETS.map((t) => (
+          <button
+            key={t}
+            onClick={() => { onChange(t); setShowCustom(false); }}
+            className={`px-4 py-2 rounded-full text-sm font-semibold press transition-colors ${
+              value === t && !showCustom ? 'bg-brand-500 text-white shadow-glow' : 'bg-ink-50 text-ink-700 border border-ink-100'
+            }`}
+          >
+            {label(t)}
+          </button>
+        ))}
+        <button
+          onClick={() => setShowCustom((v) => !v)}
+          className={`px-4 py-2 rounded-full text-sm font-semibold press transition-colors ${showCustom ? 'bg-brand-500 text-white' : 'bg-ink-50 text-ink-700 border border-ink-100'}`}
+        >
+          Custom
+        </button>
+      </div>
+      {showCustom && (
+        <div className="flex items-center gap-2">
+          <input
+            type="time"
+            value={customVal}
+            onChange={(e) => { setCustomVal(e.target.value); onChange(e.target.value); }}
+            className="flex-1 bg-ink-50 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink-900 outline-none focus:ring-2 focus:ring-brand-300 border border-ink-100"
+          />
+        </div>
+      )}
+    </div>
   );
 }
