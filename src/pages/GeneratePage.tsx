@@ -24,6 +24,7 @@ export default function GeneratePage() {
   const nav = useNavigate();
   const [searchParams] = useSearchParams();
   const isManualMode = searchParams.get('mode') === 'manual';
+  const startTimeParam = searchParams.get('startTime'); // e.g. "09:00"
 
   const { vibe, budget, buildItinerary, setItinerary, itinerary, removeStop, replaceStop, addStop, reorderStop, alternatives, activeTrip } = useApp();
   const { show } = useToast();
@@ -106,7 +107,10 @@ export default function GeneratePage() {
 
   const getTime = (id: string, idx: number) => {
     if (stopTimes[id]) return stopTimes[id];
-    const start = 10 * 60 + 30 + idx * 90;
+    const baseMin = startTimeParam
+      ? parseInt(startTimeParam.split(':')[0]) * 60 + parseInt(startTimeParam.split(':')[1])
+      : 10 * 60 + 30;
+    const start = baseMin + idx * 90;
     const h = Math.floor(start / 60) % 24;
     const m = start % 60;
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
