@@ -1,8 +1,8 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowLeft, ArrowRight, Check, ChevronDown, ChevronUp,
-  Diamond, Eye, EyeOff, Flame, Lock,
-  Mail, MapPin, Palmtree, Plus, Wind, RefreshCw, User, X,
+  Eye, EyeOff, Lock,
+  Mail, MapPin, Plus, RefreshCw, User, X,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -28,6 +28,7 @@ const VIBES: { id: Vibe; label: string; emoji: string; desc: string }[] = [
   { id: 'chaos', label: 'Chaos', emoji: '🔥', desc: 'Full days & hidden street food' },
   { id: 'zen', label: 'Zen', emoji: '🧘', desc: 'Temples, nature & mindful walks' },
   { id: 'luxury', label: 'Luxury', emoji: '💎', desc: 'Boutique stays & fine dining' },
+  { id: 'balanced', label: 'Balanced', emoji: '⚖️', desc: 'A little of everything — no strong preference' },
 ];
 
 const INTEREST_OPTIONS = [
@@ -212,7 +213,6 @@ export default function OnboardingPage() {
   };
 
   const removeDest = (i: number) => setDestList((prev) => prev.filter((_, idx) => idx !== i));
-  const setDestDays = (i: number, days: number) => setDestList((prev) => prev.map((d, idx) => idx === i ? { ...d, days } : d));
   const moveDest = (from: number, to: number) => {
     if (to < 0 || to >= destList.length) return;
     setDestList((prev) => {
@@ -281,7 +281,7 @@ export default function OnboardingPage() {
                   transition={{ delay: 0.2, type: 'spring', stiffness: 260, damping: 20 }}
                 >
                   {/* Replace public/mascot.svg with your logo */}
-                  <img src="/mascot.svg" alt="Pavey" className="w-40 h-40 object-contain" />
+                  <img src="/mascot.svg" alt="Pavey" className="w-64 h-64 object-contain drop-shadow-xl" />
                 </motion.div>
               </div>
 
@@ -464,20 +464,18 @@ export default function OnboardingPage() {
                   <div className="grid grid-cols-2 gap-3 mt-4">
                     {VIBES.map((v) => {
                       const active = selectedVibe === v.id;
-                      const Icon = v.id === 'chill' ? Palmtree : v.id === 'chaos' ? Flame : v.id === 'zen' ? Wind : Diamond;
                       return (
                         <motion.button
                           key={v.id} whileTap={{ scale: 0.96 }}
                           onClick={() => setSelectedVibe(v.id)}
-                          className={`relative p-4 rounded-2xl border-2 text-left transition-colors press ${active ? 'border-brand-500 bg-brand-50' : 'border-ink-100 bg-white'}`}
+                          className={`relative p-4 rounded-2xl border-2 text-left transition-colors press ${v.id === 'balanced' ? 'col-span-2' : ''} ${active ? 'border-brand-500 bg-brand-50' : 'border-ink-100 bg-white'}`}
                         >
                           {active && (
                             <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-brand-500 flex items-center justify-center">
                               <Check className="w-3 h-3 text-white" />
                             </div>
                           )}
-                          <div className="text-3xl mb-2">{v.emoji}</div>
-                          <Icon className="hidden" />
+                          <div className={`text-3xl mb-2 ${v.id === 'balanced' ? 'inline-block' : ''}`}>{v.emoji}</div>
                           <div className="font-bold text-ink-900 font-display">{v.label}</div>
                           <div className="text-xs text-ink-500 mt-0.5 leading-snug">{v.desc}</div>
                         </motion.button>
@@ -575,12 +573,6 @@ export default function OnboardingPage() {
                           >
                             <div className="w-5 h-5 rounded-full bg-brand-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">{i + 1}</div>
                             <span className="flex-1 text-sm font-semibold text-ink-900 truncate">{d.name}</span>
-                            {/* Issue 17: editable day distribution */}
-                            <div className="flex items-center gap-1 shrink-0 bg-ink-50 rounded-lg px-1.5 py-0.5">
-                              <button onClick={() => setDestDays(i, Math.max(1, d.days - 1))} className="w-5 h-5 flex items-center justify-center text-ink-500 press font-bold text-sm">−</button>
-                              <span className="text-xs font-bold text-ink-800 w-5 text-center">{d.days}d</span>
-                              <button onClick={() => setDestDays(i, d.days + 1)} className="w-5 h-5 flex items-center justify-center text-ink-500 press font-bold text-sm">+</button>
-                            </div>
                             <div className="flex items-center gap-0.5 shrink-0">
                               <button onClick={() => moveDest(i, i - 1)} disabled={i === 0} className="w-6 h-6 flex items-center justify-center text-ink-300 disabled:opacity-20 press">
                                 <ChevronUp className="w-3.5 h-3.5" />

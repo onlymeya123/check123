@@ -12,6 +12,7 @@ import { PLACES } from '../data/places';
 import { formatRp, formatCost } from '../lib/format';
 import { useToast } from '../components/Toast';
 import { getCulturalIntel, type CulturalIntel } from '../data/cultural';
+import ClockDial from '../components/ClockDial';
 
 const STEPS = [
   'Finding nearby places…',
@@ -551,11 +552,13 @@ export default function GeneratePage() {
                 <div className="font-bold text-ink-900 font-display">Set arrival time</div>
                 <button onClick={() => setEditingTimeFor(null)} className="h-8 px-4 rounded-full bg-brand-500 text-white text-xs font-bold press">Done</button>
               </div>
-              <TimePresetPicker
-                value={stopTimes[editingTimeFor] ?? getTime(editingTimeFor, activeItinerary.findIndex((p) => p.id === editingTimeFor))}
-                onChange={(t) => setStopTimes((prev) => ({ ...prev, [editingTimeFor]: t }))}
-              />
-              <p className="text-center text-xs text-ink-400 mt-2 mb-1 px-4">
+              <div className="px-8 pb-2">
+                <ClockDial
+                  value={stopTimes[editingTimeFor] ?? getTime(editingTimeFor, activeItinerary.findIndex((p) => p.id === editingTimeFor))}
+                  onChange={(t) => setStopTimes((prev) => ({ ...prev, [editingTimeFor]: t }))}
+                />
+              </div>
+              <p className="text-center text-xs text-ink-400 mt-1 mb-1 px-4">
                 All stop times are estimated from this departure time.
               </p>
             </motion.div>
@@ -969,51 +972,3 @@ function AlternativesSheet({ open, onClose, excludeIds, onPick, title, alternati
   );
 }
 
-/* ── Time Preset Picker ── */
-const TIME_PRESETS = ['08:00', '09:00', '10:00', '11:00', '13:00', '14:00', '15:00'];
-
-function TimePresetPicker({ value, onChange }: { value: string; onChange: (t: string) => void }) {
-  const [showCustom, setShowCustom] = useState(false);
-  const [customVal, setCustomVal] = useState(value);
-
-  const label = (t: string) => {
-    const [h, m] = t.split(':').map(Number);
-    const period = h < 12 ? 'AM' : 'PM';
-    const h12 = h % 12 || 12;
-    return `${h12}${m ? `:${String(m).padStart(2, '0')}` : ''} ${period}`;
-  };
-
-  return (
-    <div className="px-5">
-      <div className="flex flex-wrap gap-2 mb-3">
-        {TIME_PRESETS.map((t) => (
-          <button
-            key={t}
-            onClick={() => { onChange(t); setShowCustom(false); }}
-            className={`px-4 py-2 rounded-full text-sm font-semibold press transition-colors ${
-              value === t && !showCustom ? 'bg-brand-500 text-white shadow-glow' : 'bg-ink-50 text-ink-700 border border-ink-100'
-            }`}
-          >
-            {label(t)}
-          </button>
-        ))}
-        <button
-          onClick={() => setShowCustom((v) => !v)}
-          className={`px-4 py-2 rounded-full text-sm font-semibold press transition-colors ${showCustom ? 'bg-brand-500 text-white' : 'bg-ink-50 text-ink-700 border border-ink-100'}`}
-        >
-          Custom
-        </button>
-      </div>
-      {showCustom && (
-        <div className="flex items-center gap-2">
-          <input
-            type="time"
-            value={customVal}
-            onChange={(e) => { setCustomVal(e.target.value); onChange(e.target.value); }}
-            className="flex-1 bg-ink-50 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink-900 outline-none focus:ring-2 focus:ring-brand-300 border border-ink-100"
-          />
-        </div>
-      )}
-    </div>
-  );
-}

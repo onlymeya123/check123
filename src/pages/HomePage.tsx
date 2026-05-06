@@ -1,9 +1,9 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Search, SlidersHorizontal, Wand2, CloudSun, Bookmark, Palmtree, Flame,
-  Diamond, Wind, X, Star, MapPin, Clock, Pencil,
+  Diamond, Wind, X, Star, MapPin, Clock, Pencil, Scale,
   ChevronRight, DollarSign, Plus, Navigation, RefreshCw,
-  ArrowRight, Compass, Trash2, Zap, Umbrella, Link2, AlertTriangle, CalendarDays,
+  ArrowRight, Compass, Trash2, Zap, Link2, AlertTriangle, CalendarDays,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import StatusBar from '../components/StatusBar';
@@ -16,12 +16,14 @@ import { PLACES, type Category, type Vibe } from '../data/places';
 import type { Place } from '../data/places';
 import type { TransitMode } from '../context/AppContext';
 import { formatCurrencyAmount } from '../data/wallet';
+import ClockDial from '../components/ClockDial';
 
 const VIBES: { id: Vibe; label: string; icon: string; tint: string }[] = [
   { id: 'chill', label: 'Chill', icon: '🌴', tint: '#10B981' },
   { id: 'chaos', label: 'Chaos', icon: '🔥', tint: '#F97316' },
   { id: 'zen', label: 'Zen', icon: '🧘', tint: '#3B5BFF' },
   { id: 'luxury', label: 'Luxury', icon: '💎', tint: '#A855F7' },
+  { id: 'balanced', label: 'Balanced', icon: '⚖️', tint: '#6B7280' },
 ];
 
 const CATEGORIES: Category[] = ['Cafe', 'Nature', 'Cultural', 'Historic', 'Foodie', 'Hidden Gem', 'Cozy'];
@@ -68,7 +70,7 @@ export default function HomePage() {
     authUser, onboardingComplete,
     destinations, activeDestIdx, setActiveDestIdx, addDestination, setDestinations, removeDestination,
     isNavigating, activeTrip, totalSpent, tripBudget, tripDaysRemaining, dailyAllowance,
-    currency, setCurrency, rainyDayMode, setRainyDayMode, journeyStart,
+    currency, setCurrency, journeyStart,
   } = useApp();
   const { show } = useToast();
 
@@ -342,36 +344,12 @@ export default function HomePage() {
             <div className="text-xs text-ink-500 mt-0.5">3 spots near you · Est. {formatCost(120000, activeTrip.currency)}</div>
             <div className="text-[9px] text-ink-400 mt-0.5 italic">Sample preview</div>
           </div>
-          <div className="shrink-0 text-right flex flex-col items-end gap-1">
-            <div>
-              <div className="text-[10px] text-ink-400">Humidity</div>
-              <div className="text-sm font-bold text-ink-700">74%</div>
-            </div>
-            {/* Rainy Day Mode toggle */}
-            <button
-              onClick={() => { setRainyDayMode(!rainyDayMode); show(rainyDayMode ? 'Rainy day mode off' : 'Rainy day mode on — showing indoor alternatives', 'info'); }}
-              className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-semibold press transition-colors ${rainyDayMode ? 'bg-blue-100 text-blue-700' : 'bg-ink-100 text-ink-500'}`}
-            >
-              <Umbrella className="w-3 h-3" /> {rainyDayMode ? 'Indoor' : 'Rainy?'}
-            </button>
+          <div className="shrink-0 text-right">
+            <div className="text-[10px] text-ink-400">Humidity</div>
+            <div className="text-sm font-bold text-ink-700">74%</div>
           </div>
         </motion.div>
 
-        {/* Rainy Day Banner */}
-        <AnimatePresence>
-          {rainyDayMode && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-              className="mt-2 flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2"
-            >
-              <Umbrella className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-              <span className="text-xs text-blue-700 font-medium">Rainy Day Mode on — showing indoor alternatives</span>
-              <button onClick={() => setRainyDayMode(false)} className="ml-auto shrink-0 press">
-                <X className="w-3.5 h-3.5 text-blue-400" />
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
 
       {/* Currency switch banner */}
@@ -1191,9 +1169,9 @@ export default function HomePage() {
                 {/* Vibe */}
                 <div>
                   <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-2">VIBE</div>
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-5 gap-1.5">
                     {VIBES.map((v) => {
-                      const Icon = v.id === 'chill' ? Palmtree : v.id === 'chaos' ? Flame : v.id === 'zen' ? Wind : Diamond;
+                      const Icon = v.id === 'chill' ? Palmtree : v.id === 'chaos' ? Flame : v.id === 'zen' ? Wind : v.id === 'balanced' ? Scale : Diamond;
                       const active = intentVibe === v.id;
                       return (
                         <button
@@ -1447,10 +1425,10 @@ export default function HomePage() {
               <div className="px-5 space-y-5">
                 <div>
                   <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-2">VIBE</div>
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-5 gap-1.5">
                     {VIBES.map((v) => {
                       const active = v.id === vibe;
-                      const Icon = v.id === 'chill' ? Palmtree : v.id === 'chaos' ? Flame : v.id === 'zen' ? Wind : Diamond;
+                      const Icon = v.id === 'chill' ? Palmtree : v.id === 'chaos' ? Flame : v.id === 'zen' ? Wind : v.id === 'balanced' ? Scale : Diamond;
                       return (
                         <motion.button
                           key={v.id}
@@ -1724,130 +1702,6 @@ export default function HomePage() {
 }
 
 
-function ClockDial({
-  value,
-  onChange,
-  warnIfBefore,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  warnIfBefore?: string;
-}) {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const dragging = useRef(false);
-
-  const [rawH, rawM] = value ? value.split(':').map(Number) : [9, 0];
-  const amPm = rawH < 12 ? 'AM' : 'PM';
-  const displayH = rawH % 12 || 12;
-
-  const SIZE = 148;
-  const CX = SIZE / 2;
-  const CY = SIZE / 2;
-  const R = 52;
-
-  const hourAngleRad = (displayH / 12) * Math.PI * 2 - Math.PI / 2;
-  const thumbX = CX + R * Math.cos(hourAngleRad);
-  const thumbY = CY + R * Math.sin(hourAngleRad);
-
-  const calcHour = (clientX: number, clientY: number) => {
-    if (!svgRef.current) return;
-    const rect = svgRef.current.getBoundingClientRect();
-    const scaleX = SIZE / rect.width;
-    const scaleY = SIZE / rect.height;
-    const x = (clientX - rect.left) * scaleX - CX;
-    const y = (clientY - rect.top) * scaleY - CY;
-    const rad = Math.atan2(y, x);
-    const normalized = (rad + Math.PI / 2 + Math.PI * 2) % (Math.PI * 2);
-    const h12 = Math.round((normalized / (Math.PI * 2)) * 12) % 12 || 12;
-    const h24 = amPm === 'AM' ? (h12 === 12 ? 0 : h12) : h12 === 12 ? 12 : h12 + 12;
-    onChange(`${String(h24).padStart(2, '0')}:${String(rawM).padStart(2, '0')}`);
-  };
-
-  const toggleAmPm = () => {
-    const newH = rawH < 12 ? rawH + 12 : rawH - 12;
-    onChange(`${String(newH).padStart(2, '0')}:${String(rawM).padStart(2, '0')}`);
-  };
-
-  const setMinute = (min: number) => {
-    onChange(`${String(rawH).padStart(2, '0')}:${String(min).padStart(2, '0')}`);
-  };
-
-  const isWarn = warnIfBefore ? value <= warnIfBefore : false;
-
-  const hours = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
-
-  return (
-    <div className="flex flex-col items-center w-full">
-      <svg
-        ref={svgRef}
-        viewBox={`0 0 ${SIZE} ${SIZE}`}
-        className="w-full max-w-[148px] touch-none cursor-pointer select-none"
-        onMouseDown={(e) => { dragging.current = true; calcHour(e.clientX, e.clientY); }}
-        onMouseMove={(e) => { if (dragging.current) calcHour(e.clientX, e.clientY); }}
-        onMouseUp={() => { dragging.current = false; }}
-        onMouseLeave={() => { dragging.current = false; }}
-        onTouchStart={(e) => { dragging.current = true; calcHour(e.touches[0].clientX, e.touches[0].clientY); }}
-        onTouchMove={(e) => { if (dragging.current) { e.preventDefault(); calcHour(e.touches[0].clientX, e.touches[0].clientY); } }}
-        onTouchEnd={() => { dragging.current = false; }}
-      >
-        {/* Face */}
-        <circle cx={CX} cy={CY} r={CX - 2} fill={isWarn ? '#FFF7ED' : '#F4F4F8'} />
-        {/* Track ring */}
-        <circle cx={CX} cy={CY} r={R} fill="none" stroke={isWarn ? '#FED7AA' : '#E2E2EA'} strokeWidth={1.5} />
-        {/* Hand */}
-        <line x1={CX} y1={CY} x2={thumbX} y2={thumbY} stroke={isWarn ? '#F97316' : '#3B5BFF'} strokeWidth={2} strokeLinecap="round" />
-        {/* Center dot */}
-        <circle cx={CX} cy={CY} r={3.5} fill={isWarn ? '#F97316' : '#3B5BFF'} />
-        {/* Hour markers */}
-        {hours.map((hr, i) => {
-          const ang = (i / 12) * Math.PI * 2 - Math.PI / 2;
-          const mx = CX + (R + 10) * Math.cos(ang);
-          const my = CY + (R + 10) * Math.sin(ang);
-          const active = hr === displayH;
-          return (
-            <text key={hr} x={mx} y={my} textAnchor="middle" dominantBaseline="central"
-              fontSize={active ? 9.5 : 8.5} fontWeight={active ? 700 : 400}
-              fill={active ? (isWarn ? '#F97316' : '#3B5BFF') : '#9CA3AF'}>
-              {hr}
-            </text>
-          );
-        })}
-        {/* Thumb */}
-        <circle cx={thumbX} cy={thumbY} r={11} fill={isWarn ? '#F97316' : '#3B5BFF'} />
-        <text x={thumbX} y={thumbY} textAnchor="middle" dominantBaseline="central" fontSize={7.5} fontWeight={700} fill="white">
-          {displayH}
-        </text>
-        {/* Center time display */}
-        <text x={CX} y={CY - 7} textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight={700} fill={isWarn ? '#F97316' : '#1F2937'}>
-          {String(displayH).padStart(2, '0')}:{String(rawM).padStart(2, '0')}
-        </text>
-        <text x={CX} y={CY + 7} textAnchor="middle" dominantBaseline="central" fontSize={8} fill={isWarn ? '#F97316' : '#6B7280'}>
-          {amPm}
-        </text>
-      </svg>
-
-      {/* AM / PM */}
-      <div className="flex gap-1.5 mt-1.5 mb-1.5">
-        {(['AM', 'PM'] as const).map((ap) => (
-          <button key={ap} onClick={toggleAmPm}
-            className={`px-3 py-0.5 rounded-full text-[10px] font-bold press transition-colors ${amPm === ap ? (isWarn ? 'bg-amber-500 text-white' : 'bg-brand-500 text-white') : 'bg-ink-100 text-ink-600'}`}>
-            {ap}
-          </button>
-        ))}
-      </div>
-
-      {/* Minute quick-pick */}
-      <div className="flex gap-1 w-full px-0.5">
-        {[0, 15, 30, 45].map((min) => (
-          <button key={min} onClick={() => setMinute(min)}
-            className={`flex-1 py-1 rounded-lg text-[10px] font-semibold press border transition-colors ${rawM === min ? (isWarn ? 'bg-amber-500 text-white border-amber-500' : 'bg-brand-500 text-white border-brand-500') : 'bg-ink-50 text-ink-600 border-ink-100'}`}>
-            :{String(min).padStart(2, '0')}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 /* Renders your custom mascot SVG, falls back to the given element if file isn't added yet */
 function MascotIcon({ src, fallback }: { src: string; fallback: React.ReactNode }) {
