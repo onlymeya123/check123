@@ -16,7 +16,7 @@ import { PLACES, type Category, type Vibe } from '../data/places';
 import type { Place } from '../data/places';
 import type { TransitMode } from '../context/AppContext';
 import { formatCurrencyAmount } from '../data/wallet';
-import ClockDial from '../components/ClockDial';
+import TimePicker from '../components/TimePicker';
 
 const VIBES: { id: Vibe; label: string; icon: string; tint: string }[] = [
   { id: 'chill', label: 'Chill', icon: '🌴', tint: '#10B981' },
@@ -100,10 +100,10 @@ export default function HomePage() {
   const [intentEndDate, setIntentEndDate] = useState('');
   const [intentStartTime, setIntentStartTime] = useState('09:00');
   const [intentEndTime, setIntentEndTime] = useState('17:00');
-  const [intentAnyTime, setIntentAnyTime] = useState(false);
-  const [intentEndTimeManuallySet, setIntentEndTimeManuallySet] = useState(false);
+  const [intentEndTimeSet, setIntentEndTimeSet] = useState(false);
   const [intentVibe, setIntentVibe] = useState<Vibe | null>(null);
   const [intentBudget, setIntentBudget] = useState<number | null>(null);
+  const [intentErrors, setIntentErrors] = useState<{ dest?: string; date?: string }>({});
 
   // Issue 27: vibe/budget change prompt
   const [vibeChangedPrompt, setVibeChangedPrompt] = useState(false);
@@ -211,13 +211,13 @@ export default function HomePage() {
     if (intentDate && !intentEndDate) setIntentEndDate(intentDate);
   }, [intentDate, intentEndDate]);
 
-  // Auto-fill end time = start time + 8 hours unless user already set it
+  // Auto-fill end time = start time + 8 hours unless user manually set it
   useEffect(() => {
-    if (intentAnyTime || intentEndTimeManuallySet) return;
+    if (intentEndTimeSet) return;
     const [h, m] = intentStartTime.split(':').map(Number);
     const eh = (h + 8) % 24;
     setIntentEndTime(`${String(eh).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
-  }, [intentStartTime, intentAnyTime, intentEndTimeManuallySet]);
+  }, [intentStartTime, intentEndTimeSet]);
 
   const parseSocialLink = () => {
     if (!socialUrl.trim()) return;
@@ -259,14 +259,19 @@ export default function HomePage() {
   };
 
   const handleIntentConfirm = () => {
+    const errs: { dest?: string; date?: string } = {};
+    if (!intentDest.trim()) errs.dest = 'Please enter your destination to continue';
+    if (!intentDate) errs.date = 'Please pick a start date to continue';
+    if (Object.keys(errs).length > 0) { setIntentErrors(errs); return; }
+    setIntentErrors({});
     if (intentVibe) setVibe(intentVibe);
     if (intentBudget) setBudget(intentBudget);
     const mode = intentSheet;
     setIntentSheet(null);
     const params = new URLSearchParams();
     if (mode === 'manual') params.set('mode', 'manual');
-    if (!intentAnyTime && intentStartTime) params.set('startTime', intentStartTime);
-    if (!intentAnyTime && intentEndTime) params.set('endTime', intentEndTime);
+    if (intentStartTime) params.set('startTime', intentStartTime);
+    if (intentEndTime) params.set('endTime', intentEndTime);
     nav(`/generate${params.toString() ? `?${params}` : ''}`);
   };
 
@@ -703,14 +708,14 @@ export default function HomePage() {
               </div>
             </div>
             <button
-              onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentStartTime('09:00'); setIntentSheet('ai'); }}
+              onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentEndDate(''); setIntentStartTime('09:00'); setIntentEndTimeSet(false); setIntentErrors({}); setIntentSheet('ai'); }}
               className="w-full h-14 rounded-2xl bg-brand-500 text-white font-bold text-base press shadow-glow flex items-center justify-center gap-2 mb-3"
             >
               <Wand2 className="w-5 h-5" />
               Generate my plan
             </button>
             <button
-              onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentStartTime('09:00'); setIntentSheet('manual'); }}
+              onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentEndDate(''); setIntentStartTime('09:00'); setIntentEndTimeSet(false); setIntentErrors({}); setIntentSheet('manual'); }}
               className="w-full text-sm text-brand-600 font-semibold press flex items-center justify-center gap-1"
             >
               or build it stop by stop <ArrowRight className="w-3.5 h-3.5" />
@@ -825,7 +830,7 @@ export default function HomePage() {
         <div className="grid grid-cols-2 gap-3">
           <motion.button
             whileTap={{ scale: 0.96 }} whileHover={{ scale: 1.01 }}
-            onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentStartTime('09:00'); setIntentSheet('ai'); }}
+            onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentEndDate(''); setIntentStartTime('09:00'); setIntentEndTimeSet(false); setIntentErrors({}); setIntentSheet('ai'); }}
             className="rounded-2xl p-4 text-left flex flex-col gap-2 press bg-brand-500 shadow-glow"
           >
             <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
@@ -839,7 +844,7 @@ export default function HomePage() {
 
           <motion.button
             whileTap={{ scale: 0.96 }} whileHover={{ scale: 1.01 }}
-            onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentStartTime('09:00'); setIntentSheet('manual'); }}
+            onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentEndDate(''); setIntentStartTime('09:00'); setIntentEndTimeSet(false); setIntentErrors({}); setIntentSheet('manual'); }}
             className="rounded-2xl p-4 text-left flex flex-col gap-2 press bg-white border-2 border-brand-200 hover:border-brand-400 transition-colors"
           >
             <div className="w-9 h-9 rounded-xl bg-brand-50 flex items-center justify-center">
@@ -1028,32 +1033,41 @@ export default function HomePage() {
                   <div className="font-bold text-ink-900 font-display text-base">
                     {intentSheet === 'ai' ? '✨ Plan with AI' : '🗺️ Build your plan'}
                   </div>
-                  <div className="text-xs text-ink-500 mt-0.5">Tell us a bit about your day</div>
+                  <div className="text-xs text-ink-500 mt-0.5">
+                    Fields marked <span className="text-red-400 font-semibold">*</span> are required
+                  </div>
                 </div>
                 <button onClick={() => setIntentSheet(null)} className="w-8 h-8 rounded-full bg-ink-50 flex items-center justify-center press"><X className="w-4 h-4" /></button>
               </div>
 
               <div className="overflow-y-auto no-scrollbar px-5 pb-4 space-y-5 flex-1">
 
-                {/* Where */}
+                {/* WHERE */}
                 <div>
-                  <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-2">WHERE</div>
-                  <div className="flex items-center gap-2 bg-ink-50 rounded-xl px-3 py-2.5 border-2 border-transparent focus-within:border-brand-400 transition-colors">
-                    <MapPin className="w-4 h-4 text-ink-400 shrink-0" />
+                  <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-2">
+                    WHERE <span className="text-red-400 font-bold">*</span>
+                  </div>
+                  <div className={`flex items-center gap-2 rounded-xl px-3 py-2.5 border-2 transition-colors ${intentErrors.dest ? 'bg-red-50 border-red-400' : 'bg-ink-50 border-transparent focus-within:border-brand-400'}`}>
+                    <MapPin className={`w-4 h-4 shrink-0 ${intentErrors.dest ? 'text-red-400' : 'text-ink-400'}`} />
                     <input
                       value={intentDest}
-                      onChange={(e) => setIntentDest(e.target.value)}
-                      placeholder={activeDest?.name.split(',')[0] ?? 'City or area…'}
+                      onChange={(e) => { setIntentDest(e.target.value); if (e.target.value.trim()) setIntentErrors((p) => ({ ...p, dest: undefined })); }}
+                      placeholder={activeDest?.name.split(',')[0] ?? 'e.g. Ubud, Bali'}
                       className="flex-1 bg-transparent text-sm text-ink-900 placeholder:text-ink-400 outline-none"
                     />
                     {intentDest && <button onClick={() => setIntentDest('')}><X className="w-3.5 h-3.5 text-ink-400" /></button>}
                   </div>
+                  {intentErrors.dest && (
+                    <div className="flex items-center gap-1.5 text-xs text-red-600 mt-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> {intentErrors.dest}
+                    </div>
+                  )}
                   {destinations.length > 1 && (
                     <div className="flex gap-1.5 mt-2 flex-wrap">
                       {destinations.map((d) => (
                         <button
                           key={d.id}
-                          onClick={() => setIntentDest(d.name.split(',')[0])}
+                          onClick={() => { setIntentDest(d.name.split(',')[0]); setIntentErrors((p) => ({ ...p, dest: undefined })); }}
                           className={`px-2.5 py-1 rounded-full text-xs font-semibold press border transition-colors ${intentDest === d.name.split(',')[0] ? 'bg-brand-500 text-white border-brand-500' : 'bg-ink-50 text-ink-700 border-ink-100'}`}
                         >
                           {d.name.split(',')[0]}
@@ -1063,57 +1077,31 @@ export default function HomePage() {
                   )}
                 </div>
 
-                {/* When */}
+                {/* WHEN */}
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-[10px] font-bold tracking-widest text-ink-500">WHEN <span className="font-normal normal-case tracking-normal text-ink-400">— optional</span></div>
-                  </div>
+                  <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-3">WHEN</div>
 
-                  {/* Date row */}
-                  <div className="grid grid-cols-2 gap-2 mb-3">
+                  {/* Dates */}
+                  <div className="grid grid-cols-2 gap-2 mb-4">
                     <div>
-                      <div className="text-[10px] text-ink-400 mb-1.5 flex items-center gap-1"><CalendarDays className="w-3 h-3" /> Start date</div>
-                      <div className="flex gap-1 mb-1.5">
-                        {[
-                          { label: 'Today', value: new Date().toISOString().split('T')[0] },
-                          { label: 'Tomorrow', value: new Date(Date.now() + 86400000).toISOString().split('T')[0] },
-                        ].map((opt) => (
-                          <button
-                            key={opt.label}
-                            onClick={() => setIntentDate(intentDate === opt.value ? '' : opt.value)}
-                            className={`flex-1 py-1.5 rounded-xl text-[11px] font-semibold press border transition-colors ${intentDate === opt.value ? 'bg-brand-500 text-white border-brand-500' : 'bg-ink-50 text-ink-700 border-ink-100'}`}
-                          >
-                            {opt.label}
-                          </button>
-                        ))}
+                      <div className="text-[10px] font-semibold text-ink-500 mb-1.5 flex items-center gap-1">
+                        <CalendarDays className="w-3 h-3" /> Start date <span className="text-red-400">*</span>
                       </div>
                       <input
                         type="date"
                         value={intentDate}
-                        onChange={(e) => setIntentDate(e.target.value)}
-                        className="w-full bg-ink-50 rounded-xl px-3 py-2 text-xs text-ink-700 border border-ink-200 outline-none focus:border-brand-400"
+                        onChange={(e) => { setIntentDate(e.target.value); if (e.target.value) setIntentErrors((p) => ({ ...p, date: undefined })); }}
+                        className={`w-full rounded-xl px-3 py-2 text-xs border outline-none focus:border-brand-400 ${intentErrors.date ? 'border-red-400 bg-red-50 text-red-700' : 'bg-ink-50 text-ink-700 border-ink-200'}`}
                       />
+                      {intentErrors.date && (
+                        <div className="flex items-center gap-1 text-xs text-red-600 mt-1.5">
+                          <AlertTriangle className="w-3 h-3 shrink-0" /> {intentErrors.date}
+                        </div>
+                      )}
                     </div>
                     <div>
-                      <div className="text-[10px] text-ink-400 mb-1.5 flex items-center gap-1"><CalendarDays className="w-3 h-3" /> End date <span className="text-ink-300">(opt.)</span></div>
-                      <div className="flex gap-1 mb-1.5">
-                        {[
-                          { label: 'Same', delta: 0 },
-                          { label: '+1d', delta: 1 },
-                          { label: '+2d', delta: 2 },
-                        ].map(({ label, delta }) => {
-                          const base = intentDate || new Date().toISOString().split('T')[0];
-                          const val = new Date(new Date(base).getTime() + delta * 86400000).toISOString().split('T')[0];
-                          return (
-                            <button
-                              key={label}
-                              onClick={() => setIntentEndDate(intentEndDate === val ? '' : val)}
-                              className={`flex-1 py-1.5 rounded-xl text-[11px] font-semibold press border transition-colors ${intentEndDate === val ? 'bg-brand-500 text-white border-brand-500' : 'bg-ink-50 text-ink-700 border-ink-100'}`}
-                            >
-                              {label}
-                            </button>
-                          );
-                        })}
+                      <div className="text-[10px] font-semibold text-ink-500 mb-1.5 flex items-center gap-1">
+                        <CalendarDays className="w-3 h-3" /> End date
                       </div>
                       <input
                         type="date"
@@ -1122,46 +1110,29 @@ export default function HomePage() {
                         onChange={(e) => setIntentEndDate(e.target.value)}
                         className="w-full bg-ink-50 rounded-xl px-3 py-2 text-xs text-ink-700 border border-ink-200 outline-none focus:border-brand-400"
                       />
+                      <div className="text-[9px] text-ink-400 mt-1">Defaults to same day</div>
                     </div>
                   </div>
 
-                  {/* Any time toggle */}
-                  <button
-                    onClick={() => setIntentAnyTime(!intentAnyTime)}
-                    className={`w-full py-2 rounded-xl text-xs font-semibold press border transition-colors flex items-center justify-center gap-2 mb-3 ${intentAnyTime ? 'bg-brand-50 border-brand-300 text-brand-700' : 'bg-ink-50 border-ink-100 text-ink-600'}`}
-                  >
-                    <Clock className="w-3.5 h-3.5" />
-                    {intentAnyTime ? '✓ Any time (all-day)' : 'Any time (all-day)?'}
-                  </button>
+                  {/* Time pickers */}
+                  <TimePicker
+                    label="START TIME"
+                    value={intentStartTime}
+                    onChange={(v) => setIntentStartTime(v)}
+                  />
+                  <div className="mt-3">
+                    <TimePicker
+                      label="END TIME"
+                      value={intentEndTime}
+                      onChange={(v) => { setIntentEndTime(v); setIntentEndTimeSet(true); }}
+                      warnIfBefore={intentDate === intentEndDate ? intentStartTime : undefined}
+                    />
+                  </div>
 
-                  {/* Clock dials */}
-                  {!intentAnyTime && (
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="flex flex-col items-center">
-                        <div className="text-[10px] text-ink-500 font-semibold mb-1 flex items-center gap-1"><Clock className="w-3 h-3" /> Start time</div>
-                        <ClockDial
-                          value={intentStartTime}
-                          onChange={(v) => setIntentStartTime(v)}
-                        />
-                      </div>
-                      <div className="flex flex-col items-center">
-                        <div className="text-[10px] text-ink-500 font-semibold mb-1 flex items-center gap-1">
-                          <Clock className="w-3 h-3" /> End time <span className="text-ink-300">(opt.)</span>
-                        </div>
-                        <ClockDial
-                          value={intentEndTime}
-                          onChange={(v) => { setIntentEndTime(v); setIntentEndTimeManuallySet(true); }}
-                          warnIfBefore={intentDate === intentEndDate ? intentStartTime : undefined}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* End-before-start warning */}
-                  {!intentAnyTime && intentDate === intentEndDate && intentEndTime && intentEndTime <= intentStartTime && (
+                  {intentDate === intentEndDate && intentEndTime && intentEndTime <= intentStartTime && (
                     <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 rounded-xl px-3 py-2">
                       <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                      End time is before start time — please adjust.
+                      End time is before start time — the schedule may be incorrect.
                     </div>
                   )}
                 </div>

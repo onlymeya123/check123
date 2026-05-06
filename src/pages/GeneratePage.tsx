@@ -12,7 +12,7 @@ import { PLACES } from '../data/places';
 import { formatRp, formatCost } from '../lib/format';
 import { useToast } from '../components/Toast';
 import { getCulturalIntel, type CulturalIntel } from '../data/cultural';
-import ClockDial from '../components/ClockDial';
+import TimePicker from '../components/TimePicker';
 
 const STEPS = [
   'Finding nearby places…',
@@ -553,7 +553,7 @@ export default function GeneratePage() {
                 <button onClick={() => setEditingTimeFor(null)} className="h-8 px-4 rounded-full bg-brand-500 text-white text-xs font-bold press">Done</button>
               </div>
               <div className="px-8 pb-2">
-                <ClockDial
+                <TimePicker
                   value={stopTimes[editingTimeFor] ?? getTime(editingTimeFor, activeItinerary.findIndex((p) => p.id === editingTimeFor))}
                   onChange={(t) => setStopTimes((prev) => ({ ...prev, [editingTimeFor]: t }))}
                 />
