@@ -4,8 +4,8 @@ import BottomNav from './components/BottomNav';
 import { AppProvider, useApp } from './context/AppContext';
 import { ToastProvider } from './components/Toast';
 import Buddy from './components/Buddy';
-import { MessageCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { buddyImg } from './assets/images';
 
 import OnboardingPage from './pages/OnboardingPage';
 import HomePage from './pages/HomePage';
@@ -46,17 +46,24 @@ function AppShell() {
 
       {!hideNav && <BottomNav />}
 
-      {/* Buddy floating button — visible on all main pages except generate/onboarding */}
+      {/* Buddy floating button — single entry point, visible on all main pages */}
       {!hideBuddy && !hideNav && (
         <motion.button
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0, opacity: 0 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 22 }}
           onClick={() => setBuddyOpen(true)}
-          className="absolute right-4 bottom-[88px] z-20 w-12 h-12 rounded-full bg-brand-500 text-white shadow-glow flex items-center justify-center press"
-          aria-label="Open Buddy"
+          className="absolute right-4 bottom-24 z-20 w-14 h-14 rounded-full bg-brand-500 shadow-glow overflow-hidden press ring-2 ring-white"
+          aria-label="Open Buddy AI"
         >
-          <MessageCircle className="w-5 h-5" />
+          {/* buddy.svg: 997 × 1036 px — replace with buddy.png */}
+          <img
+            src={buddyImg}
+            alt="Buddy"
+            className="w-full h-full object-cover"
+            style={{ aspectRatio: '997/1036' }}
+          />
         </motion.button>
       )}
 

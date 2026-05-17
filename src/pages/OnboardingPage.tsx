@@ -10,6 +10,7 @@ import { useApp } from '../context/AppContext';
 import type { Vibe } from '../data/places';
 import { pickItinerary } from '../data/places';
 import { suggestCurrency, CURRENCY_SYMBOLS, CURRENCY_RATES_TO_IDR } from '../data/wallet';
+import { splashImg, welcomeImg, buddyImg } from '../assets/images';
 
 type AuthMode = 'signup' | 'login';
 type Step =
@@ -258,8 +259,13 @@ export default function OnboardingPage() {
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ delay: 0.2, type: 'spring', stiffness: 260, damping: 20 }}
                 >
-                  {/* Replace public/mascot.svg with your logo */}
-                  <img src="/mascot.svg" alt="Pavey" className="w-[48vw] h-[48vw] max-w-[307px] max-h-[307px] object-contain" />
+                  {/* splash.svg → replace with splash.png (605 × 944 px) */}
+                  <img
+                    src={splashImg}
+                    alt="Pavey"
+                    className="w-[52vw] max-w-[230px] max-h-[45vh] object-contain"
+                    style={{ aspectRatio: '605/944' }}
+                  />
                 </motion.div>
               </div>
 
@@ -306,8 +312,15 @@ export default function OnboardingPage() {
                 {authMode === 'signup' && <span className="text-xs text-ink-400 font-semibold">Step 1 of 6</span>}
               </div>
               <div className="flex items-center gap-3 mb-3">
-                {/* Replace public/mascot-icon.svg with your mascot icon */}
-                <img src="/mascot-icon.svg" alt="" className="w-9 h-9 object-contain" />
+                {/* welcome.svg → replace with welcome.png (990 × 1037 px) */}
+                <div className="w-11 h-11 rounded-2xl overflow-hidden shrink-0 bg-brand-50">
+                  <img
+                    src={welcomeImg}
+                    alt=""
+                    className="w-full h-full object-cover"
+                    style={{ aspectRatio: '990/1037' }}
+                  />
+                </div>
                 <div>
                   <h2 className="text-2xl font-extrabold text-ink-900 font-display leading-tight">
                     {authMode === 'signup' ? 'Create your account' : 'Welcome back'}
@@ -779,7 +792,10 @@ export default function OnboardingPage() {
             {/* Brand header */}
             <div className="bg-brand-500 px-5 pt-14 pb-5">
               <div className="flex items-center gap-3 mb-1">
-                <img src="/mascot-icon.svg" alt="" className="w-8 h-8 object-contain brightness-0 invert" />
+                {/* buddy.svg → replace with buddy.png (997 × 1036 px) */}
+                <div className="w-8 h-8 rounded-xl overflow-hidden shrink-0 brightness-0 invert">
+                  <img src={buddyImg} alt="" className="w-full h-full object-cover" style={{ aspectRatio: '997/1036' }} />
+                </div>
                 <div className="text-white font-extrabold text-lg font-display leading-tight">
                   {destList.length > 0 ? `${destList[0].name.split(',')[0]} awaits` : 'Your trip awaits'}
                 </div>

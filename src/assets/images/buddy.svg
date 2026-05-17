@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 997 1036" width="997" height="1036">
+  <!-- Placeholder: replace with buddy.png (997 × 1036 px) -->
+  <rect width="997" height="1036" fill="#3B5BFF" rx="32"/>
+  <circle cx="498" cy="480" r="260" fill="#6366F1"/>
+  <circle cx="498" cy="480" r="200" fill="#818CF8"/>
+  <text x="498" y="510" text-anchor="middle" font-family="system-ui,sans-serif" font-size="160" dy=".1em">✨</text>
+  <text x="498" y="760" text-anchor="middle" font-family="system-ui,sans-serif" font-size="64" font-weight="700" fill="white">Buddy</text>
+</svg>

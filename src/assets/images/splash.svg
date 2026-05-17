@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 605 944" width="605" height="944">
+  <!-- Placeholder: replace with splash.png (605 × 944 px) -->
+  <rect width="605" height="944" fill="#EEF2FF" rx="32"/>
+  <rect x="152" y="180" width="301" height="420" rx="24" fill="#C7D2FE"/>
+  <text x="302" y="680" text-anchor="middle" font-family="system-ui,sans-serif" font-size="38" font-weight="700" fill="#3B5BFF">Pavey</text>
+  <text x="302" y="730" text-anchor="middle" font-family="system-ui,sans-serif" font-size="22" fill="#6366F1">Your AI travel companion</text>
+</svg>
