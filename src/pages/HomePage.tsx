@@ -3,7 +3,7 @@ import {
   Search, SlidersHorizontal, Wand2, CloudSun, Bookmark,
   X, Star, MapPin, Clock, Pencil,
   ChevronRight, DollarSign, Plus, Navigation, RefreshCw,
-  ArrowRight, Compass, Trash2, Zap, Link2, AlertTriangle,
+  ArrowRight, Compass, Zap, Link2, AlertTriangle,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import StatusBar from '../components/StatusBar';
@@ -69,7 +69,7 @@ export default function HomePage() {
     authUser, onboardingComplete,
     destinations, activeDestIdx, setActiveDestIdx, addDestination, setDestinations, removeDestination,
     isNavigating, activeTrip, totalSpent, tripBudget, tripDaysRemaining, dailyAllowance,
-    currency, setCurrency, journeyStart, setJourneyStart,
+    currency, setCurrency, journeyStart, setJourneyStart, perDayItineraries,
   } = useApp();
   const { show } = useToast();
 
@@ -82,7 +82,6 @@ export default function HomePage() {
   const [socialResult, setSocialResult] = useState<typeof SOCIAL_MOCK[string] | null>(null);
   const [socialError, setSocialError] = useState(false);
   const socialInputRef = useRef<HTMLInputElement>(null);
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [detailPlace, setDetailPlace] = useState<Place | null>(null);
   const [addDestSheet, setAddDestSheet] = useState(false);
   const [newDestName, setNewDestName] = useState('');
@@ -155,7 +154,11 @@ export default function HomePage() {
   const activeFilters = filterCats.length + (filterMinRating > 0 ? 1 : 0);
 
   // ── Trip state logic ──────────────────────────────────────────
-  const hasTodayPlan = itinerary.length > 0;
+  const todayStops = perDayItineraries.length > 0 ? (perDayItineraries[0] ?? []) : itinerary;
+  const PREVIEW_COUNT = 2;
+  const previewStops = todayStops.slice(0, PREVIEW_COUNT);
+  const hasMore = todayStops.length > PREVIEW_COUNT;
+  const hasTodayPlan = todayStops.length > 0;
   const activeDest = destinations[activeDestIdx];
   const nextDest = destinations[activeDestIdx + 1];
   const hasMultiDest = destinations.length > 1;
@@ -538,7 +541,7 @@ export default function HomePage() {
       <div className="px-5 mt-5">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold tracking-widest text-ink-500">TODAY'S PLAN</span>
+            <span className="text-[11px] font-bold tracking-widest text-ink-500">TODAY'S PLAN{todayStops.length > 0 ? ` · ${todayStops.length} STOPS` : ''}</span>
             <button
               onClick={() => setVibeSheet(true)}
               className="flex items-center gap-1 bg-brand-50 text-brand-600 text-[11px] font-semibold px-2 py-0.5 rounded-full border border-brand-100 press"
@@ -578,11 +581,11 @@ export default function HomePage() {
               </motion.button>
             )}
 
-            {/* Full itinerary — not truncated */}
+            {/* Preview — first 2 stops only */}
             <div className="relative">
               <div className="absolute left-2.5 top-0 bottom-0 w-px bg-ink-200" />
               <div className="space-y-3">
-                {itinerary.map((p, i) => {
+                {previewStops.map((p, i) => {
                   const startMin = 10 * 60 + 30 + i * 150;
                   const h = Math.floor(startMin / 60) % 24;
                   const m = startMin % 60;
@@ -591,7 +594,6 @@ export default function HomePage() {
                     <motion.div
                       key={p.id}
                       initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.05 * i }}
                       className="relative pl-7"
                     >
                       <span className="absolute left-0.5 top-4 w-4 h-4 rounded-full bg-brand-500 ring-4 ring-brand-100 flex items-center justify-center z-10">
@@ -599,7 +601,7 @@ export default function HomePage() {
                       </span>
                       <div className="text-xs font-semibold text-ink-600 mb-1 flex items-center gap-1">
                         <Clock className="w-3 h-3" /> {timeStr}
-                        {i > 0 && <span className="text-ink-400 font-normal ml-1">· {itinerary[i].distanceKm} km from prev</span>}
+                        {i > 0 && <span className="text-ink-400 font-normal ml-1">· {p.distanceKm} km from prev</span>}
                       </div>
                       <button
                         onClick={() => setDetailPlace(p)}
@@ -612,20 +614,15 @@ export default function HomePage() {
                             <span>{p.category}</span>
                             <span className="text-ink-300">·</span>
                             <span className="flex items-center gap-0.5"><Star className="w-3 h-3 fill-amber-400 text-amber-400" />{p.rating}</span>
-                            <span className="text-ink-300">·</span>
-                            <span className="text-ink-400">{p.openingHours}</span>
                           </div>
                           <div className="text-xs text-brand-600 font-semibold mt-0.5">
                             {formatCost(p.priceRange.min, activeTrip.currency)}{p.priceRange.max !== p.priceRange.min && ` – ${formatCost(p.priceRange.max, activeTrip.currency)}`}
                           </div>
                         </div>
-                        <button
-                          className="w-9 h-9 rounded-full hover:bg-ink-50 flex items-center justify-center shrink-0 press"
+                        <Bookmark
                           onClick={(e) => { e.stopPropagation(); isSaved(p.id) ? removeSavedPlace(p.id) : savePlace(p); }}
-                          aria-label={isSaved(p.id) ? 'Unsave' : 'Save'}
-                        >
-                          <Bookmark className={`w-4 h-4 transition-colors ${isSaved(p.id) ? 'fill-brand-500 text-brand-500' : 'text-ink-400'}`} />
-                        </button>
+                          className={`w-4 h-4 shrink-0 transition-colors ${isSaved(p.id) ? 'fill-brand-500 text-brand-500' : 'text-ink-300'}`}
+                        />
                       </button>
                     </motion.div>
                   );
@@ -633,25 +630,29 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Edit plan CTA — outside timeline container so line doesn't bleed in */}
-            <div className="mt-4 flex gap-2">
+            {/* Footer: compact action links + View full plan */}
+            <div className="mt-3">
+              <div className="flex items-center gap-3 mb-2">
+                <button
+                  onClick={() => nav('/generate?edit=1')}
+                  className="flex items-center gap-1 text-xs text-ink-400 font-semibold press hover:text-ink-700"
+                >
+                  <Pencil className="w-3 h-3" /> Edit
+                </button>
+                <span className="text-ink-200">·</span>
+                <button
+                  onClick={() => nav('/map')}
+                  className="flex items-center gap-1 text-xs text-ink-400 font-semibold press hover:text-ink-700"
+                >
+                  <MapPin className="w-3 h-3" /> Map
+                </button>
+              </div>
               <button
-                onClick={() => setShowClearConfirm(true)}
-                className="h-10 px-3 rounded-xl border border-red-200 text-red-500 text-xs font-semibold press flex items-center justify-center gap-1.5"
+                onClick={() => nav('/trips')}
+                className="w-full h-10 rounded-2xl bg-brand-50 border border-brand-100 text-brand-600 font-semibold text-sm press flex items-center justify-center gap-1.5"
               >
-                <Trash2 className="w-3.5 h-3.5" /> Clear
-              </button>
-              <button
-                onClick={() => nav('/generate?edit=1')}
-                className="flex-1 h-10 rounded-xl border border-brand-200 text-brand-600 text-xs font-semibold press flex items-center justify-center gap-1.5"
-              >
-                <Pencil className="w-3.5 h-3.5" /> Edit Plan
-              </button>
-              <button
-                onClick={() => nav('/map')}
-                className="flex-1 h-10 rounded-xl bg-brand-500 text-white text-xs font-semibold press flex items-center justify-center gap-1.5 shadow-glow"
-              >
-                <MapPin className="w-3.5 h-3.5" /> View Map
+                {hasMore ? `View all ${todayStops.length} stops` : 'Open in My Plan'}
+                <ChevronRight className="w-4 h-4" />
               </button>
             </div>
 
@@ -675,27 +676,6 @@ export default function HomePage() {
               </motion.div>
             )}
 
-            {/* Clear plan confirmation modal */}
-            <AnimatePresence>
-              {showClearConfirm && (
-                <>
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowClearConfirm(false)} className="absolute inset-0 z-40 bg-ink-900/50" />
-                  <motion.div
-                    initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
-                    transition={{ type: 'spring', stiffness: 400, damping: 28 }}
-                    className="absolute inset-x-8 top-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl p-5 shadow-card text-center"
-                  >
-                    <div className="text-4xl mb-2">🗑️</div>
-                    <div className="font-bold text-ink-900 font-display">Clear today's plan?</div>
-                    <div className="text-sm text-ink-500 mt-1">This will remove all {itinerary.length} stops from your plan.</div>
-                    <div className="flex gap-2 mt-4">
-                      <button onClick={() => setShowClearConfirm(false)} className="flex-1 h-11 rounded-xl bg-ink-50 text-ink-700 font-semibold press">Keep it</button>
-                      <button onClick={() => { setItinerary([]); setShowClearConfirm(false); show('Plan cleared', 'info'); }} className="flex-1 h-11 rounded-xl bg-red-500 text-white font-semibold press">Clear plan</button>
-                    </div>
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
           </div>
         )}
 
