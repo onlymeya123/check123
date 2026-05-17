@@ -4,6 +4,8 @@ import BottomNav from './components/BottomNav';
 import { AppProvider, useApp } from './context/AppContext';
 import { ToastProvider } from './components/Toast';
 import Buddy from './components/Buddy';
+import { MessageCircle } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 import OnboardingPage from './pages/OnboardingPage';
 import HomePage from './pages/HomePage';
@@ -25,15 +27,12 @@ function AppShell() {
   return (
     <div className="flex-1 relative overflow-hidden">
       <Routes>
-        {/* Onboarding / auth — always accessible */}
         <Route path="/onboarding" element={<OnboardingPage />} />
 
-        {/* Guard: redirect to onboarding until complete */}
         {!onboardingComplete && (
           <Route path="*" element={<Navigate to="/onboarding" replace />} />
         )}
 
-        {/* Main app routes */}
         <Route path="/" element={<HomePage />} />
         <Route path="/generate" element={<GeneratePage />} />
         <Route path="/map" element={<MapPage />} />
@@ -42,11 +41,25 @@ function AppShell() {
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/trips" element={<TripsPage />} />
 
-        {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
       {!hideNav && <BottomNav />}
+
+      {/* Buddy floating button — visible on all main pages except generate/onboarding */}
+      {!hideBuddy && !hideNav && (
+        <motion.button
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+          onClick={() => setBuddyOpen(true)}
+          className="absolute right-4 bottom-[88px] z-20 w-12 h-12 rounded-full bg-brand-500 text-white shadow-glow flex items-center justify-center press"
+          aria-label="Open Buddy"
+        >
+          <MessageCircle className="w-5 h-5" />
+        </motion.button>
+      )}
+
       {!hideBuddy && <Buddy open={buddyOpen} onClose={() => setBuddyOpen(false)} />}
     </div>
   );

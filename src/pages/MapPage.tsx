@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronDown, Crosshair, List, Navigation, X, MapPin,
   Clock, Star, DollarSign, Bookmark,
-  ChevronUp, Map, Pencil, Wand2, CalendarDays, AlertTriangle,
+  ChevronUp, Map, Pencil, Wand2, AlertTriangle,
 } from 'lucide-react';
 import { PaveyLogoMark } from '../components/PaveyLogo';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -15,7 +15,6 @@ import type { Currency } from '../data/wallet';
 import { useToast } from '../components/Toast';
 import type { Place, Vibe } from '../data/places';
 import { getCulturalIntel } from '../data/cultural';
-import TimePicker from '../components/TimePicker';
 
 type ViewMode = 'map' | 'list';
 
@@ -33,7 +32,7 @@ export default function MapPage() {
     itinerary, setIsNavigating, setNavIndex, removeStop, addStop, isNavigating,
     savePlace, removeSavedPlace, isSaved,
     destinations, activeDestIdx, setActiveDestIdx, activeTrip,
-    setVibe, budget, setBudget,
+    setVibe, budget, setBudget, setBuddyOpen,
   } = useApp();
   const { show } = useToast();
   const [view, setView] = useState<ViewMode>('map');
@@ -237,6 +236,7 @@ export default function MapPage() {
             isSaved={isSaved(selected.id)}
             onSave={() => isSaved(selected.id) ? removeSavedPlace(selected.id) : savePlace(selected)}
             currency={activeTrip.currency}
+            onBuddy={() => { setSelected(null); setBuddyOpen(true); }}
           />
         )}
       </AnimatePresence>
@@ -282,20 +282,19 @@ export default function MapPage() {
                 <button onClick={() => setIntentSheet(null)} className="w-8 h-8 rounded-full bg-ink-50 flex items-center justify-center press"><X className="w-4 h-4" /></button>
               </div>
 
-              <div className="overflow-y-auto no-scrollbar px-5 pb-4 space-y-5 flex-1">
+              <div className="px-5 pb-4 space-y-4 flex-1">
 
                 {/* WHERE */}
                 <div>
-                  <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-2">
-                    WHERE <span className="text-red-400 font-bold">*</span>
-                  </div>
-                  <div className={`flex items-center gap-2 rounded-xl px-3 py-2.5 border-2 transition-colors ${intentErrors.dest ? 'bg-red-50 border-red-400' : 'bg-ink-50 border-transparent focus-within:border-brand-400'}`}>
+                  <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-2">WHERE</div>
+                  <div className={`flex items-center gap-2 rounded-xl px-3 py-3 border-2 transition-colors ${intentErrors.dest ? 'bg-red-50 border-red-400' : 'bg-ink-50 border-transparent focus-within:border-brand-400'}`}>
                     <MapPin className={`w-4 h-4 shrink-0 ${intentErrors.dest ? 'text-red-400' : 'text-ink-400'}`} />
                     <input
                       value={intentDest}
                       onChange={(e) => { setIntentDest(e.target.value); if (e.target.value.trim()) setIntentErrors((p) => ({ ...p, dest: undefined })); }}
                       placeholder={destinations[activeDestIdx]?.name.split(',')[0] ?? 'e.g. Ubud, Bali'}
                       className="flex-1 bg-transparent text-sm text-ink-900 placeholder:text-ink-400 outline-none"
+                      autoFocus
                     />
                     {intentDest && <button onClick={() => setIntentDest('')}><X className="w-3.5 h-3.5 text-ink-400" /></button>}
                   </div>
@@ -318,81 +317,35 @@ export default function MapPage() {
 
                 {/* WHEN */}
                 <div>
-                  <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-3">WHEN</div>
-                  <div className="grid grid-cols-2 gap-2 mb-4">
+                  <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-2">WHEN</div>
+                  <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <div className="text-[10px] font-semibold text-ink-500 mb-1.5 flex items-center gap-1">
-                        <CalendarDays className="w-3 h-3" /> Start date <span className="text-red-400">*</span>
-                      </div>
+                      <div className="text-[10px] font-semibold text-ink-400 mb-1.5">Start date</div>
                       <input type="date" value={intentDate}
                         onChange={(e) => { setIntentDate(e.target.value); if (e.target.value) setIntentErrors((p) => ({ ...p, date: undefined })); }}
-                        className={`w-full rounded-xl px-3 py-2 text-xs border outline-none focus:border-brand-400 ${intentErrors.date ? 'border-red-400 bg-red-50 text-red-700' : 'bg-ink-50 text-ink-700 border-ink-200'}`}
+                        className={`w-full rounded-xl px-3 py-2.5 text-sm border outline-none focus:border-brand-400 ${intentErrors.date ? 'border-red-400 bg-red-50 text-red-700' : 'bg-ink-50 text-ink-700 border-ink-200'}`}
                       />
                       {intentErrors.date && (
-                        <div className="flex items-center gap-1 text-xs text-red-600 mt-1.5">
+                        <div className="flex items-center gap-1 text-xs text-red-600 mt-1">
                           <AlertTriangle className="w-3 h-3 shrink-0" /> {intentErrors.date}
                         </div>
                       )}
                     </div>
                     <div>
-                      <div className="text-[10px] font-semibold text-ink-500 mb-1.5 flex items-center gap-1">
-                        <CalendarDays className="w-3 h-3" /> End date
-                      </div>
+                      <div className="text-[10px] font-semibold text-ink-400 mb-1.5">End date <span className="text-ink-300">(optional)</span></div>
                       <input type="date" value={intentEndDate} min={intentDate || undefined}
                         onChange={(e) => setIntentEndDate(e.target.value)}
-                        className="w-full bg-ink-50 rounded-xl px-3 py-2 text-xs text-ink-700 border border-ink-200 outline-none focus:border-brand-400" />
-                      <div className="text-[9px] text-ink-400 mt-1">Defaults to same day</div>
+                        className="w-full bg-ink-50 rounded-xl px-3 py-2.5 text-sm text-ink-700 border border-ink-200 outline-none focus:border-brand-400" />
                     </div>
-                  </div>
-
-                  <TimePicker label="START TIME" value={intentStartTime} onChange={(v) => setIntentStartTime(v)} />
-                  <div className="mt-3">
-                    <TimePicker label="END TIME" value={intentEndTime}
-                      onChange={(v) => { setIntentEndTime(v); setIntentEndTimeSet(true); }}
-                      warnIfBefore={intentDate === intentEndDate ? intentStartTime : undefined} />
-                  </div>
-                  {intentDate === intentEndDate && intentEndTime && intentEndTime <= intentStartTime && (
-                    <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 rounded-xl px-3 py-2">
-                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> End time is before start time — the schedule may be incorrect.
-                    </div>
-                  )}
-                </div>
-
-                {/* Vibe */}
-                <div>
-                  <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-2">VIBE</div>
-                  <div className="grid grid-cols-5 gap-1.5">
-                    {MAP_VIBES.map((v) => {
-                      const active = intentVibe === v.id;
-                      return (
-                        <button key={v.id} onClick={() => setIntentVibe(v.id)}
-                          className={`aspect-square rounded-2xl flex flex-col items-center justify-center gap-1 border-2 press transition-colors ${active ? 'border-brand-500 bg-brand-50' : 'border-ink-100 bg-white'}`}>
-                          <span className="text-lg leading-none">{v.icon}</span>
-                          <span className={`text-[8px] font-semibold leading-tight text-center ${active ? 'text-brand-600' : 'text-ink-700'}`}>{v.label}</span>
-                        </button>
-                      );
-                    })}
                   </div>
                 </div>
 
-                {/* Budget */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-[10px] font-bold tracking-widest text-ink-500">BUDGET <span className="font-normal normal-case tracking-normal text-ink-400">(per day)</span></div>
-                    <div className="text-sm font-bold text-brand-600">{formatCost(intentBudget ?? budget, activeTrip.currency)}</div>
-                  </div>
-                  <input type="range" min={50_000} max={1_000_000} step={10_000}
-                    value={intentBudget ?? budget} onChange={(e) => setIntentBudget(Number(e.target.value))}
-                    className="vibe-slider w-full"
-                    style={{ ['--val' as string]: `${Math.max(0, Math.min(100, (((intentBudget ?? budget) - 50_000) / 950_000) * 100))}%` } as React.CSSProperties} />
-                  <div className="flex gap-2 mt-2">
-                    {[150_000, 300_000, 600_000].map((v) => (
-                      <button key={v} onClick={() => setIntentBudget(v)}
-                        className={`flex-1 py-1.5 rounded-xl text-xs font-semibold press border transition-colors ${(intentBudget ?? budget) === v ? 'bg-brand-500 text-white border-brand-500' : 'bg-ink-50 text-ink-700 border-ink-100'}`}>
-                        {formatCost(v, activeTrip.currency)}
-                      </button>
-                    ))}
-                  </div>
+                {/* Vibe summary */}
+                <div className="flex items-center gap-2 bg-ink-50 rounded-xl px-3 py-2.5">
+                  <span className="text-base">{MAP_VIBES.find((v) => v.id === (intentVibe ?? 'balanced'))?.icon ?? '⚖️'}</span>
+                  <span className="text-xs text-ink-600 flex-1">
+                    <span className="font-semibold">{MAP_VIBES.find((v) => v.id === (intentVibe ?? 'balanced'))?.label ?? 'Balanced'}</span> vibe · {formatCost(intentBudget ?? budget, activeTrip.currency)}/day
+                  </span>
                 </div>
               </div>
 
@@ -711,9 +664,9 @@ function ListView({ itinerary, onStart, totals, onPin, onRemove, onEdit, currenc
 
 /* ----------------- PLACE CARD (slides from bottom) ----------------- */
 
-function PlaceCard({ place, index, prevPlace, onClose, onNavigate, isSaved, onSave, currency }: {
+function PlaceCard({ place, index, prevPlace, onClose, onNavigate, isSaved, onSave, currency, onBuddy }: {
   place: Place; index: number; prevPlace?: Place; onClose: () => void; onNavigate: () => void;
-  isSaved: boolean; onSave: () => void; currency: Currency;
+  isSaved: boolean; onSave: () => void; currency: Currency; onBuddy: () => void;
 }) {
   const [culturalExpanded, setCulturalExpanded] = useState(false);
   const intel = getCulturalIntel(place.id, place.category);
@@ -833,7 +786,7 @@ function PlaceCard({ place, index, prevPlace, onClose, onNavigate, isSaved, onSa
               <Navigation className="w-4 h-4" /> Navigate
             </button>
           </div>
-          <button className="mt-2.5 w-full h-10 rounded-2xl bg-brand-50 text-brand-700 font-semibold inline-flex items-center justify-center gap-2 press">
+          <button onClick={onBuddy} className="mt-2.5 w-full h-10 rounded-2xl bg-brand-50 text-brand-700 font-semibold inline-flex items-center justify-center gap-2 press">
             <PaveyLogoMark size={16} color="#3B5BFF" /> Ask Buddy about this
           </button>
         </div>
