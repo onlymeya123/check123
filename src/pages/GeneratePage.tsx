@@ -37,7 +37,8 @@ export default function GeneratePage() {
   const endTimeParam = searchParams.get('endTime'); // e.g. "14:00"
   const daysParam = Math.max(1, parseInt(searchParams.get('days') ?? '1') || 1);
 
-  const { vibe, buildItinerary, buildFullItinerary, setItinerary, itinerary, perDayItineraries, setPerDayItineraries, removeStop, replaceStop, addStop, reorderStop, alternatives, activeTrip, journeyStart } = useApp();
+  const { vibe, buildItinerary, buildFullItinerary, setItinerary, itinerary, perDayItineraries, setPerDayItineraries, removeStop, replaceStop, addStop, reorderStop, alternatives, activeTrip, journeyStart, pace, setPace } = useApp();
+  const paceParam = searchParams.get('pace');
   const { show } = useToast();
 
   const isEditMode = searchParams.get('edit') === '1';
@@ -66,6 +67,15 @@ export default function GeneratePage() {
   // Undo support for stop removal
   const [undoItem, setUndoItem] = useState<{ place: Place; index: number } | null>(null);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Density banner (soft warning when a day looks overloaded)
+  const [densityDismissed, setDensityDismissed] = useState(() => {
+    try { return localStorage.getItem('pavey_density_hint_dismissed') === '1'; } catch { return false; }
+  });
+  const dismissDensity = () => {
+    setDensityDismissed(true);
+    try { localStorage.setItem('pavey_density_hint_dismissed', '1'); } catch { /* ignore */ }
+  };
 
   const removeWithUndo = (place: Place, idx: number, isManual: boolean) => {
     if (isManual) {
@@ -131,6 +141,10 @@ export default function GeneratePage() {
   const [showCustomForm, setShowCustomForm] = useState(false);
 
   useEffect(() => {
+    // Apply pace from URL param if it differs from current state
+    if (paceParam === 'relaxed' || paceParam === 'balanced' || paceParam === 'fast') {
+      if (pace !== paceParam) setPace(paceParam);
+    }
     if (!isManualMode && !isEditMode) {
       const days = daysParam > 1 ? daysParam : journeyStart.days;
       if (days > 1) {
@@ -322,6 +336,50 @@ export default function GeneratePage() {
                         </button>
                       </div>
                     )}
+
+                    {/* Density warning — soft, dismissible */}
+                    {!densityDismissed && (() => {
+                      const stops = displayItinerary;
+                      const tooMany = stops.length > 5;
+                      const totalDist = stops.reduce((s, p) => s + p.distanceKm, 0);
+                      const totalTime = stops.reduce((s, p) => s + p.durationMin, 0);
+                      const farApart = totalDist > 30;
+                      const tooLong = totalTime > 600;
+                      if (!tooMany && !farApart && !tooLong) return null;
+                      const reason = tooMany ? `${stops.length} stops` : farApart ? `${totalDist.toFixed(0)} km of travel` : `${Math.round(totalTime / 60)}h of activity`;
+                      return (
+                        <div className="mb-3 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                          <div className="text-xs font-semibold text-amber-800 mb-1.5">
+                            {isMultiDay ? `Day ${activeDay + 1} looks tight (${reason}).` : `This day looks tight (${reason}).`} Try fewer stops or a more relaxed pace.
+                          </div>
+                          <div className="flex gap-2">
+                            {pace !== 'relaxed' && (
+                              <button
+                                onClick={() => {
+                                  setPace('relaxed');
+                                  const days = daysParam > 1 ? daysParam : journeyStart.days;
+                                  if (days > 1) {
+                                    buildFullItinerary(days, startTimeParam ?? journeyStart.time, endTimeParam ?? journeyStart.endTime ?? '14:00');
+                                  } else {
+                                    setItinerary(buildItinerary());
+                                  }
+                                  show('Switched to Relaxed pace', 'success');
+                                }}
+                                className="flex-1 h-8 rounded-lg bg-amber-500 text-white text-xs font-bold press"
+                              >
+                                Switch to Relaxed
+                              </button>
+                            )}
+                            <button
+                              onClick={dismissDensity}
+                              className="flex-1 h-8 rounded-lg bg-white border border-amber-300 text-amber-700 text-xs font-semibold press"
+                            >
+                              Dismiss
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     <div className="space-y-0">
                       <AnimatePresence>

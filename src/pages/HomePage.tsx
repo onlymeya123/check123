@@ -5,16 +5,16 @@ import {
   ChevronRight, DollarSign, Plus, Navigation, RefreshCw,
   ArrowRight, Compass, Zap, Link2, AlertTriangle,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import StatusBar from '../components/StatusBar';
 import { useApp } from '../context/AppContext';
 import { HERO_IMAGE, USER } from '../data/user';
-import { formatCost } from '../lib/format';
+import { formatCost, isDuplicateDestination, tripsOverlap } from '../lib/format';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useToast } from '../components/Toast';
 import { PLACES, type Category, type Vibe } from '../data/places';
 import type { Place } from '../data/places';
-import type { TransitMode } from '../context/AppContext';
+import type { TripPace } from '../context/AppContext';
 import { formatCurrencyAmount } from '../data/wallet';
 
 const VIBES: { id: Vibe; label: string; icon: string; tint: string }[] = [
@@ -46,14 +46,6 @@ const SOCIAL_MOCK: Record<string, { platform: string; name: string; category: st
   },
 };
 
-const TRANSIT_ICONS: Record<TransitMode, string> = {
-  flight: '✈️', train: '🚅', bus: '🚌', drive: '🚗', ferry: '⛴️',
-};
-
-const TRANSIT_LABELS: Record<TransitMode, string> = {
-  flight: 'Flight', train: 'Train', bus: 'Bus', drive: 'Drive', ferry: 'Ferry',
-};
-
 // Quick Plan durations
 const QUICK_PLAN_OPTIONS = [
   { label: '2h', hours: 2 },
@@ -70,6 +62,7 @@ export default function HomePage() {
     destinations, activeDestIdx, setActiveDestIdx, addDestination, setDestinations, removeDestination,
     isNavigating, activeTrip, totalSpent, tripBudget, tripDaysRemaining, dailyAllowance,
     currency, setCurrency, journeyStart, setJourneyStart, perDayItineraries,
+    pace, setPace,
   } = useApp();
   const { show } = useToast();
 
@@ -88,9 +81,7 @@ export default function HomePage() {
   const [newDestDays, setNewDestDays] = useState(2);
   const [newDestArriveDate, setNewDestArriveDate] = useState('');
   const [newDestDepartDate, setNewDestDepartDate] = useState('');
-  const [newDestTransitMode, setNewDestTransitMode] = useState<TransitMode>('flight');
-  const [newDestVisaNote, setNewDestVisaNote] = useState('');
-  const [showVisaNote, setShowVisaNote] = useState(false);
+  const [newDestError, setNewDestError] = useState<string | null>(null);
   // Pre-generation intent sheet
   const [intentSheet, setIntentSheet] = useState<'ai' | 'manual' | null>(null);
   const [intentDest, setIntentDest] = useState('');
@@ -104,6 +95,9 @@ export default function HomePage() {
   const [intentErrors, setIntentErrors] = useState<{ dest?: string; date?: string }>({});
   const [showFlightTimes, setShowFlightTimes] = useState(false);
   const [showSingleDayWarning, setShowSingleDayWarning] = useState(false);
+  const [showOverlapWarning, setShowOverlapWarning] = useState<string | null>(null);
+  const [overlapAcknowledged, setOverlapAcknowledged] = useState(false);
+  const [intentPace, setIntentPace] = useState<TripPace>('balanced');
   const endDateInputRef = useRef<HTMLInputElement>(null);
 
   // Issue 27: vibe/budget change prompt
@@ -214,6 +208,31 @@ export default function HomePage() {
     if (intentDate && !intentEndDate) setIntentEndDate(intentDate);
   }, [intentDate, intentEndDate]);
 
+  // Auto-open intent sheet when arriving with ?newPlan=1 (from Wallet)
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get('newPlan') === '1') {
+      setIntentVibe(vibe);
+      setIntentBudget(budget);
+      setIntentDest(activeDest?.name.split(',')[0] ?? '');
+      setIntentDate('');
+      setIntentEndDate('');
+      setIntentStartTime('09:00');
+      setIntentEndTimeSet(false);
+      setIntentErrors({});
+      setShowFlightTimes(false);
+      setShowSingleDayWarning(false);
+      setShowOverlapWarning(null);
+      setOverlapAcknowledged(false);
+      setIntentPace(pace);
+      setIntentSheet('ai');
+      // Strip the param so the sheet doesn't re-open on back navigation
+      const next = new URLSearchParams(searchParams);
+      next.delete('newPlan');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams]); // eslint-disable-line
+
   // Auto-fill end time = start time + 8 hours unless user manually set it
   useEffect(() => {
     if (intentEndTimeSet) return;
@@ -241,40 +260,48 @@ export default function HomePage() {
   };
 
   const handleAddDest = () => {
-    if (!newDestName.trim()) return;
+    const trimmed = newDestName.trim();
+    if (!trimmed) {
+      setNewDestError('Please enter a destination name');
+      return;
+    }
+    if (isDuplicateDestination(trimmed, destinations)) {
+      setNewDestError(`${trimmed} is already in your trip`);
+      return;
+    }
+    setNewDestError(null);
     const days = calcedDays ?? newDestDays;
     addDestination({
-      name: newDestName.trim(),
+      name: trimmed,
       days,
       arriveDate: newDestArriveDate || undefined,
       departDate: newDestDepartDate || undefined,
-      transitMode: newDestTransitMode,
-      visaNote: newDestVisaNote || undefined,
     });
     setNewDestName('');
     setNewDestDays(2);
     setNewDestArriveDate('');
     setNewDestDepartDate('');
-    setNewDestVisaNote('');
-    setShowVisaNote(false);
     setAddDestSheet(false);
-    show(`${newDestName.trim()} added to your trip`, 'success');
+    show(`${trimmed} added to your trip`, 'success');
   };
 
   const proceedIntent = () => {
     if (intentVibe) setVibe(intentVibe);
     if (intentBudget) setBudget(intentBudget);
+    setPace(intentPace);
     const days = intentEndDate
       ? Math.max(1, Math.round((new Date(intentEndDate).getTime() - new Date(intentDate).getTime()) / 86400000) + 1)
       : 1;
     setJourneyStart({ date: intentDate, time: intentStartTime, days, endTime: intentEndDate ? intentEndTime : undefined });
     const mode = intentSheet;
     setIntentSheet(null);
+    setShowOverlapWarning(null);
     const params = new URLSearchParams();
     if (mode === 'manual') params.set('mode', 'manual');
     params.set('startTime', intentStartTime);
     if (intentEndDate) params.set('endTime', intentEndTime);
     params.set('days', String(days));
+    params.set('pace', intentPace);
     nav(`/generate?${params}`);
   };
 
@@ -282,6 +309,10 @@ export default function HomePage() {
     const errs: { dest?: string; date?: string } = {};
     if (!intentDest.trim()) errs.dest = 'Please enter your destination to continue';
     if (!intentDate) errs.date = 'Please pick a start date to continue';
+    // End-date-before-start-date validation (hard inline error)
+    if (intentEndDate && intentDate && new Date(intentEndDate) < new Date(intentDate)) {
+      errs.date = 'End date must be after start date';
+    }
     if (Object.keys(errs).length > 0) { setIntentErrors(errs); return; }
     setIntentErrors({});
 
@@ -289,6 +320,17 @@ export default function HomePage() {
     if (intentSheet === 'ai' && !intentEndDate) {
       setShowSingleDayWarning(true);
       return;
+    }
+
+    // Overlapping trip check (soft warning): compare new dates to current plan
+    if (intentDate && intentEndDate && !overlapAcknowledged
+        && journeyStart.date && journeyStart.date !== 'today'
+        && itinerary.length > 0) {
+      const newDays = Math.max(1, Math.round((new Date(intentEndDate).getTime() - new Date(intentDate).getTime()) / 86400000) + 1);
+      if (tripsOverlap(intentDate, newDays, journeyStart.date, journeyStart.days)) {
+        setShowOverlapWarning(activeTrip.name || 'your current plan');
+        return;
+      }
     }
 
     proceedIntent();
@@ -425,7 +467,6 @@ export default function HomePage() {
                   {i === activeDestIdx && <span className="w-1.5 h-1.5 rounded-full bg-white/80" />}
                   {d.name.split(',')[0]}
                   <span className={`text-[10px] ${i === activeDestIdx ? 'text-white/70' : 'text-ink-400'}`}>{d.days}d</span>
-                  {d.visaNote && <span className="text-[10px]">⚠️</span>}
                 </button>
                 {i < destinations.length - 1 && (
                   <ArrowRight className="w-3 h-3 text-ink-300 shrink-0" />
@@ -652,7 +693,7 @@ export default function HomePage() {
           <motion.button
             initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentEndDate(''); setIntentStartTime('09:00'); setIntentEndTimeSet(false); setIntentErrors({}); setShowFlightTimes(false); setShowSingleDayWarning(false); setIntentSheet('ai'); }}
+            onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentEndDate(''); setIntentStartTime('09:00'); setIntentEndTimeSet(false); setIntentErrors({}); setShowFlightTimes(false); setShowSingleDayWarning(false); setShowOverlapWarning(null); setOverlapAcknowledged(false); setIntentPace(pace); setIntentSheet('ai'); }}
             className="w-full bg-brand-500 text-white rounded-2xl p-5 text-left press shadow-glow flex items-center gap-4"
           >
             <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center shrink-0">
@@ -776,7 +817,7 @@ export default function HomePage() {
           {/* Primary: AI plan — recommended */}
           <motion.button
             whileTap={{ scale: 0.97 }}
-            onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentEndDate(''); setIntentStartTime('09:00'); setIntentEndTimeSet(false); setIntentErrors({}); setShowFlightTimes(false); setShowSingleDayWarning(false); setIntentSheet('ai'); }}
+            onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentEndDate(''); setIntentStartTime('09:00'); setIntentEndTimeSet(false); setIntentErrors({}); setShowFlightTimes(false); setShowSingleDayWarning(false); setShowOverlapWarning(null); setOverlapAcknowledged(false); setIntentPace(pace); setIntentSheet('ai'); }}
             className="relative w-full rounded-2xl p-4 text-left flex items-center gap-3 press bg-brand-500 shadow-glow"
           >
             <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
@@ -792,7 +833,7 @@ export default function HomePage() {
 
           {/* Secondary: manual escape hatch */}
           <button
-            onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentEndDate(''); setIntentStartTime('09:00'); setIntentEndTimeSet(false); setIntentErrors({}); setShowFlightTimes(false); setShowSingleDayWarning(false); setIntentSheet('manual'); }}
+            onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentEndDate(''); setIntentStartTime('09:00'); setIntentEndTimeSet(false); setIntentErrors({}); setShowFlightTimes(false); setShowSingleDayWarning(false); setShowOverlapWarning(null); setOverlapAcknowledged(false); setIntentPace(pace); setIntentSheet('manual'); }}
             className="w-full text-center text-sm text-brand-600 font-semibold press flex items-center justify-center gap-1"
           >
             or build it stop by stop <ArrowRight className="w-3.5 h-3.5" />
@@ -1125,6 +1166,91 @@ export default function HomePage() {
                   </div>
                 )}
 
+                {/* Trip pace */}
+                {intentSheet === 'ai' && (
+                  <div>
+                    <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-2">PACE</div>
+                    <div className="flex gap-2">
+                      {([
+                        { id: 'relaxed', icon: '🌿', label: 'Relaxed', hint: '2 stops/day' },
+                        { id: 'balanced', icon: '⚖️', label: 'Balanced', hint: '3 stops/day' },
+                        { id: 'fast', icon: '⚡', label: 'Fast-paced', hint: '4 stops/day' },
+                      ] as { id: TripPace; icon: string; label: string; hint: string }[]).map((p) => (
+                        <button
+                          key={p.id}
+                          onClick={() => setIntentPace(p.id)}
+                          className={`flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl text-xs font-semibold press transition-colors ${intentPace === p.id ? 'bg-brand-50 border-2 border-brand-400 text-brand-700' : 'bg-ink-50 border border-ink-200 text-ink-600'}`}
+                        >
+                          <span className="text-base">{p.icon}</span>
+                          <span>{p.label}</span>
+                          <span className="text-[9px] text-ink-400 font-normal">{p.hint}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Multi-city pacing warning */}
+                {intentDate && intentEndDate && destinations.length > 1 && (() => {
+                  const d = Math.max(1, Math.round((new Date(intentEndDate).getTime() - new Date(intentDate).getTime()) / 86400000) + 1);
+                  const ratio = d / destinations.length;
+                  if (ratio < 1) {
+                    return (
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                        <div className="text-xs font-semibold text-amber-800">
+                          ⚠️ {destinations.length} cities in {d} day{d !== 1 ? 's' : ''} — most cities won't have a full day. Consider extending or removing cities.
+                        </div>
+                      </div>
+                    );
+                  }
+                  if (ratio < 2) {
+                    return (
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                        <div className="text-xs font-semibold text-amber-800">
+                          ⚠️ Less than 2 days per city — your trip will feel rushed.
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
+                {/* Long trip hint */}
+                {intentDate && intentEndDate && (() => {
+                  const d = Math.max(1, Math.round((new Date(intentEndDate).getTime() - new Date(intentDate).getTime()) / 86400000) + 1);
+                  if (d > 21) {
+                    return (
+                      <div className="text-[11px] text-ink-500 px-1">
+                        💡 Long trip — consider splitting into multiple plans for clarity.
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
+                {/* Overlapping trip warning */}
+                {showOverlapWarning && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                    <div className="text-xs font-semibold text-amber-800 mb-1.5">
+                      These dates overlap with "{showOverlapWarning}". Plan anyway?
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => { setShowOverlapWarning(null); setTimeout(() => endDateInputRef.current?.focus(), 50); }}
+                        className="flex-1 h-8 rounded-lg bg-amber-500 text-white text-xs font-bold press"
+                      >
+                        Pick different dates
+                      </button>
+                      <button
+                        onClick={() => { setShowOverlapWarning(null); setOverlapAcknowledged(true); proceedIntent(); }}
+                        className="flex-1 h-8 rounded-lg bg-white border border-amber-300 text-amber-700 text-xs font-semibold press"
+                      >
+                        Plan anyway
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Current vibe/budget summary — not editable here, link to settings */}
                 <div className="flex items-center gap-2 bg-ink-50 rounded-xl px-3 py-2.5">
                   <span className="text-base">{VIBES.find((v) => v.id === vibe)?.icon}</span>
@@ -1173,17 +1299,22 @@ export default function HomePage() {
                 {/* City name */}
                 <div>
                   <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-1.5">DESTINATION</div>
-                  <div className="flex items-center gap-2 bg-ink-50 rounded-xl px-3 py-2.5 border-2 border-transparent focus-within:border-brand-400 transition-colors">
-                    <MapPin className="w-4 h-4 text-ink-400 shrink-0" />
+                  <div className={`flex items-center gap-2 rounded-xl px-3 py-2.5 border-2 transition-colors ${newDestError ? 'bg-red-50 border-red-400' : 'bg-ink-50 border-transparent focus-within:border-brand-400'}`}>
+                    <MapPin className={`w-4 h-4 shrink-0 ${newDestError ? 'text-red-400' : 'text-ink-400'}`} />
                     <input
                       value={newDestName}
-                      onChange={(e) => setNewDestName(e.target.value)}
+                      onChange={(e) => { setNewDestName(e.target.value); if (newDestError) setNewDestError(null); }}
                       onKeyDown={(e) => e.key === 'Enter' && handleAddDest()}
                       placeholder="City or country (e.g. Rome, Italy)"
                       className="flex-1 bg-transparent text-sm text-ink-900 placeholder:text-ink-400 outline-none"
                       autoFocus
                     />
                   </div>
+                  {newDestError && (
+                    <div className="flex items-center gap-1.5 text-xs text-red-600 mt-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> {newDestError}
+                    </div>
+                  )}
                 </div>
 
                 {/* Date range */}
@@ -1222,51 +1353,6 @@ export default function HomePage() {
                       <div className="text-center text-xs text-ink-500 mt-1">day{newDestDays !== 1 ? 's' : ''}</div>
                     </div>
                   )}
-                </div>
-
-                {/* Transit mode */}
-                <div>
-                  <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-1.5">GETTING HERE BY</div>
-                  <div className="flex items-center gap-2">
-                    {(['flight', 'train', 'bus', 'drive', 'ferry'] as TransitMode[]).map((mode) => (
-                      <button
-                        key={mode}
-                        onClick={() => setNewDestTransitMode(mode)}
-                        className={`flex-1 flex flex-col items-center gap-1 py-2 rounded-xl text-[10px] font-semibold press transition-colors ${newDestTransitMode === mode ? 'bg-brand-50 border-2 border-brand-400 text-brand-700' : 'bg-ink-50 border border-ink-200 text-ink-600'}`}
-                      >
-                        <span className="text-base">{TRANSIT_ICONS[mode]}</span>
-                        <span>{TRANSIT_LABELS[mode]}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Visa note */}
-                <div>
-                  <button
-                    onClick={() => setShowVisaNote((v) => !v)}
-                    className="flex items-center gap-2 text-xs text-ink-600 font-semibold press"
-                  >
-                    <span>⚠️</span>
-                    <span>Visa / entry note</span>
-                    <ChevronRight className={`w-3.5 h-3.5 transition-transform ${showVisaNote ? 'rotate-90' : ''}`} />
-                  </button>
-                  <AnimatePresence>
-                    {showVisaNote && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                        className="overflow-hidden mt-2"
-                      >
-                        <textarea
-                          value={newDestVisaNote}
-                          onChange={(e) => setNewDestVisaNote(e.target.value)}
-                          placeholder="e.g. Visa on arrival, 30 days max…"
-                          className="w-full bg-ink-50 rounded-xl px-3 py-2.5 text-sm text-ink-900 border border-ink-200 outline-none focus:border-brand-400 resize-none"
-                          rows={2}
-                        />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
                 </div>
 
                 <button
@@ -1523,9 +1609,8 @@ export default function HomePage() {
                   <div key={d.id} className="flex items-center gap-3 bg-white border border-ink-100 rounded-2xl px-3 py-2.5">
                     <div className="w-6 h-6 rounded-full bg-brand-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">{i + 1}</div>
                     <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-ink-900 text-sm truncate flex items-center gap-1">
+                      <div className="font-semibold text-ink-900 text-sm truncate">
                         {d.name}
-                        {d.visaNote && <span className="text-[10px]">⚠️</span>}
                       </div>
                       <div className="text-xs text-ink-500">{d.days} day{d.days !== 1 ? 's' : ''} · {d.currency}</div>
                     </div>

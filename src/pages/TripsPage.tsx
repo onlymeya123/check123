@@ -1,11 +1,12 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  CalendarDays, MapPin, Clock, Star, Navigation, Pencil, Wand2, ChevronRight, Trash2,
+  CalendarDays, MapPin, Clock, Star, Navigation, Pencil, Wand2, ChevronRight, Trash2, Settings2, X,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import StatusBar from '../components/StatusBar';
 import PageHeader from '../components/PageHeader';
 import { useApp } from '../context/AppContext';
+import type { TripPace } from '../context/AppContext';
 import { formatCost } from '../lib/format';
 import { useToast } from '../components/Toast';
 import { useMemo, useState } from 'react';
@@ -36,11 +37,13 @@ export default function TripsPage() {
     destinations, activeDestIdx, setActiveDestIdx,
     itinerary, setItinerary, vibe, activeTrip, isNavigating, navIndex,
     journeyStart, perDayItineraries, setPerDayItineraries,
+    pace, setPace,
   } = useApp();
   const { show } = useToast();
 
   const [activeDay, setActiveDay] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const activeDest = destinations[activeDestIdx];
   const hasMultiDest = destinations.length > 1;
@@ -129,43 +132,13 @@ export default function TripsPage() {
                   <div className="text-xs text-ink-400 mt-0.5">{formatDateRange(journeyStart.date, dayCount)}</div>
                 )}
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => nav('/generate?edit=1')}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-brand-200 text-brand-600 text-xs font-semibold press"
-                >
-                  <Pencil className="w-3.5 h-3.5" /> Edit
-                </button>
-                <button
-                  onClick={() => setConfirmDelete(true)}
-                  className="w-8 h-8 rounded-full bg-white border border-ink-100 flex items-center justify-center press"
-                  aria-label="Delete plan"
-                >
-                  <Trash2 className="w-4 h-4 text-ink-400" />
-                </button>
-              </div>
+              <button
+                onClick={() => { setConfirmDelete(false); setSettingsOpen(true); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-brand-200 text-brand-600 text-xs font-semibold press"
+              >
+                <Settings2 className="w-3.5 h-3.5" /> Trip settings
+              </button>
             </div>
-
-            {/* Delete confirmation */}
-            {confirmDelete && (
-              <div className="mb-3 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
-                <div className="text-xs font-semibold text-red-800 mb-2">Delete this plan? This can't be undone.</div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setConfirmDelete(false)}
-                    className="flex-1 h-8 rounded-lg bg-white border border-red-200 text-red-600 text-xs font-semibold press"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => { setItinerary([]); setPerDayItineraries([]); setConfirmDelete(false); show('Plan deleted', 'info'); }}
-                    className="flex-1 h-8 rounded-lg bg-red-500 text-white text-xs font-bold press"
-                  >
-                    Delete plan
-                  </button>
-                </div>
-              </div>
-            )}
             <div className="grid grid-cols-3 text-center bg-white rounded-xl py-2.5">
               <div>
                 <div className="text-sm font-bold text-ink-900 font-display">
@@ -308,6 +281,97 @@ export default function TripsPage() {
           </div>
         )}
       </div>
+
+      {/* Trip Settings Sheet */}
+      <AnimatePresence>
+        {settingsOpen && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => { setSettingsOpen(false); setConfirmDelete(false); }} className="absolute inset-0 z-40 bg-ink-900/40" />
+            <motion.div
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              className="absolute inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl shadow-card pb-8"
+            >
+              <div className="w-12 h-1.5 bg-ink-100 rounded-full mx-auto mt-3" />
+              <div className="px-5 pt-3 pb-2 flex items-center justify-between">
+                <div className="font-bold text-ink-900 font-display">Trip settings</div>
+                <button onClick={() => { setSettingsOpen(false); setConfirmDelete(false); }} className="w-8 h-8 rounded-full bg-ink-50 flex items-center justify-center press">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="px-5 pt-2 space-y-2">
+                {/* Edit plan */}
+                <button
+                  onClick={() => { setSettingsOpen(false); nav('/generate?edit=1'); }}
+                  className="w-full flex items-center gap-3 px-3 py-3 rounded-xl bg-ink-50 hover:bg-ink-100 transition-colors press text-left"
+                >
+                  <Pencil className="w-4 h-4 text-brand-600 shrink-0" />
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-ink-900">Edit plan</div>
+                    <div className="text-[11px] text-ink-500">Re-arrange, add or remove stops</div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-ink-400" />
+                </button>
+
+                {/* Change pace */}
+                <div className="px-3 py-3 rounded-xl bg-ink-50">
+                  <div className="text-sm font-semibold text-ink-900 mb-2">Trip pace</div>
+                  <div className="flex gap-2">
+                    {([
+                      { id: 'relaxed', icon: '🌿', label: 'Relaxed' },
+                      { id: 'balanced', icon: '⚖️', label: 'Balanced' },
+                      { id: 'fast', icon: '⚡', label: 'Fast' },
+                    ] as { id: TripPace; icon: string; label: string }[]).map((p) => (
+                      <button
+                        key={p.id}
+                        onClick={() => { setPace(p.id); show(`Pace set to ${p.label}`, 'success'); }}
+                        className={`flex-1 flex flex-col items-center gap-0.5 py-2 rounded-lg text-xs font-semibold press transition-colors ${pace === p.id ? 'bg-brand-50 border-2 border-brand-400 text-brand-700' : 'bg-white border border-ink-200 text-ink-600'}`}
+                      >
+                        <span>{p.icon}</span>
+                        <span>{p.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="text-[11px] text-ink-500 mt-2">Regenerate the plan to apply.</div>
+                </div>
+
+                {/* Delete plan */}
+                {!confirmDelete ? (
+                  <button
+                    onClick={() => setConfirmDelete(true)}
+                    className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-red-50 transition-colors press text-left"
+                  >
+                    <Trash2 className="w-4 h-4 text-red-500 shrink-0" />
+                    <div className="flex-1">
+                      <div className="text-sm font-semibold text-red-600">Delete plan</div>
+                      <div className="text-[11px] text-ink-500">Permanently clear the current itinerary</div>
+                    </div>
+                  </button>
+                ) : (
+                  <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
+                    <div className="text-xs font-semibold text-red-800 mb-2">Delete this plan? This can't be undone.</div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setConfirmDelete(false)}
+                        className="flex-1 h-8 rounded-lg bg-white border border-red-200 text-red-600 text-xs font-semibold press"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => { setItinerary([]); setPerDayItineraries([]); setConfirmDelete(false); setSettingsOpen(false); show('Plan deleted', 'info'); }}
+                        className="flex-1 h-8 rounded-lg bg-red-500 text-white text-xs font-bold press"
+                      >
+                        Delete plan
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

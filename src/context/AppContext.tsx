@@ -3,6 +3,8 @@ import { PLACES, pickItinerary, pickDayItinerary, type Place, type Vibe } from '
 import { DEFAULT_TRIP, BUDGET_TOTAL, type Transaction, type Trip, type Currency, suggestCurrency } from '../data/wallet';
 
 export type TransitMode = 'flight' | 'train' | 'bus' | 'drive' | 'ferry';
+export type TripPace = 'relaxed' | 'balanced' | 'fast';
+export const PACE_STOPS: Record<TripPace, number> = { relaxed: 2, balanced: 3, fast: 4 };
 
 export interface Destination {
   id: string;
@@ -60,7 +62,7 @@ interface AppState {
   setDestinations: (d: Destination[]) => void;
   activeDestIdx: number;
   setActiveDestIdx: (i: number) => void;
-  addDestination: (dest: { name: string; days: number; arriveDate?: string; departDate?: string; transitMode?: TransitMode; visaNote?: string }) => void;
+  addDestination: (dest: { name: string; days: number; arriveDate?: string; departDate?: string }) => void;
   removeDestination: (id: string) => void;
   insertDestination: (afterIdx: number, dest: { name: string; days: number }) => void;
 
@@ -110,6 +112,10 @@ interface AppState {
   journeyStart: { date: string; time: string; days: number; endTime?: string };
   setJourneyStart: (s: { date: string; time: string; days: number; endTime?: string }) => void;
 
+  // Trip pace
+  pace: TripPace;
+  setPace: (p: TripPace) => void;
+
   // Buddy
   buddyOpen: boolean;
   setBuddyOpen: (v: boolean) => void;
@@ -151,6 +157,7 @@ function loadPersistedState() {
       placeRatings?: Record<string, number>;
       visitedPlaceIds?: string[];
       perDayItineraries?: Place[][];
+      pace?: TripPace;
     };
   } catch {
     return null;
@@ -196,6 +203,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [placeRatings, setPlaceRatings] = useState<Record<string, number>>(persisted?.placeRatings ?? {});
   const [rainyDayMode, setRainyDayMode] = useState(false);
   const [visitedPlaceIds, setVisitedPlaceIds] = useState<Set<string>>(new Set(persisted?.visitedPlaceIds ?? []));
+  const [pace, setPace] = useState<TripPace>(persisted?.pace ?? 'balanced');
 
   // Issue 35: persist key state to localStorage
   useEffect(() => {
@@ -207,9 +215,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         placeRatings,
         visitedPlaceIds: Array.from(visitedPlaceIds),
         perDayItineraries,
+        pace,
       }));
     } catch { /* storage full — ignore */ }
-  }, [isAuthenticated, authUser, onboardingComplete, everOnboarded, vibe, budget, itinerary, savedPlaces, destinations, trips, activeTripId, journeyStart, placeRatings, visitedPlaceIds, perDayItineraries]);
+  }, [isAuthenticated, authUser, onboardingComplete, everOnboarded, vibe, budget, itinerary, savedPlaces, destinations, trips, activeTripId, journeyStart, placeRatings, visitedPlaceIds, perDayItineraries, pace]);
 
   // Per-destination itinerary sync:
   // When activeDestIdx changes, load that destination's itinerary into global state.
@@ -370,7 +379,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPerDayItineraries,
     buildFullItinerary: (days: number, arrivalTime = '09:00', departureTime = '14:00') => {
       const usedIds = new Set<string>();
-      const baseStops = 3 + (vibe === 'activities' ? 1 : 0);
+      const baseStops = PACE_STOPS[pace] + (vibe === 'activities' ? 1 : 0);
       const result: Place[][] = [];
       for (let d = 0; d < days; d++) {
         let maxStops = baseStops;
@@ -424,8 +433,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         itinerary: [],
         arriveDate: dest.arriveDate,
         departDate: dest.departDate,
-        transitMode: dest.transitMode,
-        visaNote: dest.visaNote,
       };
       setDestinations((prev) => [...prev, newDest]);
     },
@@ -500,6 +507,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     isSaved: (id) => savedPlaces.some((p) => p.id === id),
     journeyStart,
     setJourneyStart,
+
+    pace,
+    setPace,
 
     buddyOpen,
     setBuddyOpen,
