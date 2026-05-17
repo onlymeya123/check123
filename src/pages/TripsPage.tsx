@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  CalendarDays, MapPin, Clock, Star, Navigation, Pencil, Wand2, Plus, ChevronRight,
+  CalendarDays, MapPin, Clock, Star, Navigation, Pencil, Wand2, ChevronRight,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import StatusBar from '../components/StatusBar';
@@ -22,28 +22,30 @@ export default function TripsPage() {
   const {
     destinations, activeDestIdx, setActiveDestIdx,
     itinerary, vibe, activeTrip, isNavigating, navIndex,
-    journeyStart,
+    journeyStart, perDayItineraries,
   } = useApp();
 
   const [activeDay, setActiveDay] = useState(0);
 
   const activeDest = destinations[activeDestIdx];
   const hasMultiDest = destinations.length > 1;
-  const hasPlan = itinerary.length > 0;
+  const hasPlan = perDayItineraries.flat().length > 0 || itinerary.length > 0;
 
   const vibeInfo = VIBES.find((v) => v.id === vibe) ?? VIBES[4];
 
-  const totalCost = useMemo(() => itinerary.reduce((s, p) => s + p.cost, 0), [itinerary]);
-  const totalTime = useMemo(() => itinerary.reduce((s, p) => s + p.durationMin, 0), [itinerary]);
+  const allStops = perDayItineraries.length > 0 ? perDayItineraries.flat() : itinerary;
+  const totalCost = useMemo(() => allStops.reduce((s, p) => s + p.cost, 0), [allStops]);
+  const totalTime = useMemo(() => allStops.reduce((s, p) => s + p.durationMin, 0), [allStops]);
 
   const stopsForDay = useMemo(() => {
+    if (perDayItineraries.length > 0) return perDayItineraries[activeDay] ?? [];
     if (!hasPlan) return [];
     const perDay = Math.ceil(itinerary.length / Math.max(1, journeyStart.days));
     const start = activeDay * perDay;
     return itinerary.slice(start, start + perDay);
-  }, [itinerary, activeDay, journeyStart.days, hasPlan]);
+  }, [perDayItineraries, itinerary, activeDay, journeyStart.days, hasPlan]);
 
-  const dayCount = Math.max(1, journeyStart.days);
+  const dayCount = perDayItineraries.length > 0 ? perDayItineraries.length : Math.max(1, journeyStart.days);
 
   function nineColon(i: number) {
     const base = 9 * 60 + 30 + i * 150;
@@ -106,7 +108,7 @@ export default function TripsPage() {
               <div>
                 <div className="text-xs font-bold tracking-widest text-brand-500">ACTIVE TRIP</div>
                 <div className="font-bold text-ink-900 font-display mt-0.5">
-                  {vibeInfo.icon} {vibeInfo.label} · {itinerary.length} stops
+                  {vibeInfo.icon} {vibeInfo.label} · {allStops.length} stops{dayCount > 1 ? ` · ${dayCount} days` : ''}
                 </div>
               </div>
               <button
@@ -124,7 +126,7 @@ export default function TripsPage() {
                 <div className="text-[10px] text-ink-500">Est. Time</div>
               </div>
               <div className="border-x border-ink-100">
-                <div className="text-sm font-bold text-ink-900 font-display">{itinerary.length}</div>
+                <div className="text-sm font-bold text-ink-900 font-display">{allStops.length}</div>
                 <div className="text-[10px] text-ink-500">Stops</div>
               </div>
               <div>
@@ -172,20 +174,12 @@ export default function TripsPage() {
             <div className="text-sm text-ink-500 mt-1 mb-6">
               {activeDest ? `Build your ${activeDest.name.split(',')[0]} itinerary` : 'Start planning your trip'}
             </div>
-            <div className="grid grid-cols-2 gap-3 max-w-xs mx-auto">
-              <button
-                onClick={() => nav('/generate')}
-                className="h-12 rounded-2xl bg-brand-500 text-white font-bold shadow-glow press flex items-center justify-center gap-2"
-              >
-                <Wand2 className="w-4 h-4" /> AI Plan
-              </button>
-              <button
-                onClick={() => nav('/generate?mode=manual')}
-                className="h-12 rounded-2xl border-2 border-brand-200 text-brand-600 font-bold press flex items-center justify-center gap-2"
-              >
-                <Plus className="w-4 h-4" /> Manual
-              </button>
-            </div>
+            <button
+              onClick={() => nav('/generate')}
+              className="h-12 px-8 rounded-2xl bg-brand-500 text-white font-bold shadow-glow press flex items-center justify-center gap-2 mx-auto"
+            >
+              <Wand2 className="w-4 h-4" /> Plan My Trip
+            </button>
           </motion.div>
         )}
 

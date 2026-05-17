@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { PLACES, pickItinerary, type Place, type Vibe } from '../data/places';
+import { PLACES, pickItinerary, pickDayItinerary, type Place, type Vibe } from '../data/places';
 import { DEFAULT_TRIP, BUDGET_TOTAL, type Transaction, type Trip, type Currency, suggestCurrency } from '../data/wallet';
 
 export type TransitMode = 'flight' | 'train' | 'bus' | 'drive' | 'ferry';
@@ -45,6 +45,9 @@ interface AppState {
   itinerary: Place[];
   setItinerary: (p: Place[]) => void;
   buildItinerary: () => Place[];
+  perDayItineraries: Place[][];
+  setPerDayItineraries: (p: Place[][]) => void;
+  buildFullItinerary: (days: number, arrivalTime?: string, departureTime?: string) => void;
   reorderStop: (from: number, to: number) => void;
   removeStop: (id: string) => void;
   replaceStop: (id: string, withPlace: Place) => void;
@@ -103,8 +106,8 @@ interface AppState {
   isSaved: (id: string) => boolean;
 
   // Journey settings
-  journeyStart: { date: string; time: string; days: number };
-  setJourneyStart: (s: { date: string; time: string; days: number }) => void;
+  journeyStart: { date: string; time: string; days: number; endTime?: string };
+  setJourneyStart: (s: { date: string; time: string; days: number; endTime?: string }) => void;
 
   // Buddy
   buddyOpen: boolean;
@@ -142,9 +145,10 @@ function loadPersistedState() {
       destinations: Destination[];
       trips: Trip[];
       activeTripId: string;
-      journeyStart: { date: string; time: string; days: number };
+      journeyStart: { date: string; time: string; days: number; endTime?: string };
       placeRatings?: Record<string, number>;
       visitedPlaceIds?: string[];
+      perDayItineraries?: Place[][];
     };
   } catch {
     return null;
@@ -172,6 +176,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [visited, setVisited] = useState<Set<string>>(new Set());
   const [savedPlaces, setSavedPlaces] = useState<Place[]>(persisted?.savedPlaces ?? []);
   const [journeyStart, setJourneyStart] = useState(persisted?.journeyStart ?? { date: 'today', time: '09:00', days: 1 });
+  const [perDayItineraries, setPerDayItineraries] = useState<Place[][]>(persisted?.perDayItineraries ?? []);
 
   // Multi-destination
   const [destinations, setDestinations] = useState<Destination[]>(persisted?.destinations ?? []);
@@ -198,9 +203,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         trips, activeTripId, journeyStart,
         placeRatings,
         visitedPlaceIds: Array.from(visitedPlaceIds),
+        perDayItineraries,
       }));
     } catch { /* storage full — ignore */ }
-  }, [isAuthenticated, authUser, onboardingComplete, vibe, budget, itinerary, savedPlaces, destinations, trips, activeTripId, journeyStart, placeRatings, visitedPlaceIds]);
+  }, [isAuthenticated, authUser, onboardingComplete, vibe, budget, itinerary, savedPlaces, destinations, trips, activeTripId, journeyStart, placeRatings, visitedPlaceIds, perDayItineraries]);
 
   // Per-destination itinerary sync:
   // When activeDestIdx changes, load that destination's itinerary into global state.
@@ -344,6 +350,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setPlaceRatings({});
       setVisitedPlaceIds(new Set());
       setRainyDayMode(false);
+      setPerDayItineraries([]);
       // Issue 35: clear persisted state on logout
       try { localStorage.removeItem(PERSIST_KEY); } catch { /* ignore */ }
     },
@@ -352,6 +359,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
     budget, setBudget,
     itinerary, setItinerary,
     buildItinerary: () => pickItinerary(vibe, budget, rainyDayMode),
+    perDayItineraries,
+    setPerDayItineraries,
+    buildFullItinerary: (days: number, arrivalTime = '09:00', departureTime = '14:00') => {
+      const usedIds = new Set<string>();
+      const baseStops = 3 + (vibe === 'activities' ? 1 : 0);
+      const result: Place[][] = [];
+      for (let d = 0; d < days; d++) {
+        let maxStops = baseStops;
+        if (d === 0) {
+          const arrHour = parseInt(arrivalTime.split(':')[0]);
+          if (arrHour >= 18) maxStops = 0;
+          else if (arrHour >= 15) maxStops = 1;
+          else if (arrHour >= 12) maxStops = 2;
+        }
+        if (d === days - 1 && days > 1) {
+          const depHour = parseInt(departureTime.split(':')[0]);
+          if (depHour <= 10) maxStops = 0;
+          else if (depHour <= 12) maxStops = 1;
+          else if (depHour <= 14) maxStops = 2;
+        }
+        const dayStops = maxStops === 0
+          ? []
+          : pickDayItinerary(vibe, budget, d, usedIds, maxStops, rainyDayMode);
+        dayStops.forEach((p) => usedIds.add(p.id));
+        result.push(dayStops);
+      }
+      setPerDayItineraries(result);
+      setItinerary(result.flat());
+    },
     reorderStop: (from, to) => {
       setItinerary((cur) => {
         const next = cur.slice();

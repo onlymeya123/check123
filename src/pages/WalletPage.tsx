@@ -2,9 +2,10 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   Bell, Plus, Scan, Clock, X, Check, Users, Receipt,
   Pencil, Trash2, Share2, ChevronRight, ChevronLeft, Wallet, CalendarDays,
-  TrendingDown, Globe, AlertTriangle, Search,
+  TrendingDown, Globe, AlertTriangle, Search, Wand2,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import StatusBar from '../components/StatusBar';
 import PageHeader from '../components/PageHeader';
 import { useApp } from '../context/AppContext';
@@ -16,6 +17,7 @@ import { relativeDay } from '../lib/format';
 import { useToast } from '../components/Toast';
 
 export default function WalletPage() {
+  const nav = useNavigate();
   const {
     transactions, addTransaction,
     tripBudget, setTripBudget,
@@ -25,9 +27,11 @@ export default function WalletPage() {
     trips, activeTripId, setActiveTripId, createTrip, deleteTrip,
     currency, setCurrency,
     isNavigating, tripCompleted,
+    itinerary, perDayItineraries,
   } = useApp();
   const { show } = useToast();
 
+  const hasItinerary = perDayItineraries.flat().length > 0 || itinerary.length > 0;
   const hasUserTrips = trips.some(t => t.id !== 'trip-default');
 
   const [sheet, setSheet] = useState<null | 'editBudget' | 'addExpense' | 'scan' | 'history' | 'splitBill' | 'newTrip' | 'currencyPicker' | 'manageTrips'>(null);
@@ -58,35 +62,22 @@ export default function WalletPage() {
 
   const fmt = (n: number) => formatCurrencyAmount(n, currency);
 
-  if (!hasUserTrips) {
+  if (!hasItinerary && !hasUserTrips) {
     return (
       <div className="absolute inset-0 bg-white flex flex-col">
         <StatusBar />
-        <PageHeader icon={Wallet} title="Wallet" right={
-          <button className="w-9 h-9 rounded-full bg-ink-50 flex items-center justify-center press" onClick={() => setSheet('newTrip')}>
-            <Plus className="w-4 h-4 text-ink-700" />
-          </button>
-        } />
+        <PageHeader icon={Wallet} title="Wallet" />
         <div className="flex-1 flex flex-col items-center justify-center px-8 text-center gap-4">
-          <div className="text-6xl">💰</div>
-          <div className="font-bold text-ink-900 text-xl font-display">No wallet yet</div>
-          <div className="text-sm text-ink-500">Create a trip to start tracking your expenses.</div>
+          <div className="text-6xl">🗺️</div>
+          <div className="font-bold text-ink-900 text-xl font-display">Plan a trip first</div>
+          <div className="text-sm text-ink-500">Create your trip itinerary to start tracking expenses.</div>
           <button
-            onClick={() => setSheet('newTrip')}
+            onClick={() => nav('/generate')}
             className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-brand-500 text-white font-bold shadow-glow press"
           >
-            <Plus className="w-4 h-4" /> Create Your First Trip
+            <Wand2 className="w-4 h-4" /> Plan My Trip
           </button>
         </div>
-        <Sheet open={sheet === 'newTrip'} title="New Trip" onClose={() => setSheet(null)}>
-          <NewTripSheet
-            onCreate={(data) => {
-              createTrip(data);
-              show(`"${data.name}" created`, 'success');
-              setSheet(null);
-            }}
-          />
-        </Sheet>
       </div>
     );
   }

@@ -182,6 +182,31 @@ export function parseCloseHour(s: string): number {
   const m = s.match(/\d+:\d+.*?(\d+):(\d+)/); return m ? parseInt(m[1]) : 24;
 }
 
+export function pickDayItinerary(
+  vibe: Vibe,
+  budget: number,
+  dayIndex: number,
+  usedIds: Set<string>,
+  maxStops = 3,
+  indoorOnly = false,
+): Place[] {
+  let candidates = PLACES.filter(
+    (p) => (vibe === 'balanced' || p.vibes.includes(vibe))
+      && p.cost <= budget
+      && (!indoorOnly || p.indoor)
+      && !usedIds.has(p.id),
+  ).sort((a, b) => b.rating - a.rating);
+
+  if (candidates.length < maxStops) {
+    const offset = dayIndex % Math.max(1, PLACES.length);
+    const rotated = [...PLACES.slice(offset), ...PLACES.slice(0, offset)];
+    rotated.forEach((p) => {
+      if (candidates.length < maxStops && !candidates.find((x) => x.id === p.id)) candidates.push(p);
+    });
+  }
+  return candidates.slice(0, Math.max(0, maxStops));
+}
+
 export function pickItinerary(vibe: Vibe, budget: number, indoorOnly = false): Place[] {
   let candidates = PLACES.filter(
     (p) => (vibe === 'balanced' || p.vibes.includes(vibe)) && p.cost <= budget && (!indoorOnly || p.indoor),

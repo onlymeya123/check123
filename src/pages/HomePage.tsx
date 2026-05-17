@@ -69,7 +69,7 @@ export default function HomePage() {
     authUser, onboardingComplete,
     destinations, activeDestIdx, setActiveDestIdx, addDestination, setDestinations, removeDestination,
     isNavigating, activeTrip, totalSpent, tripBudget, tripDaysRemaining, dailyAllowance,
-    currency, setCurrency, journeyStart,
+    currency, setCurrency, journeyStart, setJourneyStart,
   } = useApp();
   const { show } = useToast();
 
@@ -265,13 +265,20 @@ export default function HomePage() {
     setIntentErrors({});
     if (intentVibe) setVibe(intentVibe);
     if (intentBudget) setBudget(intentBudget);
+
+    const days = intentEndDate
+      ? Math.max(1, Math.round((new Date(intentEndDate).getTime() - new Date(intentDate).getTime()) / 86400000) + 1)
+      : 1;
+    setJourneyStart({ date: intentDate, time: intentStartTime, days, endTime: intentEndDate ? intentEndTime : undefined });
+
     const mode = intentSheet;
     setIntentSheet(null);
     const params = new URLSearchParams();
     if (mode === 'manual') params.set('mode', 'manual');
-    if (intentStartTime) params.set('startTime', intentStartTime);
-    if (intentEndTime) params.set('endTime', intentEndTime);
-    nav(`/generate${params.toString() ? `?${params}` : ''}`);
+    params.set('startTime', intentStartTime);
+    if (intentEndDate) params.set('endTime', intentEndTime);
+    params.set('days', String(days));
+    nav(`/generate?${params}`);
   };
 
   const handleQuickPlan = () => {
@@ -1101,6 +1108,36 @@ export default function HomePage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Flight times — only shown for AI mode with a date range */}
+                {intentSheet === 'ai' && (
+                  <div>
+                    <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-2">FLIGHT TIMES</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <div className="text-[10px] font-semibold text-ink-400 mb-1.5">Arrival (Day 1)</div>
+                        <input
+                          type="time"
+                          value={intentStartTime}
+                          onChange={(e) => setIntentStartTime(e.target.value)}
+                          className="w-full bg-ink-50 rounded-xl px-3 py-2.5 text-sm text-ink-700 border border-ink-200 outline-none focus:border-brand-400"
+                        />
+                      </div>
+                      {intentEndDate && (
+                        <div>
+                          <div className="text-[10px] font-semibold text-ink-400 mb-1.5">Departure (last day)</div>
+                          <input
+                            type="time"
+                            value={intentEndTime}
+                            onChange={(e) => { setIntentEndTime(e.target.value); setIntentEndTimeSet(true); }}
+                            className="w-full bg-ink-50 rounded-xl px-3 py-2.5 text-sm text-ink-700 border border-ink-200 outline-none focus:border-brand-400"
+                          />
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-ink-400 mt-1.5">We'll adapt the plan around your flight schedule.</p>
+                  </div>
+                )}
 
                 {/* Current vibe/budget summary — not editable here, link to settings */}
                 <div className="flex items-center gap-2 bg-ink-50 rounded-xl px-3 py-2.5">

@@ -34,8 +34,10 @@ export default function GeneratePage() {
   const [searchParams] = useSearchParams();
   const isManualMode = searchParams.get('mode') === 'manual';
   const startTimeParam = searchParams.get('startTime'); // e.g. "09:00"
+  const endTimeParam = searchParams.get('endTime'); // e.g. "14:00"
+  const daysParam = Math.max(1, parseInt(searchParams.get('days') ?? '1') || 1);
 
-  const { vibe, buildItinerary, setItinerary, itinerary, removeStop, replaceStop, addStop, reorderStop, alternatives, activeTrip } = useApp();
+  const { vibe, buildItinerary, buildFullItinerary, setItinerary, itinerary, perDayItineraries, setPerDayItineraries, removeStop, replaceStop, addStop, reorderStop, alternatives, activeTrip, journeyStart } = useApp();
   const { show } = useToast();
 
   const isEditMode = searchParams.get('edit') === '1';
@@ -52,6 +54,7 @@ export default function GeneratePage() {
   const [stopTimes, setStopTimes] = useState<Record<string, string>>({});
   const [editingTimeFor, setEditingTimeFor] = useState<string | null>(null);
   const [dismissedCultural, setDismissedCultural] = useState<Set<string>>(new Set());
+  const [activeDay, setActiveDay] = useState(0);
 
   // Undo support for stop removal
   const [undoItem, setUndoItem] = useState<{ place: Place; index: number } | null>(null);
@@ -60,12 +63,33 @@ export default function GeneratePage() {
   const removeWithUndo = (place: Place, idx: number, isManual: boolean) => {
     if (isManual) {
       setManualStops((prev) => prev.filter((s) => s.id !== place.id));
+    } else if (isMultiDay) {
+      const newDays = perDayItineraries.map((day, d) =>
+        d === activeDay ? day.filter((p) => p.id !== place.id) : day
+      );
+      setPerDayItineraries(newDays);
+      setItinerary(newDays.flat());
     } else {
       removeStop(place.id);
     }
     setUndoItem({ place, index: idx });
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
     undoTimerRef.current = setTimeout(() => setUndoItem(null), 6000);
+  };
+
+  const reorderDayStop = (from: number, to: number) => {
+    if (isMultiDay) {
+      const newDays = perDayItineraries.map((day, d) => {
+        if (d !== activeDay) return day;
+        const next = day.slice();
+        const [item] = next.splice(from, 1);
+        next.splice(Math.max(0, Math.min(next.length, to)), 0, item);
+        return next;
+      });
+      setPerDayItineraries(newDays);
+    } else {
+      reorderStop(from, to);
+    }
   };
 
   const handleUndo = () => {
@@ -79,6 +103,15 @@ export default function GeneratePage() {
         next.splice(Math.min(restored.index, next.length), 0, restored.place);
         return next;
       });
+    } else if (isMultiDay) {
+      const newDays = perDayItineraries.map((day, d) => {
+        if (d !== activeDay) return day;
+        const next = day.slice();
+        next.splice(Math.min(restored.index, next.length), 0, restored.place);
+        return next;
+      });
+      setPerDayItineraries(newDays);
+      setItinerary(newDays.flat());
     } else {
       addStop(restored.place);
     }
@@ -91,7 +124,14 @@ export default function GeneratePage() {
   const [showCustomForm, setShowCustomForm] = useState(false);
 
   useEffect(() => {
-    if (!isManualMode && !isEditMode) setItinerary(buildItinerary());
+    if (!isManualMode && !isEditMode) {
+      const days = daysParam > 1 ? daysParam : journeyStart.days;
+      if (days > 1) {
+        buildFullItinerary(days, startTimeParam ?? journeyStart.time, endTimeParam ?? journeyStart.endTime ?? '14:00');
+      } else {
+        setItinerary(buildItinerary());
+      }
+    }
   }, []); // eslint-disable-line
 
   useEffect(() => {
@@ -106,7 +146,9 @@ export default function GeneratePage() {
     return () => { clearInterval(t1); clearTimeout(t2); };
   }, [phase]); // eslint-disable-line
 
-  const activeItinerary = isManualMode ? manualStops : itinerary;
+  const isMultiDay = perDayItineraries.length > 1;
+  const displayItinerary = isMultiDay ? (perDayItineraries[activeDay] ?? []) : itinerary;
+  const activeItinerary = isManualMode ? manualStops : displayItinerary;
 
   const totals = useMemo(() => ({
     cost: activeItinerary.reduce((s, p) => s + p.cost, 0),
@@ -116,9 +158,23 @@ export default function GeneratePage() {
 
   const getTime = (id: string, idx: number) => {
     if (stopTimes[id]) return stopTimes[id];
-    const baseMin = startTimeParam
-      ? parseInt(startTimeParam.split(':')[0]) * 60 + parseInt(startTimeParam.split(':')[1])
-      : 10 * 60 + 30;
+    let baseMin: number;
+    if (isMultiDay) {
+      if (activeDay === 0) {
+        const arrTime = startTimeParam ?? journeyStart.time ?? '09:00';
+        const arrHour = parseInt(arrTime.split(':')[0]);
+        const arrMinute = parseInt(arrTime.split(':')[1]);
+        baseMin = arrHour * 60 + arrMinute + 90; // 1.5h after arrival
+      } else if (activeDay === perDayItineraries.length - 1) {
+        baseMin = 8 * 60; // early start on departure day
+      } else {
+        baseMin = 9 * 60;
+      }
+    } else {
+      baseMin = startTimeParam
+        ? parseInt(startTimeParam.split(':')[0]) * 60 + parseInt(startTimeParam.split(':')[1])
+        : 10 * 60 + 30;
+    }
     const start = baseMin + idx * 90;
     const h = Math.floor(start / 60) % 24;
     const m = start % 60;
@@ -189,13 +245,32 @@ export default function GeneratePage() {
                   transition={{ type: 'spring', stiffness: 280, damping: 28 }}
                   className="flex-1 flex flex-col overflow-hidden"
                 >
+                  {/* Day tabs */}
+                  {isMultiDay && (
+                    <div className="px-5 pt-2 pb-1 flex gap-2 overflow-x-auto no-scrollbar shrink-0">
+                      {perDayItineraries.map((_, i) => (
+                        <button
+                          key={i}
+                          onClick={() => setActiveDay(i)}
+                          className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold press transition-colors ${
+                            activeDay === i ? 'bg-brand-500 text-white shadow-glow' : 'bg-ink-50 text-ink-700 border border-ink-100'
+                          }`}
+                        >
+                          Day {i + 1}
+                          {i === 0 && <span className="ml-1 opacity-60">✈️</span>}
+                          {i === perDayItineraries.length - 1 && perDayItineraries.length > 1 && <span className="ml-1 opacity-60">🛫</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
                   {/* Summary card */}
                   <div className="mx-5 mt-2 p-4 rounded-2xl bg-brand-600 text-white shrink-0">
                     <div className="flex items-center gap-2 text-sm font-semibold opacity-90">
-                      <Wand2 className="w-4 h-4" /> Crafted for your {vibe} day
+                      <Wand2 className="w-4 h-4" /> {isMultiDay ? `Day ${activeDay + 1} of ${perDayItineraries.length}` : `Crafted for your ${vibe} day`}
                     </div>
                     <div className="grid grid-cols-3 gap-3 mt-3">
-                      <SummStat label="Stops" value={String(itinerary.length)} />
+                      <SummStat label="Stops" value={String(displayItinerary.length)} />
                       <SummStat label="Distance" value={`${totals.dist.toFixed(1)} km`} />
                       <SummStat label="Est. Time" value={`${Math.round(totals.time / 60)}h ${totals.time % 60}m`} />
                     </div>
@@ -208,7 +283,7 @@ export default function GeneratePage() {
                   {/* Stop list */}
                   <div className="flex-1 overflow-y-auto no-scrollbar mt-3 px-5 pb-28">
                     {/* Issue 8: Error state when generation yields empty itinerary */}
-                    {generationError && itinerary.length === 0 ? (
+                    {generationError && displayItinerary.length === 0 ? (
                       <div className="flex-1 flex flex-col items-center justify-center px-8 text-center gap-4 py-12">
                         <div className="text-5xl">😕</div>
                         <div className="font-bold text-ink-900 text-lg font-display">Couldn't generate a plan</div>
@@ -222,7 +297,7 @@ export default function GeneratePage() {
                       </div>
                     ) : (<>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-[11px] font-bold tracking-widest text-ink-500">ITINERARY · {itinerary.length} STOPS</span>
+                      <span className="text-[11px] font-bold tracking-widest text-ink-500">ITINERARY · {displayItinerary.length} STOPS</span>
                       <button className="text-xs text-brand-600 font-semibold press" onClick={() => setShowAdd(true)}>+ Add stop</button>
                     </div>
 
@@ -234,21 +309,21 @@ export default function GeneratePage() {
 
                     <div className="space-y-0">
                       <AnimatePresence>
-                        {itinerary.map((p, i) => {
+                        {displayItinerary.map((p, i) => {
                           const intel = getCulturalIntel(p.id, p.category);
                           const timeStr = getTime(p.id, i);
                           const conflict = hasConflict(p, timeStr);
                           return (
                             <div key={p.id}>
                               <StopCard
-                                index={i} total={itinerary.length} place={p}
+                                index={i} total={displayItinerary.length} place={p}
                                 scheduledTime={timeStr}
                                 hasConflict={conflict}
                                 onTimeEdit={() => setEditingTimeFor(p.id)}
                                 onRemove={() => removeWithUndo(p, i, false)}
                                 onReplace={() => setReplaceFor(p.id)}
-                                onMoveUp={() => reorderStop(i, Math.max(0, i - 1))}
-                                onMoveDown={() => reorderStop(i, Math.min(itinerary.length - 1, i + 1))}
+                                onMoveUp={() => reorderDayStop(i, Math.max(0, i - 1))}
+                                onMoveDown={() => reorderDayStop(i, Math.min(displayItinerary.length - 1, i + 1))}
                               />
                               {intel && !dismissedCultural.has(p.id) && (
                                 <div className="mb-2">
@@ -259,9 +334,9 @@ export default function GeneratePage() {
                                   />
                                 </div>
                               )}
-                              {i < itinerary.length - 1 && (
+                              {i < displayItinerary.length - 1 && (
                                 <StopConnector
-                                  distanceKm={itinerary[i + 1].distanceKm}
+                                  distanceKm={displayItinerary[i + 1].distanceKm}
                                   fromTime={getTime(p.id, i)}
                                   durationMin={p.durationMin}
                                 />
@@ -273,14 +348,21 @@ export default function GeneratePage() {
                     </div>
 
                     <button
-                      onClick={() => { setItinerary(buildItinerary()); show('Re-rolled itinerary', 'info'); }}
+                      onClick={() => {
+                        if (isMultiDay) {
+                          buildFullItinerary(perDayItineraries.length, startTimeParam ?? journeyStart.time, endTimeParam ?? journeyStart.endTime ?? '14:00');
+                        } else {
+                          setItinerary(buildItinerary());
+                        }
+                        show('Re-rolled itinerary', 'info');
+                      }}
                       className="mt-4 mx-auto flex items-center gap-2 text-xs font-semibold text-ink-600 px-4 py-2 rounded-full bg-ink-50 press"
                     >
                       <RefreshCw className="w-3.5 h-3.5" /> Re-roll suggestions
                     </button>
 
                     {/* Recommendations */}
-                    {alternatives(itinerary.map((p) => p.id)).length > 0 && (
+                    {!isMultiDay && alternatives(itinerary.map((p) => p.id)).length > 0 && (
                       <div className="mt-6">
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-[11px] font-bold tracking-widest text-ink-500">RECOMMENDATIONS</span>
@@ -302,10 +384,9 @@ export default function GeneratePage() {
                                 </div>
                                 <div className="text-xs text-brand-600 font-semibold mt-0.5">{formatCost(altP.cost, activeTrip.currency)}</div>
                               </div>
-                              {/* UI5 — "Try instead" opens what-if comparison if plan has stops */}
-                              {itinerary.length > 0 ? (
+                              {displayItinerary.length > 0 ? (
                                 <button
-                                  onClick={() => setWhatIf({ current: itinerary[itinerary.length - 1], alt: altP })}
+                                  onClick={() => setWhatIf({ current: displayItinerary[displayItinerary.length - 1], alt: altP })}
                                   className="text-[10px] font-semibold text-brand-600 bg-brand-50 border border-brand-200 px-2.5 py-1.5 rounded-lg press shrink-0"
                                 >
                                   Try instead
@@ -333,7 +414,7 @@ export default function GeneratePage() {
                       animate={confirmingPulse ? { boxShadow: ['0 0 0 0 rgba(59,91,255,0.4)', '0 0 0 20px rgba(59,91,255,0)'] } : {}}
                       transition={{ duration: 0.7 }}
                       onClick={onConfirm}
-                      disabled={itinerary.length === 0}
+                      disabled={itinerary.length === 0 && displayItinerary.length === 0}
                       className="w-full h-14 rounded-2xl bg-brand-500 disabled:bg-ink-300 text-white font-bold text-base flex items-center justify-center gap-2 pointer-events-auto"
                     >
                       <Check className="w-5 h-5" />
