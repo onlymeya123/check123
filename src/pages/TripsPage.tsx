@@ -1,13 +1,26 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  CalendarDays, MapPin, Clock, Star, Navigation, Pencil, Wand2, ChevronRight,
+  CalendarDays, MapPin, Clock, Star, Navigation, Pencil, Wand2, ChevronRight, Trash2,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import StatusBar from '../components/StatusBar';
 import PageHeader from '../components/PageHeader';
 import { useApp } from '../context/AppContext';
 import { formatCost } from '../lib/format';
+import { useToast } from '../components/Toast';
 import { useMemo, useState } from 'react';
+
+function formatDateRange(startISO: string, days: number): string {
+  const start = new Date(startISO);
+  const end = new Date(start.getTime() + (days - 1) * 86400000);
+  const fmt = (d: Date) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  return `${fmt(start)} – ${fmt(end)}`;
+}
+
+function dayTabDate(startISO: string, dayIndex: number): string {
+  const d = new Date(new Date(startISO).getTime() + dayIndex * 86400000);
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
 
 const VIBES: { id: string; label: string; icon: string }[] = [
   { id: 'nature', label: 'Nature', icon: '🌿' },
@@ -21,11 +34,13 @@ export default function TripsPage() {
   const nav = useNavigate();
   const {
     destinations, activeDestIdx, setActiveDestIdx,
-    itinerary, vibe, activeTrip, isNavigating, navIndex,
-    journeyStart, perDayItineraries,
+    itinerary, setItinerary, vibe, activeTrip, isNavigating, navIndex,
+    journeyStart, perDayItineraries, setPerDayItineraries,
   } = useApp();
+  const { show } = useToast();
 
   const [activeDay, setActiveDay] = useState(0);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const activeDest = destinations[activeDestIdx];
   const hasMultiDest = destinations.length > 1;
@@ -110,14 +125,47 @@ export default function TripsPage() {
                 <div className="font-bold text-ink-900 font-display mt-0.5">
                   {vibeInfo.icon} {vibeInfo.label} · {allStops.length} stops{dayCount > 1 ? ` · ${dayCount} days` : ''}
                 </div>
+                {dayCount > 1 && journeyStart.date && journeyStart.date !== 'today' && (
+                  <div className="text-xs text-ink-400 mt-0.5">{formatDateRange(journeyStart.date, dayCount)}</div>
+                )}
               </div>
-              <button
-                onClick={() => nav('/generate?edit=1')}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-brand-200 text-brand-600 text-xs font-semibold press"
-              >
-                <Pencil className="w-3.5 h-3.5" /> Edit
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => nav('/generate?edit=1')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-brand-200 text-brand-600 text-xs font-semibold press"
+                >
+                  <Pencil className="w-3.5 h-3.5" /> Edit
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  className="w-8 h-8 rounded-full bg-white border border-ink-100 flex items-center justify-center press"
+                  aria-label="Delete plan"
+                >
+                  <Trash2 className="w-4 h-4 text-ink-400" />
+                </button>
+              </div>
             </div>
+
+            {/* Delete confirmation */}
+            {confirmDelete && (
+              <div className="mb-3 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
+                <div className="text-xs font-semibold text-red-800 mb-2">Delete this plan? This can't be undone.</div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setConfirmDelete(false)}
+                    className="flex-1 h-8 rounded-lg bg-white border border-red-200 text-red-600 text-xs font-semibold press"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => { setItinerary([]); setPerDayItineraries([]); setConfirmDelete(false); show('Plan deleted', 'info'); }}
+                    className="flex-1 h-8 rounded-lg bg-red-500 text-white text-xs font-bold press"
+                  >
+                    Delete plan
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-3 text-center bg-white rounded-xl py-2.5">
               <div>
                 <div className="text-sm font-bold text-ink-900 font-display">
@@ -189,13 +237,10 @@ export default function TripsPage() {
             <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-2">DAY</div>
             <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
               {Array.from({ length: dayCount }).map((_, i) => {
-                const isFirst = i === 0;
-                const isLast = i === dayCount - 1;
-                const label = isFirst
-                  ? `Day 1 · Arrival`
-                  : isLast
-                    ? `Day ${i + 1} · Departure`
-                    : `Day ${i + 1}`;
+                const dateStr = journeyStart.date && journeyStart.date !== 'today'
+                  ? ` · ${dayTabDate(journeyStart.date, i)}`
+                  : '';
+                const label = `Day ${i + 1}${dateStr}`;
                 return (
                   <button
                     key={i}

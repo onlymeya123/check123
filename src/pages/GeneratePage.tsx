@@ -256,13 +256,10 @@ export default function GeneratePage() {
                   {isMultiDay && (
                     <div className="px-5 pt-2 pb-1 flex gap-2 overflow-x-auto no-scrollbar shrink-0">
                       {perDayItineraries.map((_, i) => {
-                        const isFirst = i === 0;
-                        const isLast = i === perDayItineraries.length - 1;
-                        const label = isFirst
-                          ? `Day 1 · Arrival`
-                          : isLast
-                            ? `Day ${i + 1} · Departure`
-                            : `Day ${i + 1}`;
+                        const dateStr = journeyStart.date && journeyStart.date !== 'today'
+                          ? ` · ${new Date(new Date(journeyStart.date).getTime() + i * 86400000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
+                          : '';
+                        const label = `Day ${i + 1}${dateStr}`;
                         return (
                           <button
                             key={i}

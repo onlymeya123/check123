@@ -102,6 +102,9 @@ export default function HomePage() {
   const [intentVibe, setIntentVibe] = useState<Vibe | null>(null);
   const [intentBudget, setIntentBudget] = useState<number | null>(null);
   const [intentErrors, setIntentErrors] = useState<{ dest?: string; date?: string }>({});
+  const [showFlightTimes, setShowFlightTimes] = useState(false);
+  const [showSingleDayWarning, setShowSingleDayWarning] = useState(false);
+  const endDateInputRef = useRef<HTMLInputElement>(null);
 
   // Issue 27: vibe/budget change prompt
   const [vibeChangedPrompt, setVibeChangedPrompt] = useState(false);
@@ -258,20 +261,13 @@ export default function HomePage() {
     show(`${newDestName.trim()} added to your trip`, 'success');
   };
 
-  const handleIntentConfirm = () => {
-    const errs: { dest?: string; date?: string } = {};
-    if (!intentDest.trim()) errs.dest = 'Please enter your destination to continue';
-    if (!intentDate) errs.date = 'Please pick a start date to continue';
-    if (Object.keys(errs).length > 0) { setIntentErrors(errs); return; }
-    setIntentErrors({});
+  const proceedIntent = () => {
     if (intentVibe) setVibe(intentVibe);
     if (intentBudget) setBudget(intentBudget);
-
     const days = intentEndDate
       ? Math.max(1, Math.round((new Date(intentEndDate).getTime() - new Date(intentDate).getTime()) / 86400000) + 1)
       : 1;
     setJourneyStart({ date: intentDate, time: intentStartTime, days, endTime: intentEndDate ? intentEndTime : undefined });
-
     const mode = intentSheet;
     setIntentSheet(null);
     const params = new URLSearchParams();
@@ -280,6 +276,22 @@ export default function HomePage() {
     if (intentEndDate) params.set('endTime', intentEndTime);
     params.set('days', String(days));
     nav(`/generate?${params}`);
+  };
+
+  const handleIntentConfirm = () => {
+    const errs: { dest?: string; date?: string } = {};
+    if (!intentDest.trim()) errs.dest = 'Please enter your destination to continue';
+    if (!intentDate) errs.date = 'Please pick a start date to continue';
+    if (Object.keys(errs).length > 0) { setIntentErrors(errs); return; }
+    setIntentErrors({});
+
+    // AI mode: warn if no end date before proceeding
+    if (intentSheet === 'ai' && !intentEndDate) {
+      setShowSingleDayWarning(true);
+      return;
+    }
+
+    proceedIntent();
   };
 
   const handleQuickPlan = () => {
@@ -640,7 +652,7 @@ export default function HomePage() {
           <motion.button
             initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentEndDate(''); setIntentStartTime('09:00'); setIntentEndTimeSet(false); setIntentErrors({}); setIntentSheet('ai'); }}
+            onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentEndDate(''); setIntentStartTime('09:00'); setIntentEndTimeSet(false); setIntentErrors({}); setShowFlightTimes(false); setShowSingleDayWarning(false); setIntentSheet('ai'); }}
             className="w-full bg-brand-500 text-white rounded-2xl p-5 text-left press shadow-glow flex items-center gap-4"
           >
             <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center shrink-0">
@@ -764,7 +776,7 @@ export default function HomePage() {
           {/* Primary: AI plan — recommended */}
           <motion.button
             whileTap={{ scale: 0.97 }}
-            onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentEndDate(''); setIntentStartTime('09:00'); setIntentEndTimeSet(false); setIntentErrors({}); setIntentSheet('ai'); }}
+            onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentEndDate(''); setIntentStartTime('09:00'); setIntentEndTimeSet(false); setIntentErrors({}); setShowFlightTimes(false); setShowSingleDayWarning(false); setIntentSheet('ai'); }}
             className="relative w-full rounded-2xl p-4 text-left flex items-center gap-3 press bg-brand-500 shadow-glow"
           >
             <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
@@ -780,7 +792,7 @@ export default function HomePage() {
 
           {/* Secondary: manual escape hatch */}
           <button
-            onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentEndDate(''); setIntentStartTime('09:00'); setIntentEndTimeSet(false); setIntentErrors({}); setIntentSheet('manual'); }}
+            onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentEndDate(''); setIntentStartTime('09:00'); setIntentEndTimeSet(false); setIntentErrors({}); setShowFlightTimes(false); setShowSingleDayWarning(false); setIntentSheet('manual'); }}
             className="w-full text-center text-sm text-brand-600 font-semibold press flex items-center justify-center gap-1"
           >
             or build it stop by stop <ArrowRight className="w-3.5 h-3.5" />
@@ -1017,7 +1029,7 @@ export default function HomePage() {
                       <input
                         type="date"
                         value={intentDate}
-                        onChange={(e) => { setIntentDate(e.target.value); if (e.target.value) setIntentErrors((p) => ({ ...p, date: undefined })); }}
+                        onChange={(e) => { setIntentDate(e.target.value); if (e.target.value) setIntentErrors((p) => ({ ...p, date: undefined })); setShowSingleDayWarning(false); }}
                         className={`w-full rounded-xl px-3 py-2.5 text-sm border outline-none focus:border-brand-400 ${intentErrors.date ? 'border-red-400 bg-red-50 text-red-700' : 'bg-ink-50 text-ink-700 border-ink-200'}`}
                       />
                       {intentErrors.date && (
@@ -1029,43 +1041,87 @@ export default function HomePage() {
                     <div>
                       <div className="text-[10px] font-semibold text-ink-400 mb-1.5">End date <span className="text-ink-300">(optional)</span></div>
                       <input
+                        ref={endDateInputRef}
                         type="date"
                         value={intentEndDate}
                         min={intentDate || undefined}
-                        onChange={(e) => setIntentEndDate(e.target.value)}
+                        onChange={(e) => { setIntentEndDate(e.target.value); setShowSingleDayWarning(false); }}
                         className="w-full bg-ink-50 rounded-xl px-3 py-2.5 text-sm text-ink-700 border border-ink-200 outline-none focus:border-brand-400"
                       />
                     </div>
                   </div>
+
+                  {/* Trip duration badge */}
+                  {intentDate && intentEndDate && (() => {
+                    const d = Math.max(1, Math.round((new Date(intentEndDate).getTime() - new Date(intentDate).getTime()) / 86400000) + 1);
+                    return d > 1 ? (
+                      <div className="mt-2">
+                        <span className="inline-block bg-brand-50 text-brand-600 text-xs font-bold rounded-full px-3 py-1">✈️ {d}-day trip</span>
+                      </div>
+                    ) : null;
+                  })()}
+
+                  {/* Single-day warning for AI mode */}
+                  {showSingleDayWarning && intentSheet === 'ai' && (
+                    <div className="mt-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                      <div className="text-xs font-semibold text-amber-800 mb-1.5">No end date set — this will generate a 1-day plan.</div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => { setShowSingleDayWarning(false); setTimeout(() => endDateInputRef.current?.focus(), 50); }}
+                          className="flex-1 h-8 rounded-lg bg-amber-500 text-white text-xs font-bold press"
+                        >
+                          Set end date
+                        </button>
+                        <button
+                          onClick={() => { setShowSingleDayWarning(false); proceedIntent(); }}
+                          className="flex-1 h-8 rounded-lg bg-white border border-amber-300 text-amber-700 text-xs font-semibold press"
+                        >
+                          Continue anyway
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* Flight times — only shown for AI mode with a date range */}
-                {intentSheet === 'ai' && (
+                {/* Arrival & departure times — collapsible, only shown when end date is set */}
+                {intentSheet === 'ai' && intentEndDate && (
                   <div>
-                    <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-2">FLIGHT TIMES</div>
-                    <div className="grid grid-cols-2 gap-2">
+                    {!showFlightTimes ? (
+                      <button
+                        onClick={() => setShowFlightTimes(true)}
+                        className="text-xs text-brand-600 font-semibold press flex items-center gap-1"
+                      >
+                        <Plus className="w-3 h-3" /> Add arrival &amp; departure times
+                      </button>
+                    ) : (
                       <div>
-                        <div className="text-[10px] font-semibold text-ink-400 mb-1.5">Arrival (Day 1)</div>
-                        <input
-                          type="time"
-                          value={intentStartTime}
-                          onChange={(e) => setIntentStartTime(e.target.value)}
-                          className="w-full bg-ink-50 rounded-xl px-3 py-2.5 text-sm text-ink-700 border border-ink-200 outline-none focus:border-brand-400"
-                        />
-                      </div>
-                      {intentEndDate && (
-                        <div>
-                          <div className="text-[10px] font-semibold text-ink-400 mb-1.5">Departure (last day)</div>
-                          <input
-                            type="time"
-                            value={intentEndTime}
-                            onChange={(e) => { setIntentEndTime(e.target.value); setIntentEndTimeSet(true); }}
-                            className="w-full bg-ink-50 rounded-xl px-3 py-2.5 text-sm text-ink-700 border border-ink-200 outline-none focus:border-brand-400"
-                          />
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="text-[10px] font-bold tracking-widest text-ink-500">ARRIVAL &amp; DEPARTURE</div>
+                          <button onClick={() => setShowFlightTimes(false)} className="text-[10px] text-ink-400 press">Hide</button>
                         </div>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-ink-400 mt-1.5">We'll adapt the plan around your flight schedule.</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <div className="text-[10px] font-semibold text-ink-400 mb-1.5">Arrival time (Day 1)</div>
+                            <input
+                              type="time"
+                              value={intentStartTime}
+                              onChange={(e) => setIntentStartTime(e.target.value)}
+                              className="w-full bg-ink-50 rounded-xl px-3 py-2.5 text-sm text-ink-700 border border-ink-200 outline-none focus:border-brand-400"
+                            />
+                          </div>
+                          <div>
+                            <div className="text-[10px] font-semibold text-ink-400 mb-1.5">Departure time (last day)</div>
+                            <input
+                              type="time"
+                              value={intentEndTime}
+                              onChange={(e) => { setIntentEndTime(e.target.value); setIntentEndTimeSet(true); }}
+                              className="w-full bg-ink-50 rounded-xl px-3 py-2.5 text-sm text-ink-700 border border-ink-200 outline-none focus:border-brand-400"
+                            />
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-ink-400 mt-1.5">We'll adapt the plan around your schedule.</p>
+                      </div>
+                    )}
                   </div>
                 )}
 

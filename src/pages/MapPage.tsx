@@ -33,9 +33,11 @@ export default function MapPage() {
     savePlace, removeSavedPlace, isSaved,
     destinations, activeDestIdx, setActiveDestIdx, activeTrip,
     setVibe, budget, setBudget, setBuddyOpen,
+    perDayItineraries, journeyStart,
   } = useApp();
   const { show } = useToast();
   const [view, setView] = useState<ViewMode>('map');
+  const [activeMapDay, setActiveMapDay] = useState(0);
   const [selected, setSelected] = useState<Place | null>(null);
   // Issue 14: undo on remove
   const [mapUndoItem, setMapUndoItem] = useState<Place | null>(null);
@@ -106,8 +108,15 @@ export default function MapPage() {
     show(`Removed ${place.name}`, 'info');
   };
 
-  // Active destination's itinerary: use full itinerary for active tab, empty for others
-  const activeItinerary = itinerary;
+  // Per-day slice for map view
+  const dayCount = perDayItineraries.length > 0
+    ? perDayItineraries.length
+    : (journeyStart.days > 1 ? journeyStart.days : 0);
+  const activeItinerary = perDayItineraries.length > 0
+    ? (perDayItineraries[activeMapDay] ?? [])
+    : itinerary;
+
+  useEffect(() => { setActiveMapDay(0); }, [activeDestIdx]);
 
   const totals = useMemo(() => {
     const cost = activeItinerary.reduce((s, p) => s + p.cost, 0);
@@ -138,9 +147,11 @@ export default function MapPage() {
       <PageHeader
         icon={Map}
         title="Map"
-        sub={destinations.length > 0
-          ? `${destinations[activeDestIdx]?.name ?? 'My Trip'} · ${activeItinerary.length} stops`
-          : `${activeItinerary.length} stop${activeItinerary.length !== 1 ? 's' : ''}`}
+        sub={dayCount > 1
+          ? `${destinations[activeDestIdx]?.name.split(',')[0] ?? 'My Trip'} · Day ${activeMapDay + 1} · ${activeItinerary.length} stops`
+          : destinations.length > 0
+            ? `${destinations[activeDestIdx]?.name.split(',')[0] ?? 'My Trip'} · ${activeItinerary.length} stops`
+            : `${activeItinerary.length} stop${activeItinerary.length !== 1 ? 's' : ''}`}
         right={
           activeItinerary.length > 0 ? (
             <button
@@ -177,6 +188,30 @@ export default function MapPage() {
                 {d.name.split(',')[0]}
               </motion.button>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Day tabs — visible when multi-day plan exists */}
+      {dayCount > 1 && activeItinerary.length > 0 && (
+        <div className="px-5 pb-2 shrink-0">
+          <div className="flex gap-2 overflow-x-auto no-scrollbar">
+            {Array.from({ length: dayCount }).map((_, i) => {
+              const dateStr = journeyStart.date && journeyStart.date !== 'today'
+                ? ` · ${new Date(new Date(journeyStart.date).getTime() + i * 86400000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
+                : '';
+              return (
+                <button
+                  key={i}
+                  onClick={() => setActiveMapDay(i)}
+                  className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold press whitespace-nowrap transition-colors ${
+                    activeMapDay === i ? 'bg-brand-500 text-white' : 'bg-ink-50 text-ink-700 border border-ink-100'
+                  }`}
+                >
+                  {`Day ${i + 1}${dateStr}`}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
