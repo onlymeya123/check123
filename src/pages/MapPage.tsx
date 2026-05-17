@@ -3,7 +3,6 @@ import {
   ChevronDown, Crosshair, List, Navigation, X, MapPin,
   Clock, Star, DollarSign, Bookmark,
   ChevronUp, Map, Pencil, Wand2, CalendarDays, AlertTriangle,
-  Palmtree, Flame, Wind, Diamond, Scale,
 } from 'lucide-react';
 import { PaveyLogoMark } from '../components/PaveyLogo';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -20,12 +19,12 @@ import TimePicker from '../components/TimePicker';
 
 type ViewMode = 'map' | 'list';
 
-const MAP_VIBES: { id: Vibe; label: string; tint: string }[] = [
-  { id: 'chill', label: 'Chill', tint: '#10B981' },
-  { id: 'chaos', label: 'Chaos', tint: '#F97316' },
-  { id: 'zen', label: 'Zen', tint: '#3B5BFF' },
-  { id: 'luxury', label: 'Luxury', tint: '#A855F7' },
-  { id: 'balanced', label: 'Balanced', tint: '#6B7280' },
+const MAP_VIBES: { id: Vibe; label: string; tint: string; icon: string }[] = [
+  { id: 'nature', label: 'Nature', tint: '#10B981', icon: '🌿' },
+  { id: 'cafe', label: 'Café Hopping', tint: '#F97316', icon: '☕' },
+  { id: 'activities', label: 'Activities', tint: '#3B5BFF', icon: '🎯' },
+  { id: 'cultural', label: 'Cultural', tint: '#A855F7', icon: '🏛️' },
+  { id: 'balanced', label: 'Balanced', tint: '#6B7280', icon: '⚖️' },
 ];
 
 export default function MapPage() {
@@ -200,12 +199,6 @@ export default function MapPage() {
             <button onClick={() => show('Recentered on you', 'info')} className="w-10 h-10 rounded-full bg-white shadow-card flex items-center justify-center press">
               <Crosshair className="w-4 h-4 text-ink-700" />
             </button>
-            <button onClick={() => nav('/generate?edit=1')} className="w-10 h-10 rounded-full bg-white shadow-card flex items-center justify-center press">
-              <Pencil className="w-4 h-4 text-ink-700" />
-            </button>
-            <button onClick={startNavigation} disabled={activeItinerary.length === 0} className="w-10 h-10 rounded-full bg-brand-500 disabled:bg-ink-300 shadow-glow flex items-center justify-center press">
-              <Navigation className="w-4 h-4 text-white" />
-            </button>
           </div>
 
           {activeItinerary.length === 0 ? (
@@ -370,13 +363,12 @@ export default function MapPage() {
                   <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-2">VIBE</div>
                   <div className="grid grid-cols-5 gap-1.5">
                     {MAP_VIBES.map((v) => {
-                      const Icon = v.id === 'chill' ? Palmtree : v.id === 'chaos' ? Flame : v.id === 'zen' ? Wind : v.id === 'balanced' ? Scale : Diamond;
                       const active = intentVibe === v.id;
                       return (
                         <button key={v.id} onClick={() => setIntentVibe(v.id)}
                           className={`aspect-square rounded-2xl flex flex-col items-center justify-center gap-1 border-2 press transition-colors ${active ? 'border-brand-500 bg-brand-50' : 'border-ink-100 bg-white'}`}>
-                          <Icon className="w-5 h-5" style={{ color: active ? '#3B5BFF' : v.tint }} strokeWidth={2.2} />
-                          <span className={`text-[9px] font-semibold ${active ? 'text-brand-600' : 'text-ink-700'}`}>{v.label}</span>
+                          <span className="text-lg leading-none">{v.icon}</span>
+                          <span className={`text-[8px] font-semibold leading-tight text-center ${active ? 'text-brand-600' : 'text-ink-700'}`}>{v.label}</span>
                         </button>
                       );
                     })}
@@ -386,7 +378,7 @@ export default function MapPage() {
                 {/* Budget */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <div className="text-[10px] font-bold tracking-widest text-ink-500">BUDGET <span className="font-normal normal-case tracking-normal text-ink-400">(per stop)</span></div>
+                    <div className="text-[10px] font-bold tracking-widest text-ink-500">BUDGET <span className="font-normal normal-case tracking-normal text-ink-400">(per day)</span></div>
                     <div className="text-sm font-bold text-brand-600">{formatCost(intentBudget ?? budget, activeTrip.currency)}</div>
                   </div>
                   <input type="range" min={50_000} max={1_000_000} step={10_000}
@@ -684,7 +676,6 @@ function ListView({ itinerary, onStart, totals, onPin, onRemove, onEdit, currenc
                     <span>{p.openingHours}</span>
                   </div>
                   <div className="flex items-center gap-1 text-ink-600">
-                    <DollarSign className="w-3.5 h-3.5 text-ink-400" />
                     <span>{formatCost(p.priceRange.min, currency)}{p.priceRange.max !== p.priceRange.min ? '+' : ''}</span>
                   </div>
                   <div className="text-right text-[11px] text-brand-600 font-semibold">

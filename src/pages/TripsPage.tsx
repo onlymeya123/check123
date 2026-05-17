@@ -1,0 +1,265 @@
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  CalendarDays, MapPin, Clock, Star, Navigation, Pencil, Wand2, Plus, ChevronRight,
+} from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import StatusBar from '../components/StatusBar';
+import PageHeader from '../components/PageHeader';
+import { useApp } from '../context/AppContext';
+import { formatCost } from '../lib/format';
+import { useMemo, useState } from 'react';
+
+const VIBES: { id: string; label: string; icon: string }[] = [
+  { id: 'nature', label: 'Nature', icon: '🌿' },
+  { id: 'cafe', label: 'Café Hopping', icon: '☕' },
+  { id: 'activities', label: 'Activities', icon: '🎯' },
+  { id: 'cultural', label: 'Cultural', icon: '🏛️' },
+  { id: 'balanced', label: 'Balanced', icon: '⚖️' },
+];
+
+export default function TripsPage() {
+  const nav = useNavigate();
+  const {
+    destinations, activeDestIdx, setActiveDestIdx,
+    itinerary, vibe, activeTrip, isNavigating, navIndex,
+    journeyStart,
+  } = useApp();
+
+  const [activeDay, setActiveDay] = useState(0);
+
+  const activeDest = destinations[activeDestIdx];
+  const hasMultiDest = destinations.length > 1;
+  const hasPlan = itinerary.length > 0;
+
+  const vibeInfo = VIBES.find((v) => v.id === vibe) ?? VIBES[4];
+
+  const totalCost = useMemo(() => itinerary.reduce((s, p) => s + p.cost, 0), [itinerary]);
+  const totalTime = useMemo(() => itinerary.reduce((s, p) => s + p.durationMin, 0), [itinerary]);
+
+  const stopsForDay = useMemo(() => {
+    if (!hasPlan) return [];
+    const perDay = Math.ceil(itinerary.length / Math.max(1, journeyStart.days));
+    const start = activeDay * perDay;
+    return itinerary.slice(start, start + perDay);
+  }, [itinerary, activeDay, journeyStart.days, hasPlan]);
+
+  const dayCount = Math.max(1, journeyStart.days);
+
+  function nineColon(i: number) {
+    const base = 9 * 60 + 30 + i * 150;
+    const h = Math.floor(base / 60) % 24;
+    const m = base % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  }
+
+  return (
+    <div className="absolute inset-0 overflow-y-auto pb-32 no-scrollbar bg-white">
+      <StatusBar />
+      <PageHeader
+        icon={CalendarDays}
+        title="My Plan"
+        sub={activeDest ? activeDest.name.split(',')[0] : 'Your trip'}
+        right={
+          hasPlan ? (
+            <button
+              onClick={() => nav('/map')}
+              className="press flex items-center gap-1.5 px-3 h-9 rounded-full bg-ink-50 text-ink-800 text-xs font-semibold"
+            >
+              <MapPin className="w-4 h-4" /> Map
+            </button>
+          ) : undefined
+        }
+      />
+
+      {/* Destination tabs */}
+      {hasMultiDest && (
+        <div className="px-5 pb-3">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+            {destinations.map((d, i) => (
+              <motion.button
+                key={d.id}
+                whileTap={{ scale: 0.94 }}
+                onClick={() => { setActiveDestIdx(i); setActiveDay(0); }}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold press transition-colors whitespace-nowrap ${
+                  i === activeDestIdx
+                    ? 'bg-brand-500 text-white shadow-glow'
+                    : 'bg-ink-50 text-ink-700 border border-ink-100'
+                }`}
+              >
+                {d.name.split(',')[0]}
+                <span className={`ml-1.5 text-[10px] ${i === activeDestIdx ? 'text-white/70' : 'text-ink-400'}`}>{d.days}d</span>
+              </motion.button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="px-5 space-y-4">
+
+        {/* Trip summary card */}
+        {hasPlan && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+            className="bg-brand-50 border border-brand-100 rounded-2xl p-4"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="text-xs font-bold tracking-widest text-brand-500">ACTIVE TRIP</div>
+                <div className="font-bold text-ink-900 font-display mt-0.5">
+                  {vibeInfo.icon} {vibeInfo.label} · {itinerary.length} stops
+                </div>
+              </div>
+              <button
+                onClick={() => nav('/generate?edit=1')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-brand-200 text-brand-600 text-xs font-semibold press"
+              >
+                <Pencil className="w-3.5 h-3.5" /> Edit
+              </button>
+            </div>
+            <div className="grid grid-cols-3 text-center bg-white rounded-xl py-2.5">
+              <div>
+                <div className="text-sm font-bold text-ink-900 font-display">
+                  {Math.floor(totalTime / 60)}h {totalTime % 60}m
+                </div>
+                <div className="text-[10px] text-ink-500">Est. Time</div>
+              </div>
+              <div className="border-x border-ink-100">
+                <div className="text-sm font-bold text-ink-900 font-display">{itinerary.length}</div>
+                <div className="text-[10px] text-ink-500">Stops</div>
+              </div>
+              <div>
+                <div className="text-sm font-bold text-brand-600 font-display">{formatCost(totalCost, activeTrip.currency)}</div>
+                <div className="text-[10px] text-ink-500">Est. Cost</div>
+              </div>
+            </div>
+
+            {isNavigating && (
+              <button
+                onClick={() => nav('/navigate')}
+                className="mt-3 w-full flex items-center gap-2 bg-brand-500 rounded-xl px-4 py-2.5 press shadow-glow"
+              >
+                <motion.span
+                  animate={{ scale: [1, 1.3, 1], opacity: [0.8, 0.3, 0.8] }}
+                  transition={{ repeat: Infinity, duration: 1.6 }}
+                  className="block w-2 h-2 rounded-full bg-white shrink-0"
+                />
+                <span className="text-white font-semibold text-sm flex-1 text-left">
+                  Navigating to {itinerary[navIndex]?.name ?? 'stop'}
+                </span>
+                <ChevronRight className="w-4 h-4 text-white/70" />
+              </button>
+            )}
+
+            {!isNavigating && (
+              <button
+                onClick={() => nav('/map')}
+                className="mt-3 w-full h-11 bg-brand-500 text-white font-semibold rounded-xl press shadow-glow flex items-center justify-center gap-2"
+              >
+                <Navigation className="w-4 h-4" /> Start Navigation
+              </button>
+            )}
+          </motion.div>
+        )}
+
+        {/* Empty state */}
+        {!hasPlan && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+            className="text-center py-12 px-4"
+          >
+            <div className="text-5xl mb-3">🗺️</div>
+            <div className="font-bold text-ink-900 font-display text-lg">No plan yet</div>
+            <div className="text-sm text-ink-500 mt-1 mb-6">
+              {activeDest ? `Build your ${activeDest.name.split(',')[0]} itinerary` : 'Start planning your trip'}
+            </div>
+            <div className="grid grid-cols-2 gap-3 max-w-xs mx-auto">
+              <button
+                onClick={() => nav('/generate')}
+                className="h-12 rounded-2xl bg-brand-500 text-white font-bold shadow-glow press flex items-center justify-center gap-2"
+              >
+                <Wand2 className="w-4 h-4" /> AI Plan
+              </button>
+              <button
+                onClick={() => nav('/generate?mode=manual')}
+                className="h-12 rounded-2xl border-2 border-brand-200 text-brand-600 font-bold press flex items-center justify-center gap-2"
+              >
+                <Plus className="w-4 h-4" /> Manual
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Day tabs */}
+        {hasPlan && dayCount > 1 && (
+          <div>
+            <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-2">DAY</div>
+            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+              {Array.from({ length: dayCount }).map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setActiveDay(i)}
+                  className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold press transition-colors ${
+                    activeDay === i
+                      ? 'bg-brand-500 text-white'
+                      : 'bg-ink-50 text-ink-700 border border-ink-100'
+                  }`}
+                >
+                  Day {i + 1}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Stop list */}
+        {hasPlan && (
+          <div>
+            <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-3">
+              {dayCount > 1 ? `DAY ${activeDay + 1} STOPS` : 'STOPS'}
+            </div>
+            <div className="relative">
+              <div className="absolute left-3 top-0 bottom-0 w-px bg-ink-100" />
+              <div className="space-y-3">
+                <AnimatePresence mode="popLayout">
+                  {(dayCount > 1 ? stopsForDay : itinerary).map((p, i) => (
+                    <motion.div
+                      key={p.id}
+                      layout
+                      initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.04 * i }}
+                      className="relative pl-8"
+                    >
+                      <span className="absolute left-0.5 top-4 w-5 h-5 rounded-full bg-brand-500 ring-4 ring-brand-50 flex items-center justify-center z-10">
+                        <span className="text-[8px] text-white font-bold">{i + 1}</span>
+                      </span>
+                      <button
+                        onClick={() => nav('/map')}
+                        className="w-full flex items-center gap-3 bg-white border border-ink-100 rounded-2xl p-3 press hover:border-brand-200 transition-colors text-left"
+                      >
+                        <img src={p.image} alt={p.name} className="w-14 h-14 rounded-xl object-cover shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-ink-900 text-sm truncate">{p.name}</div>
+                          <div className="flex items-center gap-1.5 text-[10px] text-ink-500 mt-0.5">
+                            <Clock className="w-3 h-3 text-brand-500" />
+                            <span className="text-brand-600 font-semibold">{nineColon(i)}</span>
+                            <span className="text-ink-300">·</span>
+                            <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                            <span>{p.rating}</span>
+                          </div>
+                          <div className="text-[10px] text-ink-400 mt-0.5">{p.category} · {p.durationMin} min</div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-xs font-bold text-brand-600">{formatCost(p.cost, activeTrip.currency)}</div>
+                        </div>
+                      </button>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

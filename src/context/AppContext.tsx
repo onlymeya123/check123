@@ -161,7 +161,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [onboardingComplete, setOnboardingComplete] = useState(persisted?.onboardingComplete ?? false);
 
   // Vibe & itinerary
-  const [vibe, setVibe] = useState<Vibe>(persisted?.vibe ?? 'zen');
+  const [vibe, setVibe] = useState<Vibe>(persisted?.vibe ?? 'balanced');
   const [budget, setBudget] = useState<number>(persisted?.budget ?? 500_000);
   const [itinerary, setItinerary] = useState<Place[]>(persisted?.itinerary ?? [
     PLACES[0], PLACES[1], PLACES[2], PLACES[3],
@@ -302,7 +302,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       name: tripName,
       destination: tripDest,
       currency: newDests[0]?.currency ?? 'IDR',
-      budget: data.budget * data.totalDays,
+      budget: data.budget * Math.max(1, data.totalDays),
       daysTotal: data.totalDays,
       daysRemaining: data.totalDays,
       transactions: [],
