@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  ArrowLeft, ArrowDown, Check, GripVertical, Plus, RefreshCw, Wand2, X,
+  ArrowLeft, ArrowDown, Check, Plus, RefreshCw, Wand2, X,
   Clock, Star, DollarSign, Pencil, Search, ChevronUp, ChevronDown, AlertTriangle,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -9,7 +9,7 @@ import StatusBar from '../components/StatusBar';
 import { useApp } from '../context/AppContext';
 import type { Place } from '../data/places';
 import { PLACES } from '../data/places';
-import { formatRp, formatCost } from '../lib/format';
+import { formatCost } from '../lib/format';
 import { useToast } from '../components/Toast';
 import { getCulturalIntel, type CulturalIntel } from '../data/cultural';
 import TimePicker from '../components/TimePicker';
@@ -21,13 +21,21 @@ const STEPS = [
   'Crafting your perfect journey…',
 ];
 
+const VIBE_LABELS: Record<string, string> = {
+  nature: '🌿 Nature',
+  cafe: '☕ Café Hopping',
+  activities: '🎯 Activities',
+  cultural: '🏛️ Cultural',
+  balanced: '⚖️ Balanced',
+};
+
 export default function GeneratePage() {
   const nav = useNavigate();
   const [searchParams] = useSearchParams();
   const isManualMode = searchParams.get('mode') === 'manual';
   const startTimeParam = searchParams.get('startTime'); // e.g. "09:00"
 
-  const { vibe, budget, buildItinerary, setItinerary, itinerary, removeStop, replaceStop, addStop, reorderStop, alternatives, activeTrip } = useApp();
+  const { vibe, buildItinerary, setItinerary, itinerary, removeStop, replaceStop, addStop, reorderStop, alternatives, activeTrip } = useApp();
   const { show } = useToast();
 
   const isEditMode = searchParams.get('edit') === '1';
@@ -163,7 +171,7 @@ export default function GeneratePage() {
           {isManualMode ? 'Build Your Journey' : isPostOnboarding ? 'Review Your Plan' : isEditMode ? 'Edit Journey' : 'Your Journey'}
         </div>
         <div className="text-xs text-brand-600 font-semibold capitalize bg-brand-50 px-2 py-1 rounded-full">
-          {isManualMode ? 'Manual' : isPostOnboarding ? 'AI Generated' : `${vibe} · ${formatRp(budget)}`}
+          {isManualMode ? 'Manual' : isPostOnboarding ? 'AI Generated' : VIBE_LABELS[vibe] ?? vibe}
         </div>
       </div>
 
@@ -800,7 +808,7 @@ function StopCard({
       </div>
 
       <motion.div
-        drag="x" dragConstraints={{ left: -90, right: 0 }} dragElastic={0.15}
+        drag="x" dragConstraints={{ left: -90, right: 0 }} dragElastic={{ left: 0.15, right: 0 }}
         onDrag={(_, info) => setDragX(info.offset.x)}
         onDragEnd={(_, info) => { if (info.offset.x < -55) onRemove(); setDragX(0); }}
         className="relative bg-white rounded-2xl border border-ink-100 p-3 flex items-start gap-2.5 cursor-grab active:cursor-grabbing"
@@ -856,7 +864,6 @@ function StopCard({
             Swap
           </button>
         )}
-        <GripVertical className="w-4 h-4 text-ink-200 shrink-0 self-center" />
       </motion.div>
     </motion.div>
   );
@@ -893,7 +900,7 @@ function CustomPlaceForm({ onAdd }: { onAdd: (p: Place) => void }) {
         </div>
       </div>
       <button disabled={!name.trim()} onClick={() => {
-        onAdd({ id: `custom-${Date.now()}`, name: name.trim(), category: category as import('../data/places').Category, tags: ['Custom'], vibes: ['chill','chaos','zen','luxury'], image: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=800&q=80', cost: Number(cost) || 0, priceRange: { min: Number(cost) || 0, max: Number(cost) || 0 }, durationMin: Number(dur) || 60, distanceKm: 1.0, lat: -8.5055, lng: 115.2620, rating: 0, description: 'Custom stop.', openingHours: 'All day', indoor: true, openHour: 0, closeHour: 24 });
+        onAdd({ id: `custom-${Date.now()}`, name: name.trim(), category: category as import('../data/places').Category, tags: ['Custom'], vibes: ['balanced'], image: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=800&q=80', cost: Number(cost) || 0, priceRange: { min: Number(cost) || 0, max: Number(cost) || 0 }, durationMin: Number(dur) || 60, distanceKm: 1.0, lat: -8.5055, lng: 115.2620, rating: 0, description: 'Custom stop.', openingHours: 'All day', indoor: true, openHour: 0, closeHour: 24 });
       }} className="w-full h-10 rounded-xl bg-brand-500 disabled:bg-ink-300 text-white font-semibold press flex items-center justify-center gap-2">
         <Plus className="w-4 h-4" /> Add Custom Stop
       </button>

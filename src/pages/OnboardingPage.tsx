@@ -24,11 +24,11 @@ type Step =
   | 'generating';
 
 const VIBES: { id: Vibe; label: string; emoji: string; desc: string }[] = [
-  { id: 'chill', label: 'Chill', emoji: '🌴', desc: 'Relaxed beaches & slow mornings' },
-  { id: 'chaos', label: 'Chaos', emoji: '🔥', desc: 'Full days & hidden street food' },
-  { id: 'zen', label: 'Zen', emoji: '🧘', desc: 'Temples, nature & mindful walks' },
-  { id: 'luxury', label: 'Luxury', emoji: '💎', desc: 'Boutique stays & fine dining' },
-  { id: 'balanced', label: 'Balanced', emoji: '⚖️', desc: 'A little of everything — no strong preference' },
+  { id: 'nature', label: 'Nature', emoji: '🌿', desc: 'Outdoors, parks & scenic spots' },
+  { id: 'cafe', label: 'Café Hopping', emoji: '☕', desc: 'Coffee shops, food & cozy hangouts' },
+  { id: 'activities', label: 'Activities', emoji: '🎯', desc: 'Fun, adventure & active experiences' },
+  { id: 'cultural', label: 'Cultural', emoji: '🏛️', desc: 'History, museums & local traditions' },
+  { id: 'balanced', label: 'Balanced', emoji: '⚖️', desc: 'A bit of everything — no strong preference' },
 ];
 
 const INTEREST_OPTIONS = [
@@ -77,7 +77,7 @@ export default function OnboardingPage() {
   const [justToggled, setJustToggled] = useState(false);
 
   // Onboarding state
-  const [selectedVibe, setSelectedVibe] = useState<Vibe>('zen');
+  const [selectedVibe, setSelectedVibe] = useState<Vibe>('balanced');
   const [destInput, setDestInput] = useState('');
   const [destList, setDestList] = useState<{ name: string; days: number }[]>([]);
   const [startDate, setStartDate] = useState<Date | null>(null);
@@ -103,11 +103,6 @@ export default function OnboardingPage() {
   const currencySymbol = CURRENCY_SYMBOLS[budgetCurrency];
   const toLocalBudget = (idrAmount: number) => Math.round(idrAmount / CURRENCY_RATES_TO_IDR[budgetCurrency]);
   const fromLocalBudget = (local: number) => Math.round(local * CURRENCY_RATES_TO_IDR[budgetCurrency]);
-  // Budget presets in local currency
-  const budgetPresets = useMemo(() => {
-    const base = budgetCurrency === 'IDR' ? [150_000, 300_000, 600_000] : budgetCurrency === 'JPY' ? [1500, 3000, 6000] : [10, 25, 50];
-    return base.map((v) => fromLocalBudget(v));
-  }, [budgetCurrency]);
   const budgetMin = fromLocalBudget(budgetCurrency === 'IDR' ? 50_000 : budgetCurrency === 'JPY' ? 500 : 5);
   const budgetMax = fromLocalBudget(budgetCurrency === 'IDR' ? 1_000_000 : budgetCurrency === 'JPY' ? 20_000 : 100);
   const fmtBudget = (n: number) => {
@@ -144,7 +139,7 @@ export default function OnboardingPage() {
         completeOnboarding({
           name: name || email.split('@')[0],
           email,
-          vibe: 'zen',
+          vibe: 'balanced',
           destinations: [{ name: 'My Destination', days: 3 }],
           totalDays: 3,
           budget: 500_000,
@@ -223,7 +218,6 @@ export default function OnboardingPage() {
     });
   };
 
-  const sliderPct = Math.max(0, Math.min(100, ((budget - budgetMin) / (budgetMax - budgetMin)) * 100));
 
   const slideVariants = {
     enter: { x: 40, opacity: 0 },
@@ -637,50 +631,44 @@ export default function OnboardingPage() {
               {/* BUDGET */}
               {step === 'budget' && (
                 <>
-                  {/* Issue 3: currency-aware title */}
-                  <StepTitle title="What's your daily budget?" subtitle={`Per stop · shown in ${budgetCurrency} (${currencySymbol})`} />
-                  <div className="mt-6">
-                    <div className="text-center mb-6">
-                      <div className="text-4xl font-extrabold text-brand-600 font-display">{fmtBudget(budget)}</div>
-                      <div className="text-xs text-ink-500 mt-1">per stop</div>
-                    </div>
-                    <input
-                      type="range" min={budgetMin} max={budgetMax} step={Math.round((budgetMax - budgetMin) / 100)}
-                      value={budget}
-                      onChange={(e) => setBudget(Number(e.target.value))}
-                      className="vibe-slider w-full"
-                      style={{ ['--val' as any]: `${sliderPct}%` }}
-                    />
-                    <div className="flex justify-between text-xs text-ink-500 mt-1">
-                      <span>{fmtBudget(budgetMin)}</span>
-                      <span>{fmtBudget(budgetMax)}+</span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 mt-5">
-                      {budgetPresets.map((v) => (
-                        <button
-                          key={v}
-                          onClick={() => setBudget(v)}
-                          className={`py-2 rounded-xl text-xs font-semibold press transition-colors border ${budget === v ? 'bg-brand-500 text-white border-brand-500' : 'bg-ink-50 text-ink-700 border-ink-100'}`}
-                        >
-                          {fmtBudget(v)}
-                        </button>
-                      ))}
-                    </div>
-                    {/* Issue 4: wallet budget preview */}
+                  <StepTitle title="What's your daily budget?" subtitle={`Per day · shown in ${budgetCurrency} (${currencySymbol})`} />
+                  <div className="mt-6 space-y-3">
+                    {[
+                      { label: 'Budget', desc: `${fmtBudget(budgetMin)} – ${fmtBudget(Math.round(budgetMax * 0.3))}/day`, value: Math.round((budgetMin + budgetMax * 0.3) / 2) },
+                      { label: 'Mid-range', desc: `${fmtBudget(Math.round(budgetMax * 0.3))} – ${fmtBudget(Math.round(budgetMax * 0.6))}/day`, value: Math.round(budgetMax * 0.45) },
+                      { label: 'Comfortable', desc: `${fmtBudget(Math.round(budgetMax * 0.6))} – ${fmtBudget(budgetMax)}/day`, value: Math.round(budgetMax * 0.8) },
+                      { label: 'No limit', desc: `${fmtBudget(budgetMax)}+/day`, value: budgetMax },
+                    ].map((opt) => (
+                      <button
+                        key={opt.label}
+                        onClick={() => setBudget(opt.value)}
+                        className={`w-full flex items-center justify-between px-4 py-3.5 rounded-2xl border-2 press transition-colors ${budget === opt.value ? 'border-brand-500 bg-brand-50' : 'border-ink-100 bg-white'}`}
+                      >
+                        <div className="text-left">
+                          <div className={`font-bold text-sm ${budget === opt.value ? 'text-brand-700' : 'text-ink-900'}`}>{opt.label}</div>
+                          <div className="text-xs text-ink-500 mt-0.5">{opt.desc}</div>
+                        </div>
+                        {budget === opt.value && (
+                          <div className="w-5 h-5 rounded-full bg-brand-500 flex items-center justify-center shrink-0">
+                            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 12 12"><path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                          </div>
+                        )}
+                      </button>
+                    ))}
                     {totalDays > 1 && (
-                      <div className="mt-4 flex items-center gap-3 bg-brand-50 border border-brand-100 rounded-2xl p-3">
+                      <div className="mt-2 flex items-center gap-3 bg-brand-50 border border-brand-100 rounded-2xl p-3">
                         <span className="text-xl shrink-0">💰</span>
                         <div className="flex-1 min-w-0">
                           <div className="text-xs text-ink-500">Est. total trip budget</div>
-                          <div className="font-bold text-brand-700 text-sm">{fmtBudget(budget * 3 * totalDays)}</div>
-                          <div className="text-[10px] text-ink-400">~3 stops/day × {totalDays} day{totalDays !== 1 ? 's' : ''}</div>
+                          <div className="font-bold text-brand-700 text-sm">{fmtBudget(budget * totalDays)}</div>
+                          <div className="text-[10px] text-ink-400">{totalDays} day{totalDays !== 1 ? 's' : ''}</div>
                         </div>
                       </div>
                     )}
-                    <div className="mt-4 flex items-start gap-2.5 bg-ink-50 rounded-2xl p-3">
+                    <div className="flex items-start gap-2.5 bg-ink-50 rounded-2xl p-3">
                       <span className="text-lg shrink-0">💡</span>
                       <p className="text-xs text-ink-600 leading-relaxed">
-                        Budget covers entry fees, food, and activities. Transport is extra. We'll always show you free alternatives.
+                        Budget covers entry fees, food, and activities per day. Transport is extra. We'll always show you free alternatives.
                       </p>
                     </div>
                   </div>
@@ -829,7 +817,7 @@ export default function OnboardingPage() {
                 </div>
               </div>
               <div className="text-white/70 text-xs mt-1">
-                {selectedVibe.charAt(0).toUpperCase() + selectedVibe.slice(1)} vibes · {totalDays} day{totalDays !== 1 ? 's' : ''}
+                {VIBES.find((v) => v.id === selectedVibe)?.label ?? selectedVibe} vibes · {totalDays} day{totalDays !== 1 ? 's' : ''}
               </div>
             </div>
             {/* Loading body — same pattern as GeneratePage */}

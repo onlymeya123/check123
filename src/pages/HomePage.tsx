@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Search, SlidersHorizontal, Wand2, CloudSun, Bookmark, Palmtree, Flame,
-  Diamond, Wind, X, Star, MapPin, Clock, Pencil, Scale,
+  Search, SlidersHorizontal, Wand2, CloudSun, Bookmark,
+  X, Star, MapPin, Clock, Pencil,
   ChevronRight, DollarSign, Plus, Navigation, RefreshCw,
   ArrowRight, Compass, Trash2, Zap, Link2, AlertTriangle, CalendarDays,
 } from 'lucide-react';
@@ -19,10 +19,10 @@ import { formatCurrencyAmount } from '../data/wallet';
 import TimePicker from '../components/TimePicker';
 
 const VIBES: { id: Vibe; label: string; icon: string; tint: string }[] = [
-  { id: 'chill', label: 'Chill', icon: '🌴', tint: '#10B981' },
-  { id: 'chaos', label: 'Chaos', icon: '🔥', tint: '#F97316' },
-  { id: 'zen', label: 'Zen', icon: '🧘', tint: '#3B5BFF' },
-  { id: 'luxury', label: 'Luxury', icon: '💎', tint: '#A855F7' },
+  { id: 'nature', label: 'Nature', icon: '🌿', tint: '#10B981' },
+  { id: 'cafe', label: 'Café Hopping', icon: '☕', tint: '#F97316' },
+  { id: 'activities', label: 'Activities', icon: '🎯', tint: '#3B5BFF' },
+  { id: 'cultural', label: 'Cultural', icon: '🏛️', tint: '#A855F7' },
   { id: 'balanced', label: 'Balanced', icon: '⚖️', tint: '#6B7280' },
 ];
 
@@ -344,10 +344,11 @@ export default function HomePage() {
           </div>
           <div className="w-px h-10 bg-ink-200/60 shrink-0" />
           <div className="flex-1 min-w-0">
-            <div className="text-[10px] font-bold tracking-widest text-brand-500">TODAY'S VIBE</div>
-            <div className="text-ink-900 font-bold leading-snug font-display">Hidden Treasures kind of day ✨</div>
-            <div className="text-xs text-ink-500 mt-0.5">3 spots near you · Est. {formatCost(120000, activeTrip.currency)}</div>
-            <div className="text-[9px] text-ink-400 mt-0.5 italic">Sample preview</div>
+            <div className="text-[10px] font-bold tracking-widest text-brand-500">TODAY'S PLAN</div>
+            <div className="text-ink-900 font-bold leading-snug font-display">
+              {VIBES.find((v) => v.id === vibe)?.icon} {VIBES.find((v) => v.id === vibe)?.label} day ✨
+            </div>
+            <div className="text-xs text-ink-500 mt-0.5">Budget · {formatCost(budget, activeTrip.currency)}/day</div>
           </div>
           <div className="shrink-0 text-right">
             <div className="text-[10px] text-ink-400">Humidity</div>
@@ -536,14 +537,9 @@ export default function HomePage() {
               onClick={() => setVibeSheet(true)}
               className="flex items-center gap-1 bg-brand-50 text-brand-600 text-[11px] font-semibold px-2 py-0.5 rounded-full border border-brand-100 press"
             >
-              {VIBES.find((v) => v.id === vibe)?.icon} {VIBES.find((v) => v.id === vibe)?.label} Plan ✏️
+              {VIBES.find((v) => v.id === vibe)?.icon} {VIBES.find((v) => v.id === vibe)?.label} ✏️
             </button>
           </div>
-          {hasTodayPlan && (
-            <button className="text-xs text-brand-600 font-semibold press" onClick={() => nav('/map')}>
-              View on map ›
-            </button>
-          )}
         </div>
 
         {/* ── CASE A: Has today's plan ── */}
@@ -987,7 +983,7 @@ export default function HomePage() {
                 <div className="grid grid-cols-2 gap-2 px-3 pb-3">
                   <button
                     onClick={() => {
-                      const place: Place = { id: `social-${Date.now()}`, name: socialResult!.name, category: 'Hidden Gem', tags: ['Social Import'], vibes: ['chill','chaos','zen','luxury'], image: socialResult!.image, cost: socialResult!.cost, priceRange: { min: socialResult!.cost, max: socialResult!.cost }, durationMin: 60, distanceKm: 1.0, lat: -8.5055, lng: 115.2620, rating: 4.5, description: socialResult!.desc, openingHours: 'All day', indoor: false, openHour: 0, closeHour: 24 };
+                      const place: Place = { id: `social-${Date.now()}`, name: socialResult!.name, category: 'Hidden Gem', tags: ['Social Import'], vibes: ['nature','cafe','activities','cultural'], image: socialResult!.image, cost: socialResult!.cost, priceRange: { min: socialResult!.cost, max: socialResult!.cost }, durationMin: 60, distanceKm: 1.0, lat: -8.5055, lng: 115.2620, rating: 4.5, description: socialResult!.desc, openingHours: 'All day', indoor: false, openHour: 0, closeHour: 24 };
                       addStop(place);
                       show(`${socialResult!.name} added to plan`, 'success');
                       setSocialResult(null);
@@ -1000,7 +996,7 @@ export default function HomePage() {
                   </button>
                   <button
                     onClick={() => {
-                      const place: Place = { id: `social-${Date.now()}`, name: socialResult!.name, category: 'Hidden Gem', tags: ['Social Import'], vibes: ['chill','chaos','zen','luxury'], image: socialResult!.image, cost: socialResult!.cost, priceRange: { min: socialResult!.cost, max: socialResult!.cost }, durationMin: 60, distanceKm: 1.0, lat: -8.5055, lng: 115.2620, rating: 4.5, description: socialResult!.desc, openingHours: 'All day', indoor: false, openHour: 0, closeHour: 24 };
+                      const place: Place = { id: `social-${Date.now()}`, name: socialResult!.name, category: 'Hidden Gem', tags: ['Social Import'], vibes: ['nature','cafe','activities','cultural'], image: socialResult!.image, cost: socialResult!.cost, priceRange: { min: socialResult!.cost, max: socialResult!.cost }, durationMin: 60, distanceKm: 1.0, lat: -8.5055, lng: 115.2620, rating: 4.5, description: socialResult!.desc, openingHours: 'All day', indoor: false, openHour: 0, closeHour: 24 };
                       savePlace(place);
                       show(`${socialResult!.name} saved for later`, 'success');
                       setSocialResult(null);
@@ -1142,7 +1138,6 @@ export default function HomePage() {
                   <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-2">VIBE</div>
                   <div className="grid grid-cols-5 gap-1.5">
                     {VIBES.map((v) => {
-                      const Icon = v.id === 'chill' ? Palmtree : v.id === 'chaos' ? Flame : v.id === 'zen' ? Wind : v.id === 'balanced' ? Scale : Diamond;
                       const active = intentVibe === v.id;
                       return (
                         <button
@@ -1150,8 +1145,8 @@ export default function HomePage() {
                           onClick={() => setIntentVibe(v.id)}
                           className={`aspect-square rounded-2xl flex flex-col items-center justify-center gap-1 border-2 press transition-colors ${active ? 'border-brand-500 bg-brand-50' : 'border-ink-100 bg-white'}`}
                         >
-                          <Icon className="w-6 h-6" style={{ color: active ? '#3B5BFF' : v.tint }} strokeWidth={2.2} />
-                          <span className={`text-[10px] font-semibold ${active ? 'text-brand-600' : 'text-ink-700'}`}>{v.label}</span>
+                          <span className="text-xl leading-none">{v.icon}</span>
+                          <span className={`text-[8px] font-semibold leading-tight text-center ${active ? 'text-brand-600' : 'text-ink-700'}`}>{v.label}</span>
                         </button>
                       );
                     })}
@@ -1161,7 +1156,7 @@ export default function HomePage() {
                 {/* Budget */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <div className="text-[10px] font-bold tracking-widest text-ink-500">BUDGET <span className="font-normal normal-case tracking-normal text-ink-400">(per stop)</span></div>
+                    <div className="text-[10px] font-bold tracking-widest text-ink-500">BUDGET <span className="font-normal normal-case tracking-normal text-ink-400">(per day)</span></div>
                     <div className="text-sm font-bold text-brand-600">{formatCost(intentBudget ?? budget, activeTrip.currency)}</div>
                   </div>
                   <input
@@ -1399,7 +1394,6 @@ export default function HomePage() {
                   <div className="grid grid-cols-5 gap-1.5">
                     {VIBES.map((v) => {
                       const active = v.id === vibe;
-                      const Icon = v.id === 'chill' ? Palmtree : v.id === 'chaos' ? Flame : v.id === 'zen' ? Wind : v.id === 'balanced' ? Scale : Diamond;
                       return (
                         <motion.button
                           key={v.id}
@@ -1408,15 +1402,15 @@ export default function HomePage() {
                           animate={{ scale: active ? 1.04 : 1 }}
                           className={`relative aspect-square rounded-2xl flex flex-col items-center justify-center gap-1 border-2 transition-colors ${active ? 'border-brand-500 bg-brand-50' : 'border-ink-100 bg-white'}`}
                         >
-                          <Icon className="w-7 h-7" style={{ color: active ? '#3B5BFF' : v.tint }} strokeWidth={2.2} />
-                          <span className={`text-xs font-semibold ${active ? 'text-brand-600' : 'text-ink-700'}`}>{v.label}</span>
+                          <span className="text-2xl leading-none">{v.icon}</span>
+                          <span className={`text-[9px] font-semibold leading-tight text-center ${active ? 'text-brand-600' : 'text-ink-700'}`}>{v.label}</span>
                         </motion.button>
                       );
                     })}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-2">BUDGET <span className="font-normal normal-case tracking-normal text-ink-400">(per stop)</span></div>
+                  <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-2">BUDGET <span className="font-normal normal-case tracking-normal text-ink-400">(per day)</span></div>
                   <input
                     type="range" min={50_000} max={1_000_000} step={10_000}
                     value={budget} onChange={(e) => { setBudget(Number(e.target.value)); if (itinerary.length > 0) setVibeChangedPrompt(true); }}
