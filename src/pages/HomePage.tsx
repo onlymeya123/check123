@@ -156,7 +156,6 @@ export default function HomePage() {
   const todayStops = perDayItineraries.length > 0 ? (perDayItineraries[0] ?? []) : itinerary;
   const PREVIEW_COUNT = 2;
   const previewStops = todayStops.slice(0, PREVIEW_COUNT);
-  const hasMore = todayStops.length > PREVIEW_COUNT;
   const hasTodayPlan = todayStops.length > 0;
   const activeDest = destinations[activeDestIdx];
   const nextDest = destinations[activeDestIdx + 1];
@@ -352,7 +351,7 @@ export default function HomePage() {
           </div>
           <div className="w-px h-10 bg-ink-200/60 shrink-0" />
           <div className="flex-1 min-w-0">
-            <div className="text-[10px] font-bold tracking-widest text-brand-500">TODAY'S PLAN</div>
+            <div className="text-[10px] font-bold tracking-widest text-brand-500">TODAY'S VIBE</div>
             <div className="text-ink-900 font-bold leading-snug font-display">
               {VIBES.find((v) => v.id === vibe)?.icon} {VIBES.find((v) => v.id === vibe)?.label} day ✨
             </div>
@@ -498,7 +497,7 @@ export default function HomePage() {
       <div className="px-5 mt-5">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold tracking-widest text-ink-500">TODAY'S PLAN{todayStops.length > 0 ? ` · ${todayStops.length} STOPS` : ''}</span>
+            <span className="text-[11px] font-bold tracking-widest text-ink-500">MY PLAN{todayStops.length > 0 ? ` · ${todayStops.length} STOPS` : ''}</span>
             <button
               onClick={() => setVibeSheet(true)}
               className="flex items-center gap-1 bg-brand-50 text-brand-600 text-[11px] font-semibold px-2 py-0.5 rounded-full border border-brand-100 press"
@@ -608,7 +607,7 @@ export default function HomePage() {
                 onClick={() => nav('/trips')}
                 className="w-full h-10 rounded-2xl bg-brand-50 border border-brand-100 text-brand-600 font-semibold text-sm press flex items-center justify-center gap-1.5"
               >
-                {hasMore ? `View all ${todayStops.length} stops` : 'Open in My Plan'}
+                Open My Plan
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
@@ -759,54 +758,51 @@ export default function HomePage() {
         )}
       </AnimatePresence>
 
-      {/* CTA — Generate options */}
-      <div className="px-5 mt-5">
-        <div className="grid grid-cols-2 gap-3">
+      {/* CTA — Generate options (only when a plan exists; the no-plan state has its own primary CTA above) */}
+      {hasTodayPlan && (
+        <div className="px-5 mt-5 space-y-3">
+          {/* Primary: AI plan — recommended */}
           <motion.button
-            whileTap={{ scale: 0.96 }} whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.97 }}
             onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentEndDate(''); setIntentStartTime('09:00'); setIntentEndTimeSet(false); setIntentErrors({}); setIntentSheet('ai'); }}
-            className="rounded-2xl p-4 text-left flex flex-col gap-2 press bg-brand-500 shadow-glow"
+            className="relative w-full rounded-2xl p-4 text-left flex items-center gap-3 press bg-brand-500 shadow-glow"
           >
-            <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
               <MascotIcon src="/icon-ai-generate.svg" fallback={<Wand2 className="w-5 h-5 text-white" />} />
             </div>
-            <div>
-              <div className="font-bold text-white text-sm font-display leading-tight">AI Generate</div>
-              <div className="text-[11px] text-white/75 mt-0.5 leading-tight">Let Buddy plan it</div>
+            <div className="flex-1 min-w-0">
+              <div className="font-bold text-white text-sm font-display leading-tight">Add another with AI ✨</div>
+              <div className="text-[11px] text-white/75 mt-0.5 leading-tight">Let Buddy plan it for you</div>
             </div>
+            <span className="absolute top-2 right-2 text-[9px] font-bold text-brand-600 bg-white px-1.5 py-0.5 rounded-full uppercase tracking-wider">Recommended</span>
+            <ChevronRight className="w-4 h-4 text-white/80 shrink-0" />
           </motion.button>
 
-          <motion.button
-            whileTap={{ scale: 0.96 }} whileHover={{ scale: 1.01 }}
+          {/* Secondary: manual escape hatch */}
+          <button
             onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentEndDate(''); setIntentStartTime('09:00'); setIntentEndTimeSet(false); setIntentErrors({}); setIntentSheet('manual'); }}
-            className="rounded-2xl p-4 text-left flex flex-col gap-2 press bg-white border-2 border-brand-200 hover:border-brand-400 transition-colors"
+            className="w-full text-center text-sm text-brand-600 font-semibold press flex items-center justify-center gap-1"
           >
-            <div className="w-9 h-9 rounded-xl bg-brand-50 flex items-center justify-center">
-              <MascotIcon src="/icon-plan-manually.svg" fallback={<Pencil className="w-5 h-5 text-brand-600" />} />
-            </div>
-            <div>
-              <div className="font-bold text-ink-900 text-sm font-display leading-tight">Plan Manually</div>
-              <div className="text-[11px] text-ink-500 mt-0.5 leading-tight">Your way, your stops</div>
-            </div>
-          </motion.button>
+            or build it stop by stop <ArrowRight className="w-3.5 h-3.5" />
+          </button>
 
-          {/* Quick Plan card — calm secondary action */}
+          {/* Short outing — trim existing plan to short window */}
           <motion.button
-            whileTap={{ scale: 0.96 }}
+            whileTap={{ scale: 0.97 }}
             onClick={() => setQuickPlanSheet(true)}
-            className="col-span-2 rounded-2xl p-4 text-left flex items-center gap-3 press bg-ink-50 border border-ink-100 hover:border-brand-200 transition-colors"
+            className="w-full rounded-2xl p-4 text-left flex items-center gap-3 press bg-ink-50 border border-ink-100 hover:border-brand-200 transition-colors"
           >
             <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center shrink-0 border border-ink-100">
               <Zap className="w-5 h-5 text-amber-500" />
             </div>
             <div className="flex-1">
-              <div className="font-bold text-ink-900 text-sm font-display leading-tight">Quick Plan</div>
-              <div className="text-[11px] text-ink-500 mt-0.5 leading-tight">2h or 4h · Go now</div>
+              <div className="font-bold text-ink-900 text-sm font-display leading-tight">Short outing</div>
+              <div className="text-[11px] text-ink-500 mt-0.5 leading-tight">Trim today's plan to a 2h or 4h window</div>
             </div>
             <ChevronRight className="w-4 h-4 text-ink-400" />
           </motion.button>
         </div>
-      </div>
+      )}
 
       {/* Saved Places */}
       <AnimatePresence>

@@ -456,7 +456,7 @@ export default function GeneratePage() {
             {manualStops.length > 0 && (
               <div className="mx-5 mb-2 p-3 rounded-2xl bg-brand-600 text-white shrink-0 flex items-center justify-between">
                 <div>
-                  <div className="text-xs font-semibold opacity-80">Your Plan</div>
+                  <div className="text-xs font-semibold opacity-80">Itinerary</div>
                   <div className="text-sm font-bold">{manualStops.length} stops · {formatCost(totals.cost, activeTrip.currency)}</div>
                 </div>
                 <button onClick={importAi} className="text-xs font-semibold press flex items-center gap-1 bg-white/20 rounded-full px-3 py-1.5">
@@ -467,11 +467,11 @@ export default function GeneratePage() {
 
             <div className="flex-1 overflow-y-auto no-scrollbar px-5 pb-28">
 
-              {/* ── YOUR PLAN (TOP PRIORITY) ── */}
+              {/* ── ITINERARY (TOP PRIORITY) ── */}
               {manualStops.length > 0 && (
                 <>
                   <div className="flex items-center justify-between mb-2 mt-1">
-                    <span className="text-[11px] font-bold tracking-widest text-ink-500">YOUR PLAN · {manualStops.length} STOPS</span>
+                    <span className="text-[11px] font-bold tracking-widest text-ink-500">ITINERARY · {manualStops.length} STOPS</span>
                     <span className="text-[11px] text-ink-400">← swipe to remove</span>
                   </div>
                   <div className="space-y-0 mb-4">

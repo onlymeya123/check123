@@ -142,12 +142,14 @@ export default function MapPage() {
           ? `${destinations[activeDestIdx]?.name ?? 'My Trip'} · ${activeItinerary.length} stops`
           : `${activeItinerary.length} stop${activeItinerary.length !== 1 ? 's' : ''}`}
         right={
-          <button
-            onClick={() => setView(view === 'map' ? 'list' : 'map')}
-            className="press flex items-center gap-1.5 px-3 h-9 rounded-full bg-ink-50 text-ink-800 text-xs font-semibold"
-          >
-            <List className="w-4 h-4" /> {view === 'map' ? 'List' : 'Map'}
-          </button>
+          activeItinerary.length > 0 ? (
+            <button
+              onClick={() => setView(view === 'map' ? 'list' : 'map')}
+              className="press flex items-center gap-1.5 px-3 h-9 rounded-full bg-ink-50 text-ink-800 text-xs font-semibold"
+            >
+              <List className="w-4 h-4" /> {view === 'map' ? 'List' : 'Map'}
+            </button>
+          ) : undefined
         }
       />
 
@@ -179,7 +181,16 @@ export default function MapPage() {
         </div>
       )}
 
-      {view === 'map' ? (
+      {activeItinerary.length === 0 ? (
+        <div className="flex-1 overflow-y-auto px-5 pb-40 no-scrollbar">
+          <EmptyDestState
+            destName={destinations[activeDestIdx]?.name.split(',')[0] ?? 'this destination'}
+            onAiGenerate={() => openIntentSheet('ai')}
+            onManual={() => openIntentSheet('manual')}
+            inline
+          />
+        </div>
+      ) : view === 'map' ? (
         <div className="flex-1 relative overflow-hidden">
           <AnimatePresence mode="wait">
             <motion.div
@@ -200,28 +211,11 @@ export default function MapPage() {
             </button>
           </div>
 
-          {activeItinerary.length === 0 ? (
-            <EmptyDestState
-              destName={destinations[activeDestIdx]?.name.split(',')[0] ?? 'this destination'}
-              onAiGenerate={() => openIntentSheet('ai')}
-              onManual={() => openIntentSheet('manual')}
-            />
-          ) : (
-            <ItineraryBottomSheet itinerary={activeItinerary} totals={totals} onStart={startNavigation} onRemove={handleRemoveStop} onEdit={() => nav('/generate?edit=1')} currency={activeTrip.currency} />
-          )}
+          <ItineraryBottomSheet itinerary={activeItinerary} totals={totals} onStart={startNavigation} onRemove={handleRemoveStop} onEdit={() => nav('/generate?edit=1')} currency={activeTrip.currency} />
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto px-5 pb-40 no-scrollbar">
-          {activeItinerary.length === 0 ? (
-            <EmptyDestState
-              destName={destinations[activeDestIdx]?.name.split(',')[0] ?? 'this destination'}
-              onAiGenerate={() => openIntentSheet('ai')}
-              onManual={() => openIntentSheet('manual')}
-              inline
-            />
-          ) : (
-            <ListView itinerary={activeItinerary} onStart={startNavigation} totals={totals} onPin={setSelected} onRemove={handleRemoveStop} onEdit={() => nav('/generate?edit=1')} currency={activeTrip.currency} />
-          )}
+          <ListView itinerary={activeItinerary} onStart={startNavigation} totals={totals} onPin={setSelected} onRemove={handleRemoveStop} onEdit={() => nav('/generate?edit=1')} currency={activeTrip.currency} />
         </div>
       )}
 
