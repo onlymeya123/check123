@@ -262,10 +262,15 @@ export default function WalletPage() {
       )}
 
       {/* Quick Actions */}
-      <div className={`grid gap-2 px-5 mt-4 ${(isNavigating || tripCompleted) ? 'grid-cols-3' : 'grid-cols-4'}`}>
-        {!isNavigating && !tripCompleted && <QuickBtn icon={<Plus />} label="Add Expense" onClick={() => setSheet('addExpense')} />}
-        <QuickBtn icon={<Users />} label="Split Bill" onClick={() => !tripCompleted && setSheet('splitBill')} highlight={!tripCompleted} />
-        <QuickBtn icon={<Scan />} label="Scan" onClick={() => !tripCompleted && setSheet('scan')} />
+      <div className="grid gap-2 px-5 mt-4 grid-cols-4">
+        <QuickBtn
+          icon={<Plus />}
+          label="Add Expense"
+          onClick={() => !isNavigating && !tripCompleted && setSheet('addExpense')}
+          disabled={isNavigating || tripCompleted}
+        />
+        <QuickBtn icon={<Users />} label="Split Bill" onClick={() => !tripCompleted && setSheet('splitBill')} highlight={!tripCompleted} disabled={tripCompleted} />
+        <QuickBtn icon={<Scan />} label="Scan" onClick={() => !tripCompleted && setSheet('scan')} disabled={tripCompleted} />
         <QuickBtn icon={<Clock />} label="History" onClick={() => setSheet('history')} />
       </div>
       {(isNavigating || tripCompleted) && (
@@ -492,10 +497,14 @@ export default function WalletPage() {
 
 /* ----------------------------------------- */
 
-function QuickBtn({ icon, label, onClick, highlight }: { icon: React.ReactNode; label: string; onClick?: () => void; highlight?: boolean }) {
+function QuickBtn({ icon, label, onClick, highlight, disabled }: { icon: React.ReactNode; label: string; onClick?: () => void; highlight?: boolean; disabled?: boolean }) {
   return (
-    <button onClick={onClick} className="press flex flex-col items-center gap-1 py-3 rounded-2xl bg-white border border-ink-100 hover:border-brand-300 transition-colors">
-      <span className={`w-10 h-10 rounded-full flex items-center justify-center ${highlight ? 'bg-brand-500 text-white shadow-glow' : 'bg-brand-50 text-brand-600'}`}>{icon}</span>
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`flex flex-col items-center gap-1 py-3 rounded-2xl bg-white border border-ink-100 transition-colors ${disabled ? 'opacity-40 cursor-default' : 'press hover:border-brand-300'}`}
+    >
+      <span className={`w-10 h-10 rounded-full flex items-center justify-center ${highlight && !disabled ? 'bg-brand-500 text-white shadow-glow' : 'bg-brand-50 text-brand-600'}`}>{icon}</span>
       <span className="text-[10px] font-semibold text-ink-800 text-center leading-tight px-1">{label}</span>
     </button>
   );

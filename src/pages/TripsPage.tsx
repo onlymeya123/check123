@@ -188,19 +188,28 @@ export default function TripsPage() {
           <div>
             <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-2">DAY</div>
             <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-              {Array.from({ length: dayCount }).map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setActiveDay(i)}
-                  className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold press transition-colors ${
-                    activeDay === i
-                      ? 'bg-brand-500 text-white'
-                      : 'bg-ink-50 text-ink-700 border border-ink-100'
-                  }`}
-                >
-                  Day {i + 1}
-                </button>
-              ))}
+              {Array.from({ length: dayCount }).map((_, i) => {
+                const isFirst = i === 0;
+                const isLast = i === dayCount - 1;
+                const label = isFirst
+                  ? `Day 1 · Arrival`
+                  : isLast
+                    ? `Day ${i + 1} · Departure`
+                    : `Day ${i + 1}`;
+                return (
+                  <button
+                    key={i}
+                    onClick={() => setActiveDay(i)}
+                    className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold press transition-colors ${
+                      activeDay === i
+                        ? 'bg-brand-500 text-white'
+                        : 'bg-ink-50 text-ink-700 border border-ink-100'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}

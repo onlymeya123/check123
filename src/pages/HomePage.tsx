@@ -112,7 +112,6 @@ export default function HomePage() {
   // Issue 30: manage destinations sheet
   const [manageDestsSheet, setManageDestsSheet] = useState(false);
   // Route strip view toggle
-  const [routeView, setRouteView] = useState<'destinations' | 'timeline'>('destinations');
   // Currency banner
   const [showCurrencyBanner, setShowCurrencyBanner] = useState(false);
   const [currencyBannerDest, setCurrencyBannerDest] = useState('');
@@ -390,19 +389,7 @@ export default function HomePage() {
         <div className="px-5 mt-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[10px] font-bold tracking-widest text-ink-500">YOUR ROUTE</span>
-            <div className="flex items-center gap-2">
-              {/* View toggle */}
-              <div className="flex items-center bg-ink-50 rounded-lg p-0.5">
-                <button
-                  onClick={() => setRouteView('destinations')}
-                  className={`px-2 py-1 rounded-md text-[10px] font-semibold press transition-colors ${routeView === 'destinations' ? 'bg-white text-ink-900 shadow-soft' : 'text-ink-500'}`}
-                >Destinations</button>
-                <button
-                  onClick={() => setRouteView('timeline')}
-                  className={`px-2 py-1 rounded-md text-[10px] font-semibold press transition-colors ${routeView === 'timeline' ? 'bg-white text-ink-900 shadow-soft' : 'text-ink-500'}`}
-                >Timeline</button>
-              </div>
-              {/* Issue 30: manage destinations */}
+            <div className="flex items-center gap-3">
               <button onClick={() => setManageDestsSheet(true)} className="text-xs text-ink-500 font-semibold press">Manage</button>
               <button
                 onClick={() => setAddDestSheet(true)}
@@ -413,64 +400,34 @@ export default function HomePage() {
             </div>
           </div>
 
-          {routeView === 'destinations' && (
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
-              {destinations.map((d, i) => (
-                <div key={d.id} className="flex items-center gap-1 shrink-0">
-                  <button
-                    onClick={() => setActiveDestIdx(i)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold press transition-colors whitespace-nowrap ${
-                      i === activeDestIdx
-                        ? 'bg-brand-500 text-white shadow-glow'
-                        : 'bg-ink-50 text-ink-700 border border-ink-100'
-                    }`}
-                  >
-                    {i === activeDestIdx && <span className="w-1.5 h-1.5 rounded-full bg-white/80" />}
-                    {d.name.split(',')[0]}
-                    <span className={`text-[10px] ${i === activeDestIdx ? 'text-white/70' : 'text-ink-400'}`}>{d.days}d</span>
-                    {d.visaNote && <span className="text-[10px]">⚠️</span>}
-                  </button>
-                  {i < destinations.length - 1 && (
-                    <ArrowRight className="w-3 h-3 text-ink-300 shrink-0" />
-                  )}
-                </div>
-              ))}
-              <button
-                onClick={() => setAddDestSheet(true)}
-                className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-full border border-dashed border-brand-300 text-brand-500 text-xs font-semibold press"
-              >
-                <Plus className="w-3 h-3" />
-              </button>
-            </div>
-          )}
-
-          {routeView === 'timeline' && (
-            <div className="space-y-1">
-              {destinations.map((d, i) => (
-                <div key={d.id}>
-                  <button
-                    onClick={() => setActiveDestIdx(i)}
-                    className={`w-full flex items-start gap-3 p-2.5 rounded-xl press transition-colors ${i === activeDestIdx ? 'bg-brand-50 border border-brand-100' : 'bg-ink-50 border border-ink-100'}`}
-                  >
-                    <div className="text-left flex-1 min-w-0">
-                      <div className={`font-semibold text-sm ${i === activeDestIdx ? 'text-brand-700' : 'text-ink-900'}`}>{d.name.split(',')[0]}</div>
-                      <div className="text-xs text-ink-500 mt-0.5">
-                        {d.arriveDate ? d.arriveDate : `Day ${i + 1}`}
-                        {d.arriveDate && d.departDate ? ` → ${d.departDate}` : ` · ${d.days}d`}
-                      </div>
-                    </div>
-                    {d.visaNote && <span className="text-xs shrink-0">⚠️</span>}
-                  </button>
-                  {i < destinations.length - 1 && (
-                    <div className="flex items-center gap-2 pl-4 py-1 text-xs text-ink-400">
-                      <span>{destinations[i + 1].transitMode ? TRANSIT_ICONS[destinations[i + 1].transitMode!] : '✈️'}</span>
-                      <span>{destinations[i + 1].transitMode ? TRANSIT_LABELS[destinations[i + 1].transitMode!] : 'Transit'}</span>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+            {destinations.map((d, i) => (
+              <div key={d.id} className="flex items-center gap-1 shrink-0">
+                <button
+                  onClick={() => setActiveDestIdx(i)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold press transition-colors whitespace-nowrap ${
+                    i === activeDestIdx
+                      ? 'bg-brand-500 text-white shadow-glow'
+                      : 'bg-ink-50 text-ink-700 border border-ink-100'
+                  }`}
+                >
+                  {i === activeDestIdx && <span className="w-1.5 h-1.5 rounded-full bg-white/80" />}
+                  {d.name.split(',')[0]}
+                  <span className={`text-[10px] ${i === activeDestIdx ? 'text-white/70' : 'text-ink-400'}`}>{d.days}d</span>
+                  {d.visaNote && <span className="text-[10px]">⚠️</span>}
+                </button>
+                {i < destinations.length - 1 && (
+                  <ArrowRight className="w-3 h-3 text-ink-300 shrink-0" />
+                )}
+              </div>
+            ))}
+            <button
+              onClick={() => setAddDestSheet(true)}
+              className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-full border border-dashed border-brand-300 text-brand-500 text-xs font-semibold press"
+            >
+              <Plus className="w-3 h-3" />
+            </button>
+          </div>
         </div>
       )}
 
@@ -679,30 +636,25 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* ── CASE B: No plan today ── */}
+        {/* ── CASE B: No plan today — single bold CTA ── */}
         {!hasTodayPlan && (
-          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-            <div className="bg-ink-50 rounded-2xl p-5 text-center mb-4 border border-ink-100">
-              <div className="text-4xl mb-3">🗺️</div>
-              <div className="font-bold text-ink-900 text-base font-display">No plans for today</div>
-              <div className="text-sm text-ink-500 mt-1 leading-snug">
-                {activeDest ? `Ready to explore ${activeDest.name.split(',')[0]}?` : 'Ready to explore?'}
+          <motion.button
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentEndDate(''); setIntentStartTime('09:00'); setIntentEndTimeSet(false); setIntentErrors({}); setIntentSheet('ai'); }}
+            className="w-full bg-brand-500 text-white rounded-2xl p-5 text-left press shadow-glow flex items-center gap-4"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center shrink-0">
+              <Wand2 className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-bold text-white text-base font-display">Plan your trip ✨</div>
+              <div className="text-xs text-white/80 mt-0.5">
+                {activeDest ? `Tap to start a ${activeDest.name.split(',')[0]} itinerary` : 'Tap to start your first itinerary'}
               </div>
             </div>
-            <button
-              onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentEndDate(''); setIntentStartTime('09:00'); setIntentEndTimeSet(false); setIntentErrors({}); setIntentSheet('ai'); }}
-              className="w-full h-14 rounded-2xl bg-brand-500 text-white font-bold text-base press shadow-glow flex items-center justify-center gap-2 mb-3"
-            >
-              <Wand2 className="w-5 h-5" />
-              Generate my plan
-            </button>
-            <button
-              onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentEndDate(''); setIntentStartTime('09:00'); setIntentEndTimeSet(false); setIntentErrors({}); setIntentSheet('manual'); }}
-              className="w-full text-sm text-brand-600 font-semibold press flex items-center justify-center gap-1"
-            >
-              or build it stop by stop <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </motion.div>
+            <ChevronRight className="w-5 h-5 text-white/80 shrink-0" />
+          </motion.button>
         )}
 
         {/* ── CASE C: Future destination preview ── */}
@@ -838,21 +790,20 @@ export default function HomePage() {
             </div>
           </motion.button>
 
-          {/* 3I — Quick Plan card — neon yellow highlight */}
+          {/* Quick Plan card — calm secondary action */}
           <motion.button
-            whileTap={{ scale: 0.96 }} whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.96 }}
             onClick={() => setQuickPlanSheet(true)}
-            className="col-span-2 rounded-2xl p-4 text-left flex items-center gap-3 press"
-            style={{ background: '#FFE600', boxShadow: '0 0 22px rgba(255,230,0,0.6), 0 4px 12px rgba(0,0,0,0.08)' }}
+            className="col-span-2 rounded-2xl p-4 text-left flex items-center gap-3 press bg-ink-50 border border-ink-100 hover:border-brand-200 transition-colors"
           >
-            <div className="w-9 h-9 rounded-xl bg-black/10 flex items-center justify-center shrink-0">
-              <Zap className="w-5 h-5 text-zinc-900" />
+            <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center shrink-0 border border-ink-100">
+              <Zap className="w-5 h-5 text-amber-500" />
             </div>
             <div className="flex-1">
-              <div className="font-bold text-zinc-900 text-sm font-display leading-tight">Quick Plan</div>
-              <div className="text-[11px] text-zinc-700 mt-0.5 leading-tight">2h or 4h · Go now</div>
+              <div className="font-bold text-ink-900 text-sm font-display leading-tight">Quick Plan</div>
+              <div className="text-[11px] text-ink-500 mt-0.5 leading-tight">2h or 4h · Go now</div>
             </div>
-            <ChevronRight className="w-4 h-4 text-zinc-700" />
+            <ChevronRight className="w-4 h-4 text-ink-400" />
           </motion.button>
         </div>
       </div>
@@ -864,12 +815,15 @@ export default function HomePage() {
             initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
             className="px-5 mt-6 overflow-hidden"
           >
-            <div className="flex items-center justify-between mb-3">
+            <button onClick={() => nav('/profile')} className="w-full flex items-center justify-between mb-1 press">
               <span className="font-bold text-ink-900 font-display flex items-center gap-1.5">
                 <Bookmark className="w-4 h-4 text-brand-500 fill-brand-500" /> Saved Places
               </span>
-              <span className="text-xs text-ink-500">{savedPlaces.length} saved</span>
-            </div>
+              <span className="text-xs text-brand-600 font-semibold flex items-center gap-0.5">
+                {savedPlaces.length} <ChevronRight className="w-3 h-3" />
+              </span>
+            </button>
+            <p className="text-[10px] text-ink-400 mb-3">Bookmarked from the map</p>
             <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
               {savedPlaces.map((p) => (
                 <motion.button

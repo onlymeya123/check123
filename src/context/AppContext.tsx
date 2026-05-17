@@ -24,6 +24,7 @@ interface AppState {
   isAuthenticated: boolean;
   authUser: { name: string; email: string } | null;
   onboardingComplete: boolean;
+  everOnboarded: boolean;
   isOnboarded: boolean;
   signIn: (name: string, email: string) => void;
   completeOnboarding: (data: {
@@ -138,6 +139,7 @@ function loadPersistedState() {
       isAuthenticated: boolean;
       authUser: { name: string; email: string } | null;
       onboardingComplete: boolean;
+      everOnboarded?: boolean;
       vibe: Vibe;
       budget: number;
       itinerary: Place[];
@@ -163,6 +165,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(persisted?.isAuthenticated ?? false);
   const [authUser, setAuthUser] = useState<{ name: string; email: string } | null>(persisted?.authUser ?? null);
   const [onboardingComplete, setOnboardingComplete] = useState(persisted?.onboardingComplete ?? false);
+  const [everOnboarded, setEverOnboarded] = useState(persisted?.everOnboarded ?? false);
 
   // Vibe & itinerary
   const [vibe, setVibe] = useState<Vibe>(persisted?.vibe ?? 'balanced');
@@ -198,7 +201,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       localStorage.setItem(PERSIST_KEY, JSON.stringify({
-        isAuthenticated, authUser, onboardingComplete,
+        isAuthenticated, authUser, onboardingComplete, everOnboarded,
         vibe, budget, itinerary, savedPlaces, destinations,
         trips, activeTripId, journeyStart,
         placeRatings,
@@ -206,7 +209,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         perDayItineraries,
       }));
     } catch { /* storage full — ignore */ }
-  }, [isAuthenticated, authUser, onboardingComplete, vibe, budget, itinerary, savedPlaces, destinations, trips, activeTripId, journeyStart, placeRatings, visitedPlaceIds, perDayItineraries]);
+  }, [isAuthenticated, authUser, onboardingComplete, everOnboarded, vibe, budget, itinerary, savedPlaces, destinations, trips, activeTripId, journeyStart, placeRatings, visitedPlaceIds, perDayItineraries]);
 
   // Per-destination itinerary sync:
   // When activeDestIdx changes, load that destination's itinerary into global state.
@@ -318,6 +321,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setActiveTripId(id);
 
     setOnboardingComplete(true);
+    setEverOnboarded(true);
   };
 
   const value: AppState = {
@@ -325,34 +329,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
     isAuthenticated,
     authUser,
     onboardingComplete,
+    everOnboarded,
     isOnboarded: onboardingComplete,
     signIn: (name, email) => {
       setAuthUser({ name, email });
       setIsAuthenticated(true);
       setOnboardingComplete(true);
+      setEverOnboarded(true);
     },
     completeOnboarding,
     logout: () => {
       setIsAuthenticated(false);
       setAuthUser(null);
       setOnboardingComplete(false);
+      // keep everOnboarded = true so re-login lands on auth form only
       setItinerary([]);
       setVisited(new Set());
       setSavedPlaces([]);
       setIsNavigating(false);
       setNavIndex(0);
-      // Issue 31: also clear wallet state on logout
       setTrips([DEFAULT_TRIP]);
       setActiveTripId(DEFAULT_TRIP.id);
       setTripCompleted(false);
       setDestinations([]);
-      // Clear new state on logout
       setPlaceRatings({});
       setVisitedPlaceIds(new Set());
       setRainyDayMode(false);
       setPerDayItineraries([]);
-      // Issue 35: clear persisted state on logout
-      try { localStorage.removeItem(PERSIST_KEY); } catch { /* ignore */ }
+      // Preserve everOnboarded flag in localStorage by re-writing only that key
+      try {
+        localStorage.setItem(PERSIST_KEY, JSON.stringify({ everOnboarded: true }));
+      } catch { /* ignore */ }
     },
 
     vibe, setVibe,

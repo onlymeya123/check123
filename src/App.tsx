@@ -22,7 +22,7 @@ function AppShell() {
 
   const hideChrome = pathname.startsWith('/onboarding');
   const hideNav = pathname.startsWith('/navigate') || hideChrome;
-  const hideBuddy = hideChrome || pathname.startsWith('/generate');
+  const hideBuddy = hideChrome || pathname.startsWith('/generate') || pathname.startsWith('/navigate');
 
   return (
     <div className="flex-1 relative overflow-hidden">

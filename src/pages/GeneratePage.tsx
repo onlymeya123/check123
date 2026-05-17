@@ -55,6 +55,13 @@ export default function GeneratePage() {
   const [editingTimeFor, setEditingTimeFor] = useState<string | null>(null);
   const [dismissedCultural, setDismissedCultural] = useState<Set<string>>(new Set());
   const [activeDay, setActiveDay] = useState(0);
+  const [swipeHintDismissed, setSwipeHintDismissed] = useState(() => {
+    try { return localStorage.getItem('pavey_hint_swipe_dismissed') === '1'; } catch { return false; }
+  });
+  const dismissSwipeHint = () => {
+    setSwipeHintDismissed(true);
+    try { localStorage.setItem('pavey_hint_swipe_dismissed', '1'); } catch { /* ignore */ }
+  };
 
   // Undo support for stop removal
   const [undoItem, setUndoItem] = useState<{ place: Place; index: number } | null>(null);
@@ -248,19 +255,26 @@ export default function GeneratePage() {
                   {/* Day tabs */}
                   {isMultiDay && (
                     <div className="px-5 pt-2 pb-1 flex gap-2 overflow-x-auto no-scrollbar shrink-0">
-                      {perDayItineraries.map((_, i) => (
-                        <button
-                          key={i}
-                          onClick={() => setActiveDay(i)}
-                          className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold press transition-colors ${
-                            activeDay === i ? 'bg-brand-500 text-white shadow-glow' : 'bg-ink-50 text-ink-700 border border-ink-100'
-                          }`}
-                        >
-                          Day {i + 1}
-                          {i === 0 && <span className="ml-1 opacity-60">✈️</span>}
-                          {i === perDayItineraries.length - 1 && perDayItineraries.length > 1 && <span className="ml-1 opacity-60">🛫</span>}
-                        </button>
-                      ))}
+                      {perDayItineraries.map((_, i) => {
+                        const isFirst = i === 0;
+                        const isLast = i === perDayItineraries.length - 1;
+                        const label = isFirst
+                          ? `Day 1 · Arrival`
+                          : isLast
+                            ? `Day ${i + 1} · Departure`
+                            : `Day ${i + 1}`;
+                        return (
+                          <button
+                            key={i}
+                            onClick={() => setActiveDay(i)}
+                            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold press transition-colors ${
+                              activeDay === i ? 'bg-brand-500 text-white shadow-glow' : 'bg-ink-50 text-ink-700 border border-ink-100'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
 
@@ -301,11 +315,16 @@ export default function GeneratePage() {
                       <button className="text-xs text-brand-600 font-semibold press" onClick={() => setShowAdd(true)}>+ Add stop</button>
                     </div>
 
-                    {/* Gesture hint */}
-                    <div className="mb-2 flex items-center gap-1.5 text-[11px] text-ink-400">
-                      <span>←</span>
-                      <span>Swipe left to remove · Use arrows to reorder</span>
-                    </div>
+                    {/* Gesture hint — dismissible */}
+                    {!swipeHintDismissed && (
+                      <div className="mb-2 flex items-center gap-1.5 text-[11px] text-ink-400">
+                        <span>←</span>
+                        <span className="flex-1">Swipe left to remove · Use arrows to reorder</span>
+                        <button onClick={dismissSwipeHint} className="press text-ink-400 hover:text-ink-700">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
 
                     <div className="space-y-0">
                       <AnimatePresence>

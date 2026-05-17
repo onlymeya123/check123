@@ -19,7 +19,6 @@ type Step =
   | 'destinations'
   | 'dates'
   | 'budget'
-  | 'interests'
   | 'location'
   | 'generating';
 
@@ -31,17 +30,8 @@ const VIBES: { id: Vibe; label: string; emoji: string; desc: string }[] = [
   { id: 'balanced', label: 'Balanced', emoji: '⚖️', desc: 'A bit of everything — no strong preference' },
 ];
 
-const INTEREST_OPTIONS = [
-  { label: 'Coffee', emoji: '☕' }, { label: 'Beaches', emoji: '🏖️' },
-  { label: 'History', emoji: '🏛️' }, { label: 'Art', emoji: '🎨' },
-  { label: 'Street Food', emoji: '🍜' }, { label: 'Shopping', emoji: '🛍️' },
-  { label: 'Hiking', emoji: '🥾' }, { label: 'Photography', emoji: '📷' },
-  { label: 'Nightlife', emoji: '🌃' }, { label: 'Wellness', emoji: '🧖' },
-  { label: 'Architecture', emoji: '🏙️' }, { label: 'Local Markets', emoji: '🏪' },
-];
-
-const FLOW: Step[] = ['welcome', 'auth_form', 'vibe', 'destinations', 'dates', 'budget', 'interests', 'location', 'generating'];
-const PROGRESS_STEPS: Step[] = ['vibe', 'destinations', 'dates', 'budget', 'interests', 'location'];
+const FLOW: Step[] = ['welcome', 'auth_form', 'vibe', 'destinations', 'dates', 'budget', 'location', 'generating'];
+const PROGRESS_STEPS: Step[] = ['vibe', 'destinations', 'dates', 'budget', 'location'];
 
 const GEN_STEPS = [
   'Finding top-rated spots…',
@@ -52,7 +42,7 @@ const GEN_STEPS = [
 
 export default function OnboardingPage() {
   const nav = useNavigate();
-  const { completeOnboarding, onboardingComplete, setItinerary } = useApp();
+  const { completeOnboarding, onboardingComplete, everOnboarded, setItinerary } = useApp();
   const justCompletedRef = useRef(false);
 
   // Skip onboarding if already authenticated (but not if we just completed it)
@@ -60,8 +50,9 @@ export default function OnboardingPage() {
     if (onboardingComplete && !justCompletedRef.current) nav('/', { replace: true });
   }, [onboardingComplete, nav]);
 
-  const [step, setStep] = useState<Step>('welcome');
-  const [authMode, setAuthMode] = useState<AuthMode>('signup');
+  // After logout (everOnboarded=true, onboardingComplete=false) → start on login screen
+  const [step, setStep] = useState<Step>(everOnboarded ? 'auth_form' : 'welcome');
+  const [authMode, setAuthMode] = useState<AuthMode>(everOnboarded ? 'login' : 'signup');
 
   // Auth form state
   const [name, setName] = useState('');
@@ -84,7 +75,6 @@ export default function OnboardingPage() {
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [calPhase, setCalPhase] = useState<'start' | 'end'>('start');
   const [budget, setBudget] = useState(500_000);
-  const [interests, setInterests] = useState<string[]>([]);
   const [locationGranted, setLocationGranted] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
 
@@ -239,13 +229,7 @@ export default function OnboardingPage() {
       label: startDate && endDate ? 'Continue' : 'Skip for now',
       onClick: () => { if (!startDate) setStartDate(new Date()); go('budget'); },
     },
-    budget: { label: 'Continue', onClick: () => go('interests') },
-    interests: {
-      label: 'Continue',
-      onClick: () => go('location'),
-      skipLabel: 'Skip',
-      onSkip: () => go('location'),
-    },
+    budget: { label: 'Continue', onClick: () => go('location') },
     location: {
       label: locationGranted ? 'Generate My Trip →' : 'Continue without location',
       onClick: handleGoToGenerate,
@@ -319,7 +303,7 @@ export default function OnboardingPage() {
                   <ArrowLeft className="w-5 h-5" />
                 </button>
                 {/* Issue 7: step indicator — only for sign up flow */}
-                {authMode === 'signup' && <span className="text-xs text-ink-400 font-semibold">Step 1 of 8</span>}
+                {authMode === 'signup' && <span className="text-xs text-ink-400 font-semibold">Step 1 of 6</span>}
               </div>
               <div className="flex items-center gap-3 mb-3">
                 {/* Replace public/mascot-icon.svg with your mascot icon */}
@@ -399,7 +383,15 @@ export default function OnboardingPage() {
                 )}
               </button>
               <button
-                onClick={() => { setAuthMode(authMode === 'signup' ? 'login' : 'signup'); setJustToggled(true); setTimeout(() => setJustToggled(false), 3000); }}
+                onClick={() => {
+                  setAuthMode(authMode === 'signup' ? 'login' : 'signup');
+                  setPassword('');
+                  setConfirmPassword('');
+                  setConfirmTouched(false);
+                  setAuthErrors({});
+                  setJustToggled(true);
+                  setTimeout(() => setJustToggled(false), 3000);
+                }}
                 className="w-full text-center text-sm text-ink-500 press py-2"
               >
                 {authMode === 'signup'
@@ -675,29 +667,6 @@ export default function OnboardingPage() {
                 </>
               )}
 
-              {/* INTERESTS */}
-              {step === 'interests' && (
-                <>
-                  <StepTitle title="What do you love?" subtitle="Optional — helps us personalize your trip" />
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {INTEREST_OPTIONS.map((item) => {
-                      const active = interests.includes(item.label);
-                      return (
-                        <motion.button
-                          key={item.label}
-                          whileTap={{ scale: 0.93 }}
-                          onClick={() => setInterests((prev) => active ? prev.filter((x) => x !== item.label) : [...prev, item.label])}
-                          className={`px-3 py-2 rounded-full text-sm font-semibold press border-2 transition-colors flex items-center gap-1.5 ${active ? 'bg-brand-500 text-white border-brand-500' : 'bg-white text-ink-700 border-ink-100'}`}
-                        >
-                          {item.emoji} {item.label}
-                          {active && <Check className="w-3.5 h-3.5 ml-0.5" />}
-                        </motion.button>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-
               {/* LOCATION */}
               {step === 'location' && (
                 <>
@@ -764,8 +733,7 @@ export default function OnboardingPage() {
                         >
                           Skip for now
                         </button>
-                        {/* Issue 6: clarify what skipping means */}
-                        <p className="text-xs text-ink-400 text-center">Navigation will use manual mode</p>
+                        <p className="text-xs text-ink-400 text-center">You can enable location later anytime.</p>
                       </div>
                     )}
                   </div>
