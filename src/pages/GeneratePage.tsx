@@ -12,6 +12,7 @@ import { PLACES } from '../data/places';
 import { getRegion, countDistinctRegions } from '../data/regions';
 import { MAX_TRIP_DAYS, exceedsMaxDuration } from '../lib/planValidation';
 import { COPY } from '../lib/copy';
+import { dayIsTight } from '../lib/density';
 import { formatCost } from '../lib/format';
 import { useToast } from '../components/Toast';
 import { getCulturalIntel, type CulturalIntel } from '../data/cultural';
@@ -63,6 +64,9 @@ export default function GeneratePage() {
   const [showAdd, setShowAdd] = useState(false);
   // UI5 — what-if comparison: { currentPlace, alt }
   const [whatIf, setWhatIf] = useState<{ current: Place; alt: Place } | null>(null);
+  // Density-aware "Add" prompt — opens a small decision sheet when the picked
+  // recommendation would make the active day tight (5+ stops, 30+ km, 10+ h).
+  const [tightAdd, setTightAdd] = useState<{ place: Place; reason: string } | null>(null);
   const [confirmingPulse, setConfirmingPulse] = useState(false);
   const [stopTimes, setStopTimes] = useState<Record<string, string>>({});
   const [editingTimeFor, setEditingTimeFor] = useState<string | null>(null);
@@ -505,7 +509,7 @@ export default function GeneratePage() {
                       <div className="mt-6">
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-[11px] font-bold tracking-widest text-ink-500">RECOMMENDATIONS</span>
-                          <span className="text-[10px] text-ink-400">Tap + to add to plan</span>
+                          <span className="text-[10px] text-ink-400">Tap Add to drop into your day</span>
                         </div>
                         <div className="space-y-2">
                           {alternatives(itinerary.map((p) => p.id)).slice(0, 4).map((altP) => (
@@ -523,21 +527,21 @@ export default function GeneratePage() {
                                 </div>
                                 <div className="text-xs text-brand-600 font-semibold mt-0.5">{formatCost(altP.cost, activeTrip.currency)}</div>
                               </div>
-                              {displayItinerary.length > 0 ? (
-                                <button
-                                  onClick={() => setWhatIf({ current: displayItinerary[displayItinerary.length - 1], alt: altP })}
-                                  className="text-[10px] font-semibold text-brand-600 bg-brand-50 border border-brand-200 px-2.5 py-1.5 rounded-lg press shrink-0"
-                                >
-                                  Try instead
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => { addStop(altP); show(`${altP.name} added`, 'success'); }}
-                                  className="w-9 h-9 rounded-full bg-brand-500 text-white flex items-center justify-center press shadow-soft shrink-0"
-                                >
-                                  <Plus className="w-4 h-4" />
-                                </button>
-                              )}
+                              <button
+                                onClick={() => {
+                                  const projected = [...displayItinerary, altP];
+                                  const check = dayIsTight(projected);
+                                  if (check.tight) {
+                                    setTightAdd({ place: altP, reason: check.reason });
+                                  } else {
+                                    addStop(altP);
+                                    show(COPY.recommendations.addedToast(altP.name), 'success');
+                                  }
+                                }}
+                                className="text-xs font-bold text-white bg-brand-500 px-3 py-1.5 rounded-lg press shadow-soft shrink-0 flex items-center gap-1"
+                              >
+                                <Plus className="w-3.5 h-3.5" /> {COPY.recommendations.add}
+                              </button>
                             </motion.div>
                           ))}
                         </div>
@@ -878,6 +882,65 @@ export default function GeneratePage() {
                   }}
                   className="h-10 rounded-xl bg-brand-500 text-white text-sm font-semibold press shadow-glow"
                 >Switch</button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Tight-day decision sheet — shown when an Add would over-pack the day */}
+      <AnimatePresence>
+        {tightAdd && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setTightAdd(null)}
+              className="absolute inset-0 z-50 bg-ink-900/50"
+            />
+            <motion.div
+              initial={{ y: 80, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 80, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 360, damping: 30 }}
+              className="absolute inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl shadow-card px-5 pt-4 pb-6"
+            >
+              <div className="w-10 h-1 rounded-full bg-ink-200 mx-auto mb-3" />
+              <div className="font-bold text-ink-900 font-display text-base">{COPY.recommendations.tightHeadline}</div>
+              <div className="text-xs text-ink-500 mt-1 leading-snug">
+                {COPY.recommendations.tightBody(displayItinerary.length + 1)}
+              </div>
+              <div className="mt-4 space-y-2">
+                <button
+                  onClick={() => {
+                    setTightAdd(null);
+                    setTimeout(() => {
+                      if (displayItinerary[0]) setEditingTimeFor(displayItinerary[0].id);
+                    }, 100);
+                  }}
+                  className="w-full text-left bg-brand-50/60 border border-brand-100 rounded-2xl px-3 py-3 press"
+                >
+                  <div className="text-sm font-bold text-ink-900">{COPY.recommendations.adjust}</div>
+                  <div className="text-[11px] text-ink-500 mt-0.5">Edit start times to make room.</div>
+                </button>
+                <button
+                  onClick={() => {
+                    const p = tightAdd.place;
+                    setTightAdd(null);
+                    addStop(p);
+                    show(COPY.recommendations.packedToast, 'info');
+                  }}
+                  className="w-full text-left bg-amber-50 border border-amber-100 rounded-2xl px-3 py-3 press"
+                >
+                  <div className="text-sm font-bold text-ink-900">{COPY.recommendations.keep}</div>
+                  <div className="text-[11px] text-ink-500 mt-0.5">Add it — your day will feel full.</div>
+                </button>
+                <button
+                  onClick={() => setTightAdd(null)}
+                  className="w-full text-left bg-ink-50 border border-ink-100 rounded-2xl px-3 py-3 press"
+                >
+                  <div className="text-sm font-bold text-ink-900">{COPY.recommendations.skip}</div>
+                  <div className="text-[11px] text-ink-500 mt-0.5">Keep your day as-is.</div>
+                </button>
               </div>
             </motion.div>
           </>

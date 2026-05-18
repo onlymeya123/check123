@@ -19,13 +19,12 @@ import { formatCurrencyAmount } from '../data/wallet';
 import { COUNTRY_CITY_HINTS } from '../data/countryHints';
 import { countDistinctRegions } from '../data/regions';
 import {
-  computeIntentBanners, filterDestinationsByRegion, exceedsMaxDuration, isOverDense,
-  type MajorBannerKey,
+  filterDestinationsByRegion, exceedsMaxDuration, isOverDense,
 } from '../lib/planValidation';
 import { IntentBanners } from '../components/IntentBanners';
+import MiniCalendar from '../components/MiniCalendar';
 import { COPY } from '../lib/copy';
 import { tripDurationDays, isPastDate } from '../lib/dateUtils';
-import JourneyReviewModal, { type JourneySummary, type ReviewMode, type GuidanceAction } from '../components/JourneyReviewModal';
 import TripTooLongModal from '../components/TripTooLongModal';
 import { suggestCurrency, DEFAULT_TRIP } from '../data/wallet';
 
@@ -103,6 +102,8 @@ export default function HomePage() {
   // Rotating placeholder doubles as a teaching prompt: "country or city?"
   const [destPlaceholderIdx, setDestPlaceholderIdx] = useState(0);
   const destPlaceholder = COPY.destInput.placeholders[destPlaceholderIdx];
+  // Inline calendar visibility — collapsed by default to keep sheet short
+  const [intentDateOpen, setIntentDateOpen] = useState(false);
   const [intentDate, setIntentDate] = useState('');
   const [intentEndDate, setIntentEndDate] = useState('');
   const [intentStartTime, setIntentStartTime] = useState('09:00');
@@ -117,7 +118,6 @@ export default function HomePage() {
   const [overlapAcknowledged, setOverlapAcknowledged] = useState(false);
   const [scopeTipOpen, setScopeTipOpen] = useState(false);
   // Review-step modal: shown after validation passes, before /generate nav.
-  const [reviewOpen, setReviewOpen] = useState(false);
   // Strict 30-day cap modal.
   const [tooLongOpen, setTooLongOpen] = useState(false);
   const [intentPace, setIntentPace] = useState<TripPace>('balanced');
@@ -326,7 +326,7 @@ export default function HomePage() {
   const intentDays = intentEndDate ? tripDurationDays(intentDate, intentEndDate) : 1;
 
   // proceedIntent — final step: persist inputs, mint a wallet trip if needed, navigate to /generate.
-  // Called from the JourneyReviewModal's onConfirm.
+  // Called once intent-sheet validation passes — navigates to the merged review on /generate.
   const proceedIntent = () => {
     if (intentVibe) setVibe(intentVibe);
     if (intentBudget) setBudget(intentBudget);
@@ -356,7 +356,6 @@ export default function HomePage() {
 
     const mode = intentSheet;
     setIntentSheet(null);
-    setReviewOpen(false);
     setShowOverlapWarning(null);
     const params = new URLSearchParams();
     if (mode === 'manual') params.set('mode', 'manual');
@@ -401,8 +400,18 @@ export default function HomePage() {
       }
     }
 
-    // All validation passed — open the review step.
-    setReviewOpen(true);
+    // Cities > days is impossible pacing — block here with a field-level error
+    // instead of opening a modal. User fixes the inputs and tries again.
+    const journeyCitiesNow = destinations.length > 0
+      ? destinations.map((d) => d.name)
+      : [intentDest].filter(Boolean);
+    if (isOverDense(journeyCitiesNow.length, intentDays)) {
+      setIntentErrors({ date: `You have ${journeyCitiesNow.length} cities in ${intentDays} day${intentDays !== 1 ? 's' : ''}. Add more days or remove a city.` });
+      return;
+    }
+
+    // All validation passed — go straight to the generated review screen.
+    proceedIntent();
   };
 
   const handleQuickPlan = () => {
@@ -419,64 +428,6 @@ export default function HomePage() {
        - 'friction' : a soft major banner is firing — amber button + note.
        - 'guidance' : input is non-viable (cities > days) — show fix chips.
      ──────────────────────────────────────────────────────────────── */
-  const journeyCities: string[] = destinations.length > 0
-    ? destinations.map((d) => d.name)
-    : (intentDest ? [intentDest] : []);
-  const reviewBanners = computeIntentBanners({
-    durationDays: intentEndDate ? intentDays : 0,
-    destinationNames: journeyCities,
-  });
-  const overDense = isOverDense(journeyCities.length, intentDays);
-  const reviewMode: ReviewMode = overDense
-    ? 'guidance'
-    : reviewBanners.major ? 'friction' : 'confirm';
-
-  const frictionCopy: Partial<Record<MajorBannerKey, string>> = {
-    'chaos-regions': COPY.friction.chaosRegions,
-    'chaos-cities': COPY.friction.chaosCities,
-    'duration-over-20': COPY.friction.durationOver20,
-    'ratio-under-1': COPY.friction.ratioUnder1,
-  };
-  const frictionNote: string | undefined = reviewBanners.major
-    ? frictionCopy[reviewBanners.major.key]
-    : undefined;
-
-  const guidance: { headline: string; actions: GuidanceAction[] } | undefined = overDense
-    ? {
-        headline: `A bit packed — ${journeyCities.length} cit${journeyCities.length === 1 ? 'y' : 'ies'} in ${intentDays} day${intentDays !== 1 ? 's' : ''}. Let's give each one some room.`,
-        actions: [
-          {
-            label: 'Add more days',
-            onClick: () => { setReviewOpen(false); setTimeout(() => endDateInputRef.current?.focus(), 50); },
-          },
-          ...(destinations.length > 0
-            ? [{
-                label: `Remove last city`,
-                onClick: () => {
-                  const last = destinations[destinations.length - 1];
-                  if (last) removeDestination(last.id);
-                  setReviewOpen(false);
-                },
-              }]
-            : []),
-        ],
-      }
-    : undefined;
-
-  const journeySummary: JourneySummary = {
-    destinations: journeyCities,
-    startDate: intentDate,
-    endDate: intentEndDate || undefined,
-    days: intentDays,
-    paceLabel: intentPace === 'relaxed' ? 'Relaxed' : intentPace === 'fast' ? 'Fast-paced' : 'Balanced',
-    paceIcon: intentPace === 'relaxed' ? '🌿' : intentPace === 'fast' ? '⚡' : '⚖️',
-    vibeLabel: VIBES.find((v) => v.id === (intentVibe ?? vibe))?.label ?? 'Balanced',
-    vibeIcon: VIBES.find((v) => v.id === (intentVibe ?? vibe))?.icon ?? '⚖️',
-    budgetPerDay: formatCost(intentBudget || budget, activeTrip.currency),
-    arrivalTime: showFlightTimes ? intentStartTime : undefined,
-    departureTime: (showFlightTimes && intentEndDate) ? intentEndTime : undefined,
-  };
-
   return (
     <div className="absolute inset-0 overflow-y-auto pb-32 no-scrollbar bg-white">
       {/* Hero */}
@@ -1233,56 +1184,82 @@ export default function HomePage() {
                     </div>
                   )}
                   {destinations.length > 1 && (
-                    <div className="flex gap-1.5 mt-2 flex-wrap">
-                      {destinations.map((d) => (
-                        <button
-                          key={d.id}
-                          onClick={() => { setIntentDest(d.name.split(',')[0]); setIntentErrors((p) => ({ ...p, dest: undefined })); }}
-                          className={`px-2.5 py-1 rounded-full text-xs font-semibold press border transition-colors ${intentDest === d.name.split(',')[0] ? 'bg-brand-500 text-white border-brand-500' : 'bg-ink-50 text-ink-700 border-ink-100'}`}
-                        >
-                          {d.name.split(',')[0]}
-                        </button>
-                      ))}
-                    </div>
+                    <>
+                      <div className="flex gap-1.5 mt-2 flex-wrap">
+                        {destinations.map((d) => (
+                          <button
+                            key={d.id}
+                            onClick={() => { setIntentDest(d.name.split(',')[0]); setIntentErrors((p) => ({ ...p, dest: undefined })); }}
+                            className={`px-2.5 py-1 rounded-full text-xs font-semibold press border transition-colors ${intentDest === d.name.split(',')[0] ? 'bg-brand-500 text-white border-brand-500' : 'bg-ink-50 text-ink-700 border-ink-100'}`}
+                          >
+                            {d.name.split(',')[0]}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="mt-2 text-[11px] text-ink-400 leading-snug">
+                        {COPY.hints.travelDays}
+                      </div>
+                    </>
                   )}
                 </div>
 
-                {/* WHEN */}
+                {/* WHEN — one canonical calendar, collapsed by default */}
                 <div>
                   <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-2">WHEN</div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <div className="text-[10px] font-semibold text-ink-400 mb-1.5">Start date</div>
-                      <input
-                        type="date"
-                        value={intentDate}
-                        onChange={(e) => { setIntentDate(e.target.value); if (e.target.value) setIntentErrors((p) => ({ ...p, date: undefined })); setShowSingleDayWarning(false); }}
-                        className={`w-full rounded-xl px-3 py-2.5 text-sm border outline-none focus:border-brand-400 ${intentErrors.date ? 'border-red-400 bg-red-50 text-red-700' : 'bg-ink-50 text-ink-700 border-ink-200'}`}
-                      />
-                      {intentErrors.date && (
-                        <div className="flex items-center gap-1 text-xs text-red-600 mt-1">
-                          <AlertTriangle className="w-3 h-3 shrink-0" /> {intentErrors.date}
-                        </div>
-                      )}
-                      {/* Past-date soft hint */}
-                      {intentDate && !intentErrors.date && isPastDate(intentDate) && (
-                        <div className="flex items-center gap-1 text-xs text-amber-600 mt-1">
-                          <AlertTriangle className="w-3 h-3 shrink-0" /> Start date is in the past
-                        </div>
-                      )}
+                  <button
+                    ref={endDateInputRef as never}
+                    onClick={() => setIntentDateOpen((v) => !v)}
+                    className={`w-full rounded-xl px-3 py-3 text-sm border flex items-center justify-between press ${intentErrors.date ? 'border-red-400 bg-red-50 text-red-700' : 'bg-ink-50 text-ink-700 border-ink-200'}`}
+                  >
+                    <span className="font-semibold">
+                      {intentDate ? (() => {
+                        const s = new Date(intentDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+                        const e = intentEndDate ? new Date(intentEndDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : null;
+                        return e ? `${s} → ${e}` : s;
+                      })() : 'Pick your dates'}
+                    </span>
+                    <span className="text-[11px] text-ink-400">{intentDateOpen ? 'Done' : 'Edit'}</span>
+                  </button>
+                  {intentErrors.date && (
+                    <div className="flex items-center gap-1 text-xs text-red-600 mt-1">
+                      <AlertTriangle className="w-3 h-3 shrink-0" /> {intentErrors.date}
                     </div>
-                    <div>
-                      <div className="text-[10px] font-semibold text-ink-400 mb-1.5">End date <span className="text-ink-300">(optional)</span></div>
-                      <input
-                        ref={endDateInputRef}
-                        type="date"
-                        value={intentEndDate}
-                        min={intentDate || undefined}
-                        onChange={(e) => { setIntentEndDate(e.target.value); setShowSingleDayWarning(false); }}
-                        className="w-full bg-ink-50 rounded-xl px-3 py-2.5 text-sm text-ink-700 border border-ink-200 outline-none focus:border-brand-400"
-                      />
+                  )}
+                  {intentDate && !intentErrors.date && isPastDate(intentDate) && (
+                    <div className="flex items-center gap-1 text-xs text-amber-600 mt-1">
+                      <AlertTriangle className="w-3 h-3 shrink-0" /> Start date is in the past
                     </div>
-                  </div>
+                  )}
+                  {intentDateOpen && (
+                    <div className="mt-2">
+                      <MiniCalendar
+                        startDate={intentDate ? new Date(intentDate) : null}
+                        endDate={intentEndDate ? new Date(intentEndDate) : null}
+                        onSelect={(d) => {
+                          const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                          if (!intentDate || (intentDate && intentEndDate)) {
+                            setIntentDate(iso);
+                            setIntentEndDate('');
+                            setIntentErrors((p) => ({ ...p, date: undefined }));
+                            setShowSingleDayWarning(false);
+                          } else {
+                            const start = new Date(intentDate);
+                            if (d > start) {
+                              setIntentEndDate(iso);
+                              setShowSingleDayWarning(false);
+                              setIntentDateOpen(false);
+                            } else {
+                              setIntentDate(iso);
+                              setIntentEndDate('');
+                            }
+                          }
+                        }}
+                      />
+                      <div className="mt-1 text-[10px] text-ink-400 text-center">
+                        {!intentDate ? 'Tap a day to set your start date.' : !intentEndDate ? 'Tap a later day to set your end (or leave for a single day).' : 'Tap a different day to start over.'}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Trip duration badge */}
                   {intentDate && intentEndDate && (() => {
@@ -1439,24 +1416,13 @@ export default function HomePage() {
                   onClick={handleIntentConfirm}
                   className="w-full h-14 rounded-2xl bg-brand-500 text-white font-bold text-base press shadow-glow flex items-center justify-center gap-2"
                 >
-                  {intentSheet === 'ai' ? <><Wand2 className="w-5 h-5" /> Generate my plan</> : <><Pencil className="w-5 h-5" /> Start planning</>}
+                  {intentSheet === 'ai' ? <><Wand2 className="w-5 h-5" /> {COPY.ctas.intentSheetContinue}</> : <><Pencil className="w-5 h-5" /> Start planning</>}
                 </button>
               </div>
             </motion.div>
           </>
         )}
       </AnimatePresence>
-
-      {/* ── Journey review (confirmation) modal ── */}
-      <JourneyReviewModal
-        open={reviewOpen}
-        mode={reviewMode}
-        journey={journeySummary}
-        frictionNote={frictionNote}
-        guidance={guidance}
-        onEdit={() => setReviewOpen(false)}
-        onConfirm={proceedIntent}
-      />
 
       {/* ── Trip-too-long modal (strict 30-day cap) ── */}
       <TripTooLongModal

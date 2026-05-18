@@ -54,4 +54,27 @@ export const COPY = {
     ],
   },
   maxDestinations: "Six is plenty — let's make it a great trip.",
+  ctas: {
+    intentSheetContinue: 'Continue to review',
+    reviewStart: 'Start my trip',
+    reviewStartFriction: 'Yes, start anyway',
+    loadingHeadline: 'Building your plan…',
+  },
+  sections: {
+    reviewHeader: 'Review your trip',
+  },
+  recommendations: {
+    add: 'Add',
+    tightHeadline: 'This may make your day tighter.',
+    tightBody: (stops: number) =>
+      `You'd have ${stops} stops on this day — already close to a full schedule.`,
+    adjust: 'Adjust the timing',
+    keep: 'Keep it anyway',
+    skip: 'Skip for now',
+    packedToast: 'Added — your day is packed.',
+    addedToast: (name: string) => `${name} added`,
+  },
+  hints: {
+    travelDays: "We'll add travel days automatically between cities.",
+  },
 } as const;
