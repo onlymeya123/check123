@@ -76,5 +76,13 @@ export const COPY = {
   },
   hints: {
     travelDays: "We'll add travel days automatically between cities.",
+    singleDay: "Just one day? We'll plan a short visit.",
+    densityWhy: '5+ stops in a day usually means rushing between places.',
+    rerollConfirm: 'This will replace today\'s stops with new suggestions. Keep your edits?',
+    buddyIntro: 'Ask me to suggest a restaurant near your next stop, or anything about your trip.',
+    onboardingPreview: (days: number, city: string) =>
+      `Sounds like a ${days}-day ${city} trip — sound right?`,
+    walletEmptyLinked: (tripName: string) => `Track your spending for ${tripName}`,
+    manualSecondary: 'Pick stops manually instead',
   },
 } as const;

@@ -77,6 +77,7 @@ export default function HomePage() {
     currency, setCurrency, journeyStart, setJourneyStart, perDayItineraries,
     pace, setPace,
     trips, createTrip,
+    intentDraft, setIntentDraft, destAutoAdvanced, clearDestAutoAdvanced,
   } = useApp();
   const { show } = useToast();
 
@@ -113,7 +114,7 @@ export default function HomePage() {
   const [intentBudget, setIntentBudget] = useState<number | null>(null);
   const [intentErrors, setIntentErrors] = useState<{ dest?: string; date?: string }>({});
   const [showFlightTimes, setShowFlightTimes] = useState(false);
-  const [showSingleDayWarning, setShowSingleDayWarning] = useState(false);
+  // (Removed in Round 11 #12 — single-day warning is now an inline hint, not a state-driven dialog.)
   const [showOverlapWarning, setShowOverlapWarning] = useState<string | null>(null);
   const [overlapAcknowledged, setOverlapAcknowledged] = useState(false);
   const [scopeTipOpen, setScopeTipOpen] = useState(false);
@@ -142,9 +143,13 @@ export default function HomePage() {
   const [quickPlanHours, setQuickPlanHours] = useState(2);
 
   // 1.4 - Currency switch banner
+  // Only fires when activeDestIdx was advanced automatically by the date-aware
+  // effect in AppContext (today landed in a new destination window). Manual
+  // tab taps are gated out so browsing doesn't trigger the banner.
   useEffect(() => {
     if (activeDestIdx === prevDestIdxRef.current) return;
     prevDestIdxRef.current = activeDestIdx;
+    if (!destAutoAdvanced) return;
     const dest = destinations[activeDestIdx];
     if (!dest) return;
     if (dest.currency !== activeTrip.currency) {
@@ -152,7 +157,8 @@ export default function HomePage() {
       setCurrencyBannerCurrency(dest.currency);
       setShowCurrencyBanner(true);
     }
-  }, [activeDestIdx, destinations, activeTrip.currency]);
+    clearDestAutoAdvanced();
+  }, [activeDestIdx, destinations, activeTrip.currency, destAutoAdvanced]);
 
   const sliderPct = useMemo(() => {
     const min = 50_000, max = 1_000_000;
@@ -231,9 +237,27 @@ export default function HomePage() {
     if (intentDate && !intentEndDate) setIntentEndDate(intentDate);
   }, [intentDate, intentEndDate]);
 
-  // Auto-open intent sheet when arriving with ?newPlan=1 (from Wallet)
+  // Auto-open intent sheet when arriving with ?newPlan=1 (from Wallet) or
+  // ?openIntent=1 (from "Edit trip" on GeneratePage — restores prior draft).
   const [searchParams, setSearchParams] = useSearchParams();
   useEffect(() => {
+    if (searchParams.get('openIntent') === '1' && intentDraft) {
+      setIntentDest(intentDraft.dest);
+      setIntentDate(intentDraft.startDate);
+      setIntentEndDate(intentDraft.endDate);
+      setIntentStartTime(intentDraft.startTime);
+      setIntentEndTime(intentDraft.endTime);
+      setIntentEndTimeSet(true);
+      setIntentVibe(intentDraft.vibe);
+      setIntentBudget(intentDraft.budget);
+      setIntentPace(intentDraft.pace);
+      setIntentErrors({});
+      setIntentSheet('ai');
+      const next = new URLSearchParams(searchParams);
+      next.delete('openIntent');
+      setSearchParams(next, { replace: true });
+      return;
+    }
     if (searchParams.get('newPlan') === '1') {
       setIntentVibe(vibe);
       setIntentBudget(budget);
@@ -244,7 +268,7 @@ export default function HomePage() {
       setIntentEndTimeSet(false);
       setIntentErrors({});
       setShowFlightTimes(false);
-      setShowSingleDayWarning(false);
+     
       setShowOverlapWarning(null);
       setOverlapAcknowledged(false);
       setIntentPace(pace);
@@ -350,11 +374,24 @@ export default function HomePage() {
         daysRemaining: days,
         linkedToPlan: true,
       });
-      // Surface the connection — see Change 8a.
-      setTimeout(() => show(COPY.wallet.tripCreatedToast(tripName), 'success'), 600);
+      // Round 11 — silent create. The toast for an unrequested action felt
+      // intrusive; the wallet now surfaces itself when the user opens the
+      // tab (see WalletPage empty-state copy).
     }
 
     const mode = intentSheet;
+    // Persist intent fields so the "Edit trip" link on GeneratePage can
+    // restore the form instead of forcing the user to re-enter everything.
+    setIntentDraft({
+      dest: intentDest,
+      startDate: intentDate,
+      endDate: intentEndDate,
+      startTime: intentStartTime,
+      endTime: intentEndTime,
+      vibe: intentVibe,
+      budget: intentBudget,
+      pace: intentPace,
+    });
     setIntentSheet(null);
     setShowOverlapWarning(null);
     const params = new URLSearchParams();
@@ -378,11 +415,9 @@ export default function HomePage() {
     if (Object.keys(errs).length > 0) { setIntentErrors(errs); return; }
     setIntentErrors({});
 
-    // AI mode: warn if no end date before proceeding
-    if (intentSheet === 'ai' && !intentEndDate) {
-      setShowSingleDayWarning(true);
-      return;
-    }
+    // Round 11 — the previous mid-flow "single-day" dialog has been replaced
+    // with an inline hint below the date field (rendered while end is unset).
+    // Users may proceed straight through without confirming a popup.
 
     // STRICT 30-day cap — hard block with a friendly explanation.
     if (intentEndDate && exceedsMaxDuration(intentDays)) {
@@ -778,25 +813,33 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* ── CASE B: No plan today — single bold CTA ── */}
+        {/* ── CASE B: No plan today — single bold AI CTA, manual is a quiet secondary link ── */}
         {!hasTodayPlan && (
-          <motion.button
-            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentEndDate(''); setIntentStartTime('09:00'); setIntentEndTimeSet(false); setIntentErrors({}); setShowFlightTimes(false); setShowSingleDayWarning(false); setShowOverlapWarning(null); setOverlapAcknowledged(false); setIntentPace(pace); setIntentSheet('ai'); }}
-            className="w-full bg-brand-500 text-white rounded-2xl p-5 text-left press shadow-glow flex items-center gap-4"
-          >
-            <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center shrink-0">
-              <Wand2 className="w-6 h-6 text-white" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="font-bold text-white text-base font-display">Plan your trip ✨</div>
-              <div className="text-xs text-white/80 mt-0.5">
-                {activeDest ? `Tap to start a ${activeDest.name.split(',')[0]} itinerary` : 'Tap to start your first itinerary'}
+          <>
+            <motion.button
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentEndDate(''); setIntentStartTime('09:00'); setIntentEndTimeSet(false); setIntentErrors({}); setShowFlightTimes(false); setShowOverlapWarning(null); setOverlapAcknowledged(false); setIntentPace(pace); setIntentSheet('ai'); }}
+              className="w-full bg-brand-500 text-white rounded-2xl p-5 text-left press shadow-glow flex items-center gap-4"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center shrink-0">
+                <Wand2 className="w-6 h-6 text-white" />
               </div>
-            </div>
-            <ChevronRight className="w-5 h-5 text-white/80 shrink-0" />
-          </motion.button>
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-white text-base font-display">Plan your trip ✨</div>
+                <div className="text-xs text-white/80 mt-0.5">
+                  {activeDest ? `Tap to start a ${activeDest.name.split(',')[0]} itinerary` : 'Tap to start your first itinerary'}
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-white/80 shrink-0" />
+            </motion.button>
+            <button
+              onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentEndDate(''); setIntentStartTime('09:00'); setIntentEndTimeSet(false); setIntentErrors({}); setShowFlightTimes(false); setShowOverlapWarning(null); setOverlapAcknowledged(false); setIntentPace(pace); setIntentSheet('manual'); }}
+              className="mt-2 w-full text-center text-xs text-ink-500 font-medium press"
+            >
+              {COPY.hints.manualSecondary}
+            </button>
+          </>
         )}
 
         {/* ── CASE C: Future destination preview ── */}
@@ -907,7 +950,7 @@ export default function HomePage() {
           {/* Primary: AI plan — recommended */}
           <motion.button
             whileTap={{ scale: 0.97 }}
-            onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentEndDate(''); setIntentStartTime('09:00'); setIntentEndTimeSet(false); setIntentErrors({}); setShowFlightTimes(false); setShowSingleDayWarning(false); setShowOverlapWarning(null); setOverlapAcknowledged(false); setIntentPace(pace); setIntentSheet('ai'); }}
+            onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentEndDate(''); setIntentStartTime('09:00'); setIntentEndTimeSet(false); setIntentErrors({}); setShowFlightTimes(false); setShowOverlapWarning(null); setOverlapAcknowledged(false); setIntentPace(pace); setIntentSheet('ai'); }}
             className="relative w-full rounded-2xl p-4 text-left flex items-center gap-3 press bg-brand-500 shadow-glow"
           >
             <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
@@ -923,7 +966,7 @@ export default function HomePage() {
 
           {/* Secondary: manual escape hatch */}
           <button
-            onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentEndDate(''); setIntentStartTime('09:00'); setIntentEndTimeSet(false); setIntentErrors({}); setShowFlightTimes(false); setShowSingleDayWarning(false); setShowOverlapWarning(null); setOverlapAcknowledged(false); setIntentPace(pace); setIntentSheet('manual'); }}
+            onClick={() => { setIntentVibe(vibe); setIntentBudget(budget); setIntentDest(activeDest?.name.split(',')[0] ?? ''); setIntentDate(''); setIntentEndDate(''); setIntentStartTime('09:00'); setIntentEndTimeSet(false); setIntentErrors({}); setShowFlightTimes(false); setShowOverlapWarning(null); setOverlapAcknowledged(false); setIntentPace(pace); setIntentSheet('manual'); }}
             className="w-full text-center text-sm text-brand-600 font-semibold press flex items-center justify-center gap-1"
           >
             or build it stop by stop <ArrowRight className="w-3.5 h-3.5" />
@@ -1241,12 +1284,12 @@ export default function HomePage() {
                             setIntentDate(iso);
                             setIntentEndDate('');
                             setIntentErrors((p) => ({ ...p, date: undefined }));
-                            setShowSingleDayWarning(false);
+                           
                           } else {
                             const start = new Date(intentDate);
                             if (d > start) {
                               setIntentEndDate(iso);
-                              setShowSingleDayWarning(false);
+                             
                               setIntentDateOpen(false);
                             } else {
                               setIntentDate(iso);
@@ -1271,24 +1314,10 @@ export default function HomePage() {
                     ) : null;
                   })()}
 
-                  {/* Single-day warning for AI mode */}
-                  {showSingleDayWarning && intentSheet === 'ai' && (
-                    <div className="mt-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
-                      <div className="text-xs font-semibold text-amber-800 mb-1.5">No end date set — this will generate a 1-day plan.</div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => { setShowSingleDayWarning(false); setTimeout(() => endDateInputRef.current?.focus(), 50); }}
-                          className="flex-1 h-8 rounded-lg bg-amber-500 text-white text-xs font-bold press"
-                        >
-                          Set end date
-                        </button>
-                        <button
-                          onClick={() => { setShowSingleDayWarning(false); proceedIntent(); }}
-                          className="flex-1 h-8 rounded-lg bg-white border border-amber-300 text-amber-700 text-xs font-semibold press"
-                        >
-                          Continue anyway
-                        </button>
-                      </div>
+                  {/* Inline single-day hint — no dialog, no confirmation. */}
+                  {intentSheet === 'ai' && intentDate && !intentEndDate && (
+                    <div className="mt-2 text-[11px] text-ink-500 leading-snug">
+                      {COPY.hints.singleDay}
                     </div>
                   )}
                 </div>

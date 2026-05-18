@@ -343,7 +343,9 @@ export default function WalletPage() {
           <div className="mt-3 py-10 flex flex-col items-center gap-3 text-center bg-ink-50 rounded-2xl px-6">
             <span className="text-4xl">💸</span>
             <div>
-              <div className="font-bold text-ink-800 text-sm">No expenses yet</div>
+              <div className="font-bold text-ink-800 text-sm">
+                {isLinkedTrip && tripName ? COPY.hints.walletEmptyLinked(tripName) : 'No expenses yet'}
+              </div>
               <div className="text-xs text-ink-400 mt-1 leading-snug max-w-[220px]">
                 Tap "Add Expense" above to log your first spend — no trip plan required.
               </div>
