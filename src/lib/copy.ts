@@ -44,6 +44,8 @@ export const COPY = {
   wallet: {
     tripCreatedToast: (name: string) => `Wallet trip created for ${name}`,
     linkedSubtitle: 'Linked from your trip plan',
+    linkedDeleteBody: 'This wallet was created from your trip plan. Deleting removes all expenses. Or keep it as a standalone wallet.',
+    unlinkToast: 'Wallet kept — plan link removed.',
   },
   destInput: {
     cityHint: (city: string) => `That's a country — we'll start with ${city}. Tap to use it.`,

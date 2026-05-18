@@ -109,6 +109,7 @@ interface AppState {
   activeTrip: Trip;
   createTrip: (data: Omit<Trip, 'id' | 'transactions' | 'createdAt'>) => string;
   deleteTrip: (id: string) => void;
+  unlinkWalletFromPlan: (id: string) => void;
 
   // Active trip proxies (for backward compat)
   transactions: Transaction[];
@@ -534,6 +535,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setActiveTripId(trips.find((t) => t.id !== id)?.id ?? trips[0].id);
       }
     },
+    unlinkWalletFromPlan: (id) =>
+      setTrips((prev) => prev.map((t) => t.id === id ? { ...t, linkedToPlan: false } : t)),
 
     // Active trip proxies
     transactions: activeTrip.transactions,

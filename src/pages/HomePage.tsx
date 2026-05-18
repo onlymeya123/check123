@@ -23,6 +23,7 @@ import {
 } from '../lib/planValidation';
 import { IntentBanners } from '../components/IntentBanners';
 import MiniCalendar from '../components/MiniCalendar';
+import { allocateDays, type PlannerDestination } from '../lib/itinerary';
 import { COPY } from '../lib/copy';
 import { tripDurationDays, isPastDate } from '../lib/dateUtils';
 import TripTooLongModal from '../components/TripTooLongModal';
@@ -97,6 +98,7 @@ export default function HomePage() {
   const [newDestArriveDate, setNewDestArriveDate] = useState('');
   const [newDestDepartDate, setNewDestDepartDate] = useState('');
   const [newDestError, setNewDestError] = useState<string | null>(null);
+  const [newDestCalendarOpen, setNewDestCalendarOpen] = useState(false);
   // Pre-generation intent sheet
   const [intentSheet, setIntentSheet] = useState<'ai' | 'manual' | null>(null);
   const [intentDest, setIntentDest] = useState('');
@@ -232,11 +234,6 @@ export default function HomePage() {
     return null;
   }, [newDestArriveDate, newDestDepartDate]);
 
-  // Auto-fill end date from start date when end is unset
-  useEffect(() => {
-    if (intentDate && !intentEndDate) setIntentEndDate(intentDate);
-  }, [intentDate, intentEndDate]);
-
   // Auto-open intent sheet when arriving with ?newPlan=1 (from Wallet) or
   // ?openIntent=1 (from "Edit trip" on GeneratePage — restores prior draft).
   const [searchParams, setSearchParams] = useSearchParams();
@@ -315,6 +312,30 @@ export default function HomePage() {
       else setSocialResult(SOCIAL_MOCK.instagram);
     }, 1800);
   };
+
+  // Open add-dest sheet with smart defaults: pre-fill dates from trip-level intent if known
+  const openAddDestSheet = () => {
+    if (intentDate && intentEndDate && !newDestArriveDate && !newDestDepartDate) {
+      setNewDestArriveDate(intentDate);
+      setNewDestDepartDate(intentEndDate);
+    }
+    setNewDestCalendarOpen(false);
+    setAddDestSheet(true);
+  };
+
+  // Day-distribution timeline preview for multi-city in intent sheet
+  const previewDays = useMemo(() => {
+    if (destinations.length < 2 || !intentDate || !intentEndDate) return null;
+    const plannerDests: PlannerDestination[] = destinations.map((d) => ({
+      name: d.name,
+      days: d.days,
+      arriveDate: d.arriveDate,
+      departDate: d.departDate,
+    }));
+    const total = tripDurationDays(intentDate, intentEndDate);
+    if (total <= 0) return null;
+    return allocateDays(plannerDests, total);
+  }, [destinations, intentDate, intentEndDate]);
 
   const handleAddDest = () => {
     const trimmed = newDestName.trim();
@@ -564,7 +585,7 @@ export default function HomePage() {
             <div className="flex items-center gap-3">
               <button onClick={() => setManageDestsSheet(true)} className="text-xs text-ink-500 font-semibold press">Manage</button>
               <button
-                onClick={() => setAddDestSheet(true)}
+                onClick={() => openAddDestSheet()}
                 className="flex items-center gap-1 text-xs text-brand-600 font-semibold press"
               >
                 <Plus className="w-3 h-3" /> Add stop
@@ -594,7 +615,7 @@ export default function HomePage() {
             ))}
             {destinations.length < MAX_DESTINATIONS ? (
               <button
-                onClick={() => setAddDestSheet(true)}
+                onClick={() => openAddDestSheet()}
                 className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-full border border-dashed border-brand-300 text-brand-500 text-xs font-semibold press"
               >
                 <Plus className="w-3 h-3" />
@@ -880,7 +901,7 @@ export default function HomePage() {
             className="mt-4"
           >
             <button
-              onClick={() => setAddDestSheet(true)}
+              onClick={() => openAddDestSheet()}
               className="w-full h-11 rounded-2xl border-2 border-dashed border-brand-200 text-brand-600 text-sm font-semibold press flex items-center justify-center gap-2 hover:border-brand-400 transition-colors"
             >
               <Plus className="w-4 h-4" /> Add another destination
@@ -1246,6 +1267,53 @@ export default function HomePage() {
                   )}
                 </div>
 
+                {/* Day-distribution timeline preview — shows exactly how days are split before generation */}
+                {previewDays && (
+                  <div className="bg-ink-50 rounded-2xl px-3 py-2.5 space-y-1">
+                    <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-2">YOUR ROUTE PREVIEW</div>
+                    {(() => {
+                      let currentDayNum = 1;
+                      const rows: { label: string; city: string; isTravel: boolean; count: number }[] = [];
+                      let i = 0;
+                      while (i < previewDays.length) {
+                        const day = previewDays[i];
+                        if (day.kind === 'travel') {
+                          const fromCity = destinations[previewDays[i - 1]?.destIdx ?? day.destIdx]?.name.split(',')[0] ?? '';
+                          const toCity = destinations[previewDays[i + 1]?.destIdx ?? day.destIdx]?.name.split(',')[0] ?? '';
+                          rows.push({ label: `Day ${currentDayNum}`, city: toCity ? `${fromCity} → ${toCity}` : fromCity, isTravel: true, count: 1 });
+                          currentDayNum++;
+                          i++;
+                        } else {
+                          const destIdx = day.destIdx;
+                          let run = 0;
+                          while (i + run < previewDays.length && previewDays[i + run].destIdx === destIdx && previewDays[i + run].kind !== 'travel') run++;
+                          const cityName = destinations[destIdx]?.name.split(',')[0] ?? '';
+                          const label = run === 1 ? `Day ${currentDayNum}` : `Day ${currentDayNum}–${currentDayNum + run - 1}`;
+                          rows.push({ label, city: cityName, isTravel: false, count: run });
+                          currentDayNum += run;
+                          i += run;
+                        }
+                      }
+                      return rows.map((r, idx) => (
+                        <div key={idx} className="flex items-center gap-2 py-0.5">
+                          <span className="text-[10px] text-ink-400 w-16 shrink-0 font-mono">{r.label}</span>
+                          {r.isTravel
+                            ? <span className="text-[11px] text-ink-400">✈ {r.city}</span>
+                            : (
+                              <>
+                                <span className="text-[11px] font-semibold text-ink-800">{r.city}</span>
+                                <span className="ml-auto flex gap-0.5">{Array.from({ length: Math.min(r.count, 6) }).map((_, di) => <span key={di} className="w-1.5 h-1.5 rounded-full bg-brand-300 inline-block" />)}</span>
+                              </>
+                            )}
+                        </div>
+                      ));
+                    })()}
+                    <div className="mt-1 text-[10px] text-ink-400">
+                      Includes {destinations.length - 1} travel day{destinations.length - 1 !== 1 ? 's' : ''} — added automatically.
+                    </div>
+                  </div>
+                )}
+
                 {/* WHEN — one canonical calendar, collapsed by default */}
                 <div>
                   <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-2">WHEN</div>
@@ -1284,12 +1352,10 @@ export default function HomePage() {
                             setIntentDate(iso);
                             setIntentEndDate('');
                             setIntentErrors((p) => ({ ...p, date: undefined }));
-                           
                           } else {
                             const start = new Date(intentDate);
-                            if (d > start) {
+                            if (d >= start) {
                               setIntentEndDate(iso);
-                             
                               setIntentDateOpen(false);
                             } else {
                               setIntentDate(iso);
@@ -1299,7 +1365,7 @@ export default function HomePage() {
                         }}
                       />
                       <div className="mt-1 text-[10px] text-ink-400 text-center">
-                        {!intentDate ? 'Tap a day to set your start date.' : !intentEndDate ? 'Tap a later day to set your end (or leave for a single day).' : 'Tap a different day to start over.'}
+                        {!intentDate ? 'Tap a day to set your start date.' : !intentEndDate ? 'Tap to set your end date (same day = 1-day trip).' : 'Tap a different day to start over.'}
                       </div>
                     </div>
                   )}
@@ -1307,7 +1373,7 @@ export default function HomePage() {
                   {/* Trip duration badge */}
                   {intentDate && intentEndDate && (() => {
                     const d = tripDurationDays(intentDate, intentEndDate);
-                    return d > 1 ? (
+                    return d >= 1 ? (
                       <div className="mt-2">
                         <span className="inline-block bg-brand-50 text-brand-600 text-xs font-bold rounded-full px-3 py-1">✈️ {d}-day trip</span>
                       </div>
@@ -1460,7 +1526,7 @@ export default function HomePage() {
         regionsCount={countDistinctRegions(destinations.map((d) => d.name))}
         onClose={() => setTooLongOpen(false)}
         onFocusDates={() => endDateInputRef.current?.focus()}
-        onFocusDestinations={() => setAddDestSheet(true)}
+        onFocusDestinations={() => openAddDestSheet()}
       />
 
       {/* ── Add Destination Sheet ── */}
@@ -1501,28 +1567,48 @@ export default function HomePage() {
                 </div>
 
                 {/* Date range */}
+                {/* Dates — MiniCalendar, collapsible */}
                 <div>
                   <div className="text-[10px] font-bold tracking-widest text-ink-500 mb-1.5">DATES</div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <div className="text-[10px] text-ink-400 mb-1">📅 Arrive</div>
-                      <input
-                        type="date"
-                        value={newDestArriveDate}
-                        onChange={(e) => setNewDestArriveDate(e.target.value)}
-                        className="w-full bg-ink-50 rounded-xl px-3 py-2.5 text-sm text-ink-900 border border-ink-200 outline-none focus:border-brand-400"
+                  <button
+                    onClick={() => setNewDestCalendarOpen((v) => !v)}
+                    className="w-full rounded-xl px-3 py-2.5 text-sm border border-ink-200 bg-ink-50 flex items-center justify-between press"
+                  >
+                    <span className="font-semibold text-ink-700">
+                      {newDestArriveDate && newDestDepartDate ? (() => {
+                        const a = new Date(newDestArriveDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+                        const b = new Date(newDestDepartDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+                        return `${a} → ${b}`;
+                      })() : newDestArriveDate ? new Date(newDestArriveDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' →' : 'Set dates (optional)'}
+                    </span>
+                    <span className="text-[11px] text-ink-400">{newDestCalendarOpen ? 'Done' : 'Edit'}</span>
+                  </button>
+                  {newDestCalendarOpen && (
+                    <div className="mt-2">
+                      <MiniCalendar
+                        startDate={newDestArriveDate ? new Date(newDestArriveDate) : null}
+                        endDate={newDestDepartDate ? new Date(newDestDepartDate) : null}
+                        onSelect={(d) => {
+                          const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                          if (!newDestArriveDate || (newDestArriveDate && newDestDepartDate)) {
+                            setNewDestArriveDate(iso);
+                            setNewDestDepartDate('');
+                          } else {
+                            if (d >= new Date(newDestArriveDate)) {
+                              setNewDestDepartDate(iso);
+                              setNewDestCalendarOpen(false);
+                            } else {
+                              setNewDestArriveDate(iso);
+                              setNewDestDepartDate('');
+                            }
+                          }
+                        }}
                       />
+                      <div className="mt-1 text-[10px] text-ink-400 text-center">
+                        {!newDestArriveDate ? 'Tap arrive date.' : !newDestDepartDate ? 'Tap depart date (same = 1 day).' : 'Tap to restart.'}
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-[10px] text-ink-400 mb-1">📅 Depart</div>
-                      <input
-                        type="date"
-                        value={newDestDepartDate}
-                        onChange={(e) => setNewDestDepartDate(e.target.value)}
-                        className="w-full bg-ink-50 rounded-xl px-3 py-2.5 text-sm text-ink-900 border border-ink-200 outline-none focus:border-brand-400"
-                      />
-                    </div>
-                  </div>
+                  )}
                   {calcedDays !== null ? (
                     <div className="mt-2 text-xs text-brand-600 font-semibold">{calcedDays} day{calcedDays !== 1 ? 's' : ''} calculated from dates</div>
                   ) : (
@@ -1537,6 +1623,8 @@ export default function HomePage() {
                     </div>
                   )}
                 </div>
+
+                <div className="text-[11px] text-ink-400 leading-snug text-center">{COPY.hints.travelDays}</div>
 
                 <button
                   onClick={handleAddDest}
