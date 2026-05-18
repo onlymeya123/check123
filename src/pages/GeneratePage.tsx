@@ -11,6 +11,7 @@ import type { Place } from '../data/places';
 import { PLACES } from '../data/places';
 import { getRegion, countDistinctRegions } from '../data/regions';
 import { MAX_TRIP_DAYS, exceedsMaxDuration } from '../lib/planValidation';
+import { COPY } from '../lib/copy';
 import { formatCost } from '../lib/format';
 import { useToast } from '../components/Toast';
 import { getCulturalIntel, type CulturalIntel } from '../data/cultural';
@@ -156,7 +157,7 @@ export default function GeneratePage() {
   useEffect(() => {
     // URL safety net — HomePage is the primary defense against >30-day trips.
     if (exceedsMaxDuration(daysParam)) {
-      show(`Let's keep trips to ${MAX_TRIP_DAYS} days for the best plan`, 'info');
+      show(COPY.tripTooLong.urlToast(MAX_TRIP_DAYS), 'info');
       nav('/', { replace: true });
       return;
     }
@@ -243,7 +244,7 @@ export default function GeneratePage() {
     setUndoItem(null);
     if (isManualMode) setItinerary(manualStops);
     setConfirmingPulse(true);
-    show(isPostOnboarding ? 'Your trip is ready! 🎉' : 'Journey confirmed ✨', 'success');
+    show(isPostOnboarding ? 'Your trip is ready' : 'Journey confirmed', 'success');
     if (isPostOnboarding) {
       setTimeout(() => nav('/', { replace: true }), 700);
     } else {
@@ -956,14 +957,11 @@ function EmptyDayCard({ dayIndex, totalDays, arrivalTime, departureTime, kind, f
       <div className="flex flex-col items-center gap-4 py-10 text-center px-6">
         <div className="text-5xl">{emoji}</div>
         <div>
-          <div className="font-bold text-ink-900 text-lg font-display">Travel Day</div>
-          {(fromCity || toCity) && (
-            <div className="text-sm font-semibold text-brand-600 mt-1">
-              {fromCity ?? '—'} → {toCity ?? '—'}
-            </div>
-          )}
-          <div className="text-sm text-ink-500 mt-1.5 max-w-[260px] leading-relaxed">
-            Light day for the transfer. Check in, rest, grab a local meal.
+          <div className="font-bold text-ink-900 text-lg font-display">
+            Travel day{(fromCity && toCity) ? ` — ${fromCity} to ${toCity}` : ''}
+          </div>
+          <div className="text-sm text-ink-500 mt-1.5 max-w-[280px] leading-relaxed">
+            A relaxed day to move between cities. Check in, rest, try something local.
           </div>
         </div>
         <div className="inline-flex items-center gap-2 bg-brand-50 border border-brand-100 rounded-full px-3 py-1.5">

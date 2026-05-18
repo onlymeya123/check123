@@ -2,8 +2,9 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   Bell, Plus, Scan, Clock, X, Check, Users, Receipt,
   Pencil, Trash2, Share2, ChevronRight, ChevronLeft, Wallet, CalendarDays,
-  TrendingDown, Globe, AlertTriangle, Search,
+  TrendingDown, Globe, AlertTriangle, Search, Link2,
 } from 'lucide-react';
+import { COPY } from '../lib/copy';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StatusBar from '../components/StatusBar';
@@ -157,7 +158,7 @@ export default function WalletPage() {
               <div className="font-bold text-lg font-display truncate">{tripName}</div>
               {isLinkedTrip && (
                 <div className="text-[10px] text-white/70 mt-0.5 flex items-center gap-1">
-                  <span>🔗</span> Linked from your trip plan
+                  <Link2 className="w-2.5 h-2.5" /> {COPY.wallet.linkedSubtitle}
                 </div>
               )}
               {(itinerary.length > 0 || destinations.length > 0) && (

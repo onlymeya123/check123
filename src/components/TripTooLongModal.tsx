@@ -6,9 +6,10 @@
  */
 
 import { AnimatePresence, motion } from 'framer-motion';
-import { X, ChevronRight, Sparkles } from 'lucide-react';
+import { X, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 import { MAX_TRIP_DAYS } from '../lib/planValidation';
+import { COPY } from '../lib/copy';
 
 interface Props {
   open: boolean;
@@ -41,20 +42,15 @@ export default function TripTooLongModal({
             className="absolute inset-x-4 top-1/2 -translate-y-1/2 z-[61] bg-white rounded-3xl shadow-card p-5"
           >
             <div className="flex items-start justify-between mb-3">
-              <div className="flex items-start gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-brand-50 flex items-center justify-center shrink-0">
-                  <Sparkles className="w-5 h-5 text-brand-600" />
+              <div className="flex-1 pr-3">
+                <div className="font-bold text-ink-900 font-display text-base leading-tight">
+                  {COPY.tripTooLong.headline}
                 </div>
-                <div>
-                  <div className="font-bold text-ink-900 font-display text-base leading-tight">
-                    Let's keep this trip realistic
-                  </div>
-                  <div className="text-xs text-ink-500 mt-0.5 leading-snug">
-                    You picked {days} days — we plan best for trips up to {MAX_TRIP_DAYS}.
-                  </div>
+                <div className="text-xs text-ink-500 mt-1 leading-snug">
+                  {COPY.tripTooLong.body(days, MAX_TRIP_DAYS)}
                 </div>
               </div>
-              <button onClick={onClose} className="w-8 h-8 rounded-full bg-ink-50 flex items-center justify-center press">
+              <button onClick={onClose} className="w-8 h-8 rounded-full bg-ink-50 flex items-center justify-center press shrink-0">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -87,8 +83,7 @@ export default function TripTooLongModal({
             </button>
             {whyOpen && (
               <div className="mt-1 text-[11px] text-ink-500 leading-relaxed">
-                We're tuned for trips up to ~{MAX_TRIP_DAYS} days for the best quality. Beyond that,
-                generated days start to repeat and transfers get chaotic.
+                {COPY.tripTooLong.why}
               </div>
             )}
           </motion.div>

@@ -23,6 +23,7 @@ import {
   type MajorBannerKey,
 } from '../lib/planValidation';
 import { IntentBanners } from '../components/IntentBanners';
+import { COPY } from '../lib/copy';
 import { tripDurationDays, isPastDate } from '../lib/dateUtils';
 import JourneyReviewModal, { type JourneySummary, type ReviewMode, type GuidanceAction } from '../components/JourneyReviewModal';
 import TripTooLongModal from '../components/TripTooLongModal';
@@ -99,6 +100,9 @@ export default function HomePage() {
   // Pre-generation intent sheet
   const [intentSheet, setIntentSheet] = useState<'ai' | 'manual' | null>(null);
   const [intentDest, setIntentDest] = useState('');
+  // Rotating placeholder doubles as a teaching prompt: "country or city?"
+  const [destPlaceholderIdx, setDestPlaceholderIdx] = useState(0);
+  const destPlaceholder = COPY.destInput.placeholders[destPlaceholderIdx];
   const [intentDate, setIntentDate] = useState('');
   const [intentEndDate, setIntentEndDate] = useState('');
   const [intentStartTime, setIntentStartTime] = useState('09:00');
@@ -260,6 +264,16 @@ export default function HomePage() {
     setIntentEndTime(`${String(eh).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
   }, [intentStartTime, intentEndTimeSet]);
 
+  // Rotate the WHERE placeholder while the AI intent sheet is open and the
+  // input is empty — the placeholder is the tutorial for "country or city?".
+  useEffect(() => {
+    if (intentSheet !== 'ai' || intentDest) return;
+    const id = setInterval(() => {
+      setDestPlaceholderIdx((i) => (i + 1) % COPY.destInput.placeholders.length);
+    }, 2500);
+    return () => clearInterval(id);
+  }, [intentSheet, intentDest]);
+
   const parseSocialLink = () => {
     if (!socialUrl.trim()) return;
     const lower = socialUrl.toLowerCase();
@@ -289,7 +303,7 @@ export default function HomePage() {
       return;
     }
     if (destinations.length >= MAX_DESTINATIONS) {
-      setNewDestError(`Six is plenty — let's make it a great trip.`);
+      setNewDestError(COPY.maxDestinations);
       return;
     }
     setNewDestError(null);
@@ -337,7 +351,7 @@ export default function HomePage() {
         linkedToPlan: true,
       });
       // Surface the connection — see Change 8a.
-      setTimeout(() => show(`💼 Wallet trip created for ${tripName}`, 'success'), 600);
+      setTimeout(() => show(COPY.wallet.tripCreatedToast(tripName), 'success'), 600);
     }
 
     const mode = intentSheet;
@@ -418,10 +432,10 @@ export default function HomePage() {
     : reviewBanners.major ? 'friction' : 'confirm';
 
   const frictionCopy: Partial<Record<MajorBannerKey, string>> = {
-    'chaos-regions': `⚠ This trip crosses multiple regions in a short window. Plan anyway?`,
-    'chaos-cities': `⚠ Many cities across regions can feel chaotic. Plan anyway?`,
-    'duration-over-20': `⚠ Long trip — near our 30-day sweet spot. Plan anyway?`,
-    'ratio-under-1': `⚠ Cities outnumber days. Plan anyway?`,
+    'chaos-regions': COPY.friction.chaosRegions,
+    'chaos-cities': COPY.friction.chaosCities,
+    'duration-over-20': COPY.friction.durationOver20,
+    'ratio-under-1': COPY.friction.ratioUnder1,
   };
   const frictionNote: string | undefined = reviewBanners.major
     ? frictionCopy[reviewBanners.major.key]
@@ -1152,17 +1166,17 @@ export default function HomePage() {
 
               <div className="px-5 pb-4 space-y-4">
 
-                {/* Scope chip — honest expectations up front (AI mode only) */}
+                {/* Scope explainer — honest expectations up front (AI mode only) */}
                 {intentSheet === 'ai' && (
                   <div>
                     <button
                       onClick={() => setScopeTipOpen((v) => !v)}
-                      className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-brand-700 bg-brand-50 border border-brand-100 rounded-full px-3 py-1.5 press"
+                      className="text-[11px] text-ink-500 leading-relaxed text-left press"
                     >
-                      <span>✨ Curated for 1-city, short multi-city, or regional trips. Up to 30 days.</span>
+                      Plans 1–6 cities, up to 30 days. Pick a pace below.
                     </button>
                     {scopeTipOpen && (
-                      <div className="mt-1.5 text-[11px] text-ink-500 px-1 leading-relaxed">
+                      <div className="mt-1 text-[11px] text-ink-400 px-1 leading-relaxed">
                         For longer or multi-region trips, we'll suggest clustering for better results.
                       </div>
                     )}
@@ -1177,7 +1191,7 @@ export default function HomePage() {
                     <input
                       value={intentDest}
                       onChange={(e) => { setIntentDest(e.target.value); if (e.target.value.trim()) setIntentErrors((p) => ({ ...p, dest: undefined })); }}
-                      placeholder="e.g. Tokyo, Paris, Bali…"
+                      placeholder={destPlaceholder}
                       className="flex-1 bg-transparent text-sm text-ink-900 placeholder:text-ink-400 outline-none"
                       autoFocus
                     />
@@ -1188,37 +1202,34 @@ export default function HomePage() {
                       <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> {intentErrors.dest}
                     </div>
                   )}
-                  {/* Country → city hint */}
+                  {/* Country → city hint — inline grey helper, not an error-style banner */}
                   {intentDest && !intentErrors.dest && (() => {
                     const hint = COUNTRY_CITY_HINTS[intentDest.trim().toLowerCase()];
                     if (!hint) return null;
                     return (
-                      <div className="mt-2 flex items-center justify-between bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 gap-2">
-                        <span className="text-xs text-amber-700 flex-1">For a better itinerary, try a specific city.</span>
-                        <button
-                          onClick={() => { setIntentDest(hint); setIntentErrors((p) => ({ ...p, dest: undefined })); }}
-                          className="shrink-0 text-xs font-bold text-brand-600 bg-white border border-brand-200 px-2.5 py-1 rounded-full press"
-                        >
-                          Use {hint}
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => { setIntentDest(hint); setIntentErrors((p) => ({ ...p, dest: undefined })); }}
+                        className="mt-1.5 text-[11px] text-ink-500 leading-snug press text-left"
+                      >
+                        {COPY.destInput.cityHint(hint)}
+                      </button>
                     );
                   })()}
-                  {/* Popular city quick-picks — hidden once user has typed something */}
+                  {/* Popular cities — quiet single line of text-buttons */}
                   {!intentDest && (
-                    <div className="mt-2">
-                      <div className="text-[10px] text-ink-400 mb-1.5">Popular</div>
-                      <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
-                        {['Bali', 'Bangkok', 'Tokyo', 'Paris', 'Rome', 'Barcelona', 'NYC'].map((city) => (
+                    <div className="mt-2 text-[11px] text-ink-400 leading-snug">
+                      Popular:{' '}
+                      {['Bali', 'Bangkok', 'Tokyo', 'Paris', 'Seoul', 'Lisbon'].map((city, i, arr) => (
+                        <span key={city}>
                           <button
-                            key={city}
                             onClick={() => { setIntentDest(city); setIntentErrors((p) => ({ ...p, dest: undefined })); }}
-                            className="shrink-0 px-3 py-1 rounded-full text-xs font-semibold bg-ink-50 text-ink-700 border border-ink-100 press hover:border-brand-300 hover:text-brand-700 transition-colors"
+                            className="text-ink-600 hover:text-brand-600 font-semibold press"
                           >
                             {city}
                           </button>
-                        ))}
-                      </div>
+                          {i < arr.length - 1 && <span className="text-ink-300"> · </span>}
+                        </span>
+                      ))}
                     </div>
                   )}
                   {destinations.length > 1 && (

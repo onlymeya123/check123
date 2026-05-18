@@ -97,14 +97,13 @@ export interface Trip {
   linkedToPlan?: boolean;
 }
 
-export const SEED_TXNS: Transaction[] = [
-  { id: 't1', title: 'Seniman Coffee Studio', category: 'Food & Drinks', amount: -40000, date: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), icon: '☕', tag: 'Great deal' },
-  { id: 't2', title: 'Tirta Empul Temple', category: 'Attractions', amount: -50000, date: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(), icon: '🛕' },
-  { id: 't3', title: 'Hujan Locale — split with Made', category: 'Food & Drinks', amount: -73000, date: new Date(Date.now() - 1000 * 60 * 60 * 20).toISOString(), icon: '🍽️', tag: 'you owe' },
-  { id: 't4', title: 'Gojek Ride', category: 'Transport', amount: -28000, date: new Date(Date.now() - 1000 * 60 * 60 * 28).toISOString(), icon: '🛵' },
-  { id: 't5', title: 'Paid for group dinner', category: 'Food & Drinks', amount: -220000, date: new Date(Date.now() - 1000 * 60 * 60 * 30).toISOString(), icon: '🍽️', tag: 'owed to you' },
-  { id: 't6', title: 'Ubud Market Souvenirs', category: 'Shopping', amount: -140000, date: new Date(Date.now() - 1000 * 60 * 60 * 36).toISOString(), icon: '🛍️' },
-];
+/**
+ * Default seed is intentionally empty. A brand-new user should land on the
+ * wallet's onboarding empty state, not a wall of fake demo transactions —
+ * see WalletPage's `showEmptyOnboarding` gate. The previous demo data
+ * misled new users into thinking they had an existing trip.
+ */
+export const SEED_TXNS: Transaction[] = [];
 
 export const DEFAULT_TRIP: Trip = {
   id: 'trip-default',

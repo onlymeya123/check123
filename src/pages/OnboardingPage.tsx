@@ -131,7 +131,7 @@ export default function OnboardingPage() {
           name: name || email.split('@')[0],
           email,
           vibe: 'balanced',
-          destinations: [{ name: 'My Destination', days: 3 }],
+          destinations: [],
           totalDays: 3,
           budget: 500_000,
           startDate: 'today',
@@ -163,7 +163,7 @@ export default function OnboardingPage() {
         vibe: selectedVibe,
         destinations: destList.length > 0
           ? destList.map((d) => ({ name: d.name, days: d.days }))
-          : [{ name: 'My Destination', days: totalDays }],
+          : [],
         totalDays,
         budget,
         startDate: startStr,
@@ -263,7 +263,7 @@ export default function OnboardingPage() {
                   <img
                     src={splashImg}
                     alt="Pavey"
-                    className="w-[52vw] max-w-[230px] max-h-[45vh] object-contain"
+                    className="w-[62vw] max-w-[280px] max-h-[52vh] object-contain"
                     style={{ aspectRatio: '605/944' }}
                   />
                 </motion.div>

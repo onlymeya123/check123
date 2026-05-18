@@ -342,25 +342,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     setJourneyStart({ date: data.startDate, time: '09:00', days: data.totalDays });
 
-    // Create wallet trip
-    const tripName = data.destinations.length === 1
-      ? `${data.destinations[0].name} Trip`
-      : `${data.destinations[0]?.name} + ${data.destinations.length - 1} more`;
-    const tripDest = data.destinations.map((d) => d.name).join(' → ');
-    const id = `trip-${Math.random().toString(36).slice(2, 9)}`;
-    const newTrip: Trip = {
-      id,
-      name: tripName,
-      destination: tripDest,
-      currency: newDests[0]?.currency ?? 'IDR',
-      budget: data.budget * Math.max(1, data.totalDays),
-      daysTotal: data.totalDays,
-      daysRemaining: data.totalDays,
-      transactions: [],
-      createdAt: new Date().toISOString(),
-    };
-    setTrips([newTrip]);
-    setActiveTripId(id);
+    // Create wallet trip only when the user actually picked destinations
+    // during onboarding. If they skipped (e.g. quick-login flow), leave the
+    // wallet on the default empty state — the first plan from HomePage will
+    // mint a real trip with `linkedToPlan: true`.
+    if (data.destinations.length > 0) {
+      const tripName = data.destinations.length === 1
+        ? `${data.destinations[0].name} Trip`
+        : `${data.destinations[0].name} + ${data.destinations.length - 1} more`;
+      const tripDest = data.destinations.map((d) => d.name).join(' → ');
+      const id = `trip-${Math.random().toString(36).slice(2, 9)}`;
+      const newTrip: Trip = {
+        id,
+        name: tripName,
+        destination: tripDest,
+        currency: newDests[0]?.currency ?? 'IDR',
+        budget: data.budget * Math.max(1, data.totalDays),
+        daysTotal: data.totalDays,
+        daysRemaining: data.totalDays,
+        transactions: [],
+        createdAt: new Date().toISOString(),
+      };
+      setTrips([newTrip]);
+      setActiveTripId(id);
+    }
 
     setOnboardingComplete(true);
     setEverOnboarded(true);

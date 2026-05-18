@@ -1,6 +1,7 @@
 import React from 'react';
 import { computeIntentBanners, type MajorBannerKey, type SecondaryBannerKey } from '../lib/planValidation';
 import type { Region } from '../data/regions';
+import { COPY } from '../lib/copy';
 
 export function IntentBanners({
   durationDays, destinationNames, onKeepOnlyRegion,
@@ -42,14 +43,13 @@ function MajorBannerBody({
   onKeepOnlyRegion: (region: Region) => void;
 }) {
   const { key, primaryRegion, vars } = banner;
-  const { days, cities, regions } = vars;
-  const dayWord = days !== 1 ? 's' : '';
+  const { days, regions } = vars;
 
   const copy: Record<MajorBannerKey, string> = {
-    'chaos-regions': `This trip crosses ${regions} regions in ${days} day${dayWord} — single-region trips plan much better. Consider focusing on one area.`,
-    'chaos-cities': `${cities} cities across multiple regions can feel chaotic. Trim your list or focus on ${primaryRegion ?? 'one region'}.`,
-    'duration-over-20': `This is a long trip — near our ${30}-day sweet spot. Splitting can help if you want extra room.`,
-    'ratio-under-1': `${cities} cities in ${days} day${dayWord} — let's give each city more room. Consider extending or removing cities.`,
+    'chaos-regions': COPY.banners.chaosRegions(regions, days),
+    'chaos-cities': COPY.banners.chaosCities(primaryRegion ?? 'one region'),
+    'duration-over-20': COPY.banners.durationOver20,
+    'ratio-under-1': COPY.banners.ratioUnder1,
   };
   const showKeepOnly = (key === 'chaos-regions' || key === 'chaos-cities') && primaryRegion;
 
@@ -76,8 +76,8 @@ function SecondaryBannerBody({
   banner: NonNullable<ReturnType<typeof computeIntentBanners>['secondary']>;
 }) {
   const copy: Record<SecondaryBannerKey, string> = {
-    'duration-14-20': 'Heads up — longer trips work best when clustered by region. Aim for one country or area.',
-    'ratio-1-to-2': 'Less than 2 days per city — your trip will feel a bit rushed.',
+    'duration-14-20': COPY.banners.duration1420,
+    'ratio-1-to-2': COPY.banners.ratio1to2,
   };
   return <div className="text-xs text-amber-700">{copy[banner.key]}</div>;
 }
