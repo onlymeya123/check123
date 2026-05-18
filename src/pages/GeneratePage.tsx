@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowLeft, ArrowDown, Check, Plus, RefreshCw, Wand2, X,
-  Clock, Star, DollarSign, Pencil, Search, ChevronUp, ChevronDown, AlertTriangle,
+  Clock, Star, DollarSign, Pencil, Search, ChevronUp, ChevronDown, AlertTriangle, Wallet,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -73,6 +73,8 @@ export default function GeneratePage() {
   const [densityDismissed, setDensityDismissed] = useState(() => {
     try { return localStorage.getItem('pavey_density_hint_dismissed') === '1'; } catch { return false; }
   });
+  const [walletPromptOpen, setWalletPromptOpen] = useState(false);
+  const walletPromptTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dismissDensity = () => {
     setDensityDismissed(true);
     try { localStorage.setItem('pavey_density_hint_dismissed', '1'); } catch { /* ignore */ }
@@ -213,13 +215,21 @@ export default function GeneratePage() {
   };
 
   const onConfirm = () => {
-    // Issue 9: Cancel pending undo on confirm
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
     setUndoItem(null);
     if (isManualMode) setItinerary(manualStops);
     setConfirmingPulse(true);
     show(isPostOnboarding ? 'Your trip is ready! 🎉' : 'Journey confirmed ✨', 'success');
-    setTimeout(() => nav(isPostOnboarding ? '/' : '/map', { replace: true }), 700);
+    if (isPostOnboarding) {
+      setTimeout(() => nav('/', { replace: true }), 700);
+    } else {
+      // Prompt user to link a wallet, auto-proceed after 5s
+      setWalletPromptOpen(true);
+      walletPromptTimer.current = setTimeout(() => {
+        setWalletPromptOpen(false);
+        nav('/map', { replace: true });
+      }, 5000);
+    }
   };
 
   const manualSearchResults = useMemo(() => {
@@ -833,6 +843,49 @@ export default function GeneratePage() {
               </div>
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      {/* Wallet link prompt — slides up after plan confirmation */}
+      <AnimatePresence>
+        {walletPromptOpen && (
+          <motion.div
+            initial={{ y: 80, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 80, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 360, damping: 30 }}
+            className="absolute inset-x-0 bottom-0 z-50 bg-white border-t border-ink-100 shadow-card px-5 py-4"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-brand-50 flex items-center justify-center shrink-0">
+                <Wallet className="w-5 h-5 text-brand-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-ink-900 text-sm">Track your spending?</div>
+                <div className="text-xs text-ink-500 mt-0.5">Connect this plan to your wallet for budget tracking.</div>
+              </div>
+              <button
+                onClick={() => {
+                  if (walletPromptTimer.current) clearTimeout(walletPromptTimer.current);
+                  setWalletPromptOpen(false);
+                  nav('/wallet', { replace: true });
+                }}
+                className="shrink-0 h-9 px-3 rounded-xl bg-brand-500 text-white text-xs font-bold press shadow-glow"
+              >
+                Open Wallet
+              </button>
+              <button
+                onClick={() => {
+                  if (walletPromptTimer.current) clearTimeout(walletPromptTimer.current);
+                  setWalletPromptOpen(false);
+                  nav('/map', { replace: true });
+                }}
+                className="shrink-0 h-9 px-3 rounded-xl bg-ink-50 text-ink-700 text-xs font-semibold press"
+              >
+                Later
+              </button>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

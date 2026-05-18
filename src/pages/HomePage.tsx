@@ -27,6 +27,16 @@ const VIBES: { id: Vibe; label: string; icon: string; tint: string }[] = [
 
 const CATEGORIES: Category[] = ['Cafe', 'Nature', 'Cultural', 'Historic', 'Foodie', 'Hidden Gem', 'Cozy'];
 
+const COUNTRY_CITY_HINTS: Record<string, string> = {
+  thailand: 'Bangkok', japan: 'Tokyo', france: 'Paris',
+  indonesia: 'Bali', spain: 'Barcelona', italy: 'Rome',
+  'united kingdom': 'London', england: 'London',
+  'united states': 'New York', america: 'New York', usa: 'New York',
+  australia: 'Sydney', 'south korea': 'Seoul', korea: 'Seoul',
+  vietnam: 'Hanoi', mexico: 'Mexico City', india: 'Mumbai', greece: 'Athens',
+  portugal: 'Lisbon', netherlands: 'Amsterdam', germany: 'Berlin',
+};
+
 const SOCIAL_MOCK: Record<string, { platform: string; name: string; category: string; desc: string; image: string; cost: number }> = {
   tiktok: {
     platform: 'TikTok',
@@ -1035,7 +1045,7 @@ export default function HomePage() {
                     <input
                       value={intentDest}
                       onChange={(e) => { setIntentDest(e.target.value); if (e.target.value.trim()) setIntentErrors((p) => ({ ...p, dest: undefined })); }}
-                      placeholder={activeDest?.name.split(',')[0] ?? 'e.g. Ubud, Bali'}
+                      placeholder="e.g. Tokyo, Paris, Bali…"
                       className="flex-1 bg-transparent text-sm text-ink-900 placeholder:text-ink-400 outline-none"
                       autoFocus
                     />
@@ -1046,6 +1056,22 @@ export default function HomePage() {
                       <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> {intentErrors.dest}
                     </div>
                   )}
+                  {/* Country → city hint */}
+                  {intentDest && !intentErrors.dest && (() => {
+                    const hint = COUNTRY_CITY_HINTS[intentDest.trim().toLowerCase()];
+                    if (!hint) return null;
+                    return (
+                      <div className="mt-2 flex items-center justify-between bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 gap-2">
+                        <span className="text-xs text-amber-700 flex-1">For a better itinerary, try a specific city.</span>
+                        <button
+                          onClick={() => { setIntentDest(hint); setIntentErrors((p) => ({ ...p, dest: undefined })); }}
+                          className="shrink-0 text-xs font-bold text-brand-600 bg-white border border-brand-200 px-2.5 py-1 rounded-full press"
+                        >
+                          Use {hint}
+                        </button>
+                      </div>
+                    );
+                  })()}
                   {/* Popular city quick-picks — hidden once user has typed something */}
                   {!intentDest && (
                     <div className="mt-2">
@@ -1093,6 +1119,12 @@ export default function HomePage() {
                       {intentErrors.date && (
                         <div className="flex items-center gap-1 text-xs text-red-600 mt-1">
                           <AlertTriangle className="w-3 h-3 shrink-0" /> {intentErrors.date}
+                        </div>
+                      )}
+                      {/* Past-date soft hint */}
+                      {intentDate && !intentErrors.date && new Date(intentDate) < new Date(new Date().toDateString()) && (
+                        <div className="flex items-center gap-1 text-xs text-amber-600 mt-1">
+                          <AlertTriangle className="w-3 h-3 shrink-0" /> Start date is in the past
                         </div>
                       )}
                     </div>
