@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StatusBar from '../components/StatusBar';
 import PageHeader from '../components/PageHeader';
+import RupiahMascot from '../components/RupiahMascot';
 import { useApp } from '../context/AppContext';
 import {
   CATEGORY_COLORS, type Transaction, type TxnCategory,
@@ -235,6 +236,29 @@ export default function WalletPage() {
             className="absolute -right-4 -bottom-4 w-28 h-28 rounded-full bg-white/8" />
         </motion.div>
       </div>
+
+      {/* Talking Rupiah mascot — only when budgeting in IDR */}
+      {currency === 'IDR' && (
+        <div className="px-5 mt-5">
+          <div className="relative bg-gradient-to-br from-rose-50 via-amber-50 to-rose-50 border border-rose-100 rounded-3xl pt-12 pb-5 px-4 overflow-hidden">
+            <div className="absolute inset-0 opacity-40 pointer-events-none"
+              style={{
+                backgroundImage:
+                  'radial-gradient(circle at 20% 20%, rgba(230,57,86,0.12), transparent 40%), radial-gradient(circle at 80% 80%, rgba(245,194,74,0.18), transparent 45%)',
+              }}
+            />
+            <div className="relative flex flex-col items-center">
+              <RupiahMascot />
+              <div className="mt-4 text-center">
+                <div className="text-[11px] font-bold tracking-[0.2em] text-rose-500/80">SI RUPIAH</div>
+                <div className="text-sm font-semibold text-ink-700 mt-0.5">
+                  Tap untuk mendengar lagi · <span className="text-rose-500">Jaga aku ya!</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Trip completed summary banner */}
       {tripCompleted && (
