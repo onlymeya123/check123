@@ -6,7 +6,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import StatusBar from '../components/StatusBar';
-import { useApp } from '../context/AppContext';
+import { useApp, PACE_STOPS } from '../context/AppContext';
 import type { Place } from '../data/places';
 import { PLACES } from '../data/places';
 import { formatCost } from '../lib/format';
@@ -15,9 +15,10 @@ import { getCulturalIntel, type CulturalIntel } from '../data/cultural';
 import TimePicker from '../components/TimePicker';
 
 const STEPS = [
-  'Finding nearby places…',
+  'Scouting hidden gems…',
   'Matching spots to your vibe…',
-  'Optimizing route…',
+  'Checking opening hours…',
+  'Balancing your pace…',
   'Crafting your perfect journey…',
 ];
 
@@ -320,6 +321,14 @@ export default function GeneratePage() {
                           <RefreshCw className="w-4 h-4" /> Try Again
                         </button>
                       </div>
+                    ) : displayItinerary.length === 0 && isMultiDay ? (
+                      /* Empty day placeholder — arrival/departure/free */
+                      <EmptyDayCard
+                        dayIndex={activeDay}
+                        totalDays={perDayItineraries.length}
+                        arrivalTime={startTimeParam ?? journeyStart.time ?? '09:00'}
+                        departureTime={endTimeParam ?? journeyStart.endTime ?? '14:00'}
+                      />
                     ) : (<>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[11px] font-bold tracking-widest text-ink-500">ITINERARY · {displayItinerary.length} STOPS</span>
@@ -434,6 +443,14 @@ export default function GeneratePage() {
                     >
                       <RefreshCw className="w-3.5 h-3.5" /> Re-roll suggestions
                     </button>
+
+                    {/* Places exhaustion hint */}
+                    {isMultiDay && perDayItineraries.flat().length < journeyStart.days * PACE_STOPS[pace] * 0.7 && (
+                      <div className="mt-3 flex items-start gap-2 bg-ink-50 rounded-xl px-3 py-2.5">
+                        <span className="text-base leading-none mt-0.5 shrink-0">ℹ️</span>
+                        <span className="text-xs text-ink-500">We've shown all available spots for this destination — some days may have fewer stops than your pace setting.</span>
+                      </div>
+                    )}
 
                     {/* Recommendations */}
                     {!isMultiDay && alternatives(itinerary.map((p) => p.id)).length > 0 && (
@@ -824,6 +841,31 @@ export default function GeneratePage() {
 
 /* ── Sub-components ─────────────────────────────── */
 
+function EmptyDayCard({ dayIndex, totalDays, arrivalTime, departureTime }: {
+  dayIndex: number; totalDays: number; arrivalTime: string; departureTime: string;
+}) {
+  const isFirst = dayIndex === 0;
+  const isLast = dayIndex === totalDays - 1;
+  const emoji = isFirst ? '✈️' : isLast ? '🛫' : '🌤️';
+  const title = isFirst ? 'Arrival Day' : isLast ? 'Departure Day' : 'Free Day';
+  const time = isFirst ? arrivalTime : isLast ? departureTime : null;
+  const note = isFirst
+    ? `Arriving at ${time} — check in and settle in before tomorrow's adventures.`
+    : isLast
+    ? `Departing at ${time} — pack up and head to the airport.`
+    : 'No activities planned for this day — enjoy some rest or explore freely.';
+
+  return (
+    <div className="flex flex-col items-center gap-4 py-10 text-center">
+      <div className="text-5xl">{emoji}</div>
+      <div>
+        <div className="font-bold text-ink-900 text-lg font-display">{title}</div>
+        <div className="text-sm text-ink-500 mt-1.5 max-w-[240px] leading-relaxed">{note}</div>
+      </div>
+    </div>
+  );
+}
+
 function SummStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-white/15 rounded-xl py-2 px-2 text-center">
@@ -995,7 +1037,13 @@ function StopCard({
           </div>
           <button onClick={onTimeEdit} className="mt-1.5 flex items-center gap-1 bg-brand-50 rounded-full px-2 py-1 press">
             <Clock className="w-3 h-3 text-brand-500" />
-            <span className="text-xs font-semibold text-brand-600">{scheduledTime}</span>
+            <span className="text-xs font-semibold text-brand-600">
+              {scheduledTime}–{(() => {
+                const [h, m] = scheduledTime.split(':').map(Number);
+                const end = h * 60 + m + place.durationMin;
+                return `${String(Math.floor(end / 60) % 24).padStart(2, '0')}:${String(end % 60).padStart(2, '0')}`;
+              })()}
+            </span>
             <Pencil className="w-2.5 h-2.5 text-brand-400" />
           </button>
           <div className="flex items-center gap-1.5 text-[11px] mt-1.5 flex-wrap">
@@ -1055,7 +1103,7 @@ function CustomPlaceForm({ onAdd }: { onAdd: (p: Place) => void }) {
         </div>
       </div>
       <button disabled={!name.trim()} onClick={() => {
-        onAdd({ id: `custom-${Date.now()}`, name: name.trim(), category: category as import('../data/places').Category, tags: ['Custom'], vibes: ['balanced'], image: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=800&q=80', cost: Number(cost) || 0, priceRange: { min: Number(cost) || 0, max: Number(cost) || 0 }, durationMin: Number(dur) || 60, distanceKm: 1.0, lat: -8.5055, lng: 115.2620, rating: 0, description: 'Custom stop.', openingHours: 'All day', indoor: true, openHour: 0, closeHour: 24 });
+        onAdd({ id: `custom-${Date.now()}`, city: '', name: name.trim(), category: category as import('../data/places').Category, tags: ['Custom'], vibes: ['balanced'], image: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=800&q=80', cost: Number(cost) || 0, priceRange: { min: Number(cost) || 0, max: Number(cost) || 0 }, durationMin: Number(dur) || 60, distanceKm: 1.0, lat: -8.5055, lng: 115.2620, rating: 0, description: 'Custom stop.', openingHours: 'All day', indoor: true, openHour: 0, closeHour: 24 });
       }} className="w-full h-10 rounded-xl bg-brand-500 disabled:bg-ink-300 text-white font-semibold press flex items-center justify-center gap-2">
         <Plus className="w-4 h-4" /> Add Custom Stop
       </button>

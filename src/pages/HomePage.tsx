@@ -972,7 +972,7 @@ export default function HomePage() {
                 <div className="grid grid-cols-2 gap-2 px-3 pb-3">
                   <button
                     onClick={() => {
-                      const place: Place = { id: `social-${Date.now()}`, name: socialResult!.name, category: 'Hidden Gem', tags: ['Social Import'], vibes: ['nature','cafe','activities','cultural'], image: socialResult!.image, cost: socialResult!.cost, priceRange: { min: socialResult!.cost, max: socialResult!.cost }, durationMin: 60, distanceKm: 1.0, lat: -8.5055, lng: 115.2620, rating: 4.5, description: socialResult!.desc, openingHours: 'All day', indoor: false, openHour: 0, closeHour: 24 };
+                      const place: Place = { id: `social-${Date.now()}`, city: '', name: socialResult!.name, category: 'Hidden Gem', tags: ['Social Import'], vibes: ['nature','cafe','activities','cultural'], image: socialResult!.image, cost: socialResult!.cost, priceRange: { min: socialResult!.cost, max: socialResult!.cost }, durationMin: 60, distanceKm: 1.0, lat: -8.5055, lng: 115.2620, rating: 4.5, description: socialResult!.desc, openingHours: 'All day', indoor: false, openHour: 0, closeHour: 24 };
                       addStop(place);
                       show(`${socialResult!.name} added to plan`, 'success');
                       setSocialResult(null);
@@ -985,7 +985,7 @@ export default function HomePage() {
                   </button>
                   <button
                     onClick={() => {
-                      const place: Place = { id: `social-${Date.now()}`, name: socialResult!.name, category: 'Hidden Gem', tags: ['Social Import'], vibes: ['nature','cafe','activities','cultural'], image: socialResult!.image, cost: socialResult!.cost, priceRange: { min: socialResult!.cost, max: socialResult!.cost }, durationMin: 60, distanceKm: 1.0, lat: -8.5055, lng: 115.2620, rating: 4.5, description: socialResult!.desc, openingHours: 'All day', indoor: false, openHour: 0, closeHour: 24 };
+                      const place: Place = { id: `social-${Date.now()}`, city: '', name: socialResult!.name, category: 'Hidden Gem', tags: ['Social Import'], vibes: ['nature','cafe','activities','cultural'], image: socialResult!.image, cost: socialResult!.cost, priceRange: { min: socialResult!.cost, max: socialResult!.cost }, durationMin: 60, distanceKm: 1.0, lat: -8.5055, lng: 115.2620, rating: 4.5, description: socialResult!.desc, openingHours: 'All day', indoor: false, openHour: 0, closeHour: 24 };
                       savePlace(place);
                       show(`${socialResult!.name} saved for later`, 'success');
                       setSocialResult(null);
@@ -1044,6 +1044,23 @@ export default function HomePage() {
                   {intentErrors.dest && (
                     <div className="flex items-center gap-1.5 text-xs text-red-600 mt-1.5">
                       <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> {intentErrors.dest}
+                    </div>
+                  )}
+                  {/* Popular city quick-picks — hidden once user has typed something */}
+                  {!intentDest && (
+                    <div className="mt-2">
+                      <div className="text-[10px] text-ink-400 mb-1.5">Popular</div>
+                      <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+                        {['Bali', 'Bangkok', 'Tokyo', 'Paris', 'Rome', 'Barcelona', 'NYC'].map((city) => (
+                          <button
+                            key={city}
+                            onClick={() => { setIntentDest(city); setIntentErrors((p) => ({ ...p, dest: undefined })); }}
+                            className="shrink-0 px-3 py-1 rounded-full text-xs font-semibold bg-ink-50 text-ink-700 border border-ink-100 press hover:border-brand-300 hover:text-brand-700 transition-colors"
+                          >
+                            {city}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   )}
                   {destinations.length > 1 && (

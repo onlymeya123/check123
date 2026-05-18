@@ -380,6 +380,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     buildFullItinerary: (days: number, arrivalTime = '09:00', departureTime = '14:00') => {
       const usedIds = new Set<string>();
       const baseStops = PACE_STOPS[pace] + (vibe === 'activities' ? 1 : 0);
+      const city = destinations[activeDestIdx]?.name;
       const result: Place[][] = [];
       for (let d = 0; d < days; d++) {
         let maxStops = baseStops;
@@ -397,7 +398,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         const dayStops = maxStops === 0
           ? []
-          : pickDayItinerary(vibe, budget, d, usedIds, maxStops, rainyDayMode);
+          : pickDayItinerary(vibe, budget, d, usedIds, maxStops, rainyDayMode, city);
         dayStops.forEach((p) => usedIds.add(p.id));
         result.push(dayStops);
       }
