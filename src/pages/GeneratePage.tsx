@@ -9,16 +9,25 @@ import StatusBar from '../components/StatusBar';
 import { useApp, PACE_STOPS } from '../context/AppContext';
 import type { Place } from '../data/places';
 import { PLACES } from '../data/places';
+import { getRegion, countDistinctRegions } from '../data/regions';
 import { formatCost } from '../lib/format';
 import { useToast } from '../components/Toast';
 import { getCulturalIntel, type CulturalIntel } from '../data/cultural';
 import TimePicker from '../components/TimePicker';
 
-const STEPS = [
+const STEPS_DEFAULT = [
   'Scouting hidden gems…',
   'Matching spots to your vibe…',
   'Checking opening hours…',
   'Balancing your pace…',
+  'Crafting your perfect journey…',
+];
+
+const STEPS_MULTI_CITY = [
+  'Scouting hidden gems…',
+  'Matching spots to your vibe…',
+  'Spacing travel days…',
+  'Clustering destinations by region…',
   'Crafting your perfect journey…',
 ];
 
@@ -38,7 +47,7 @@ export default function GeneratePage() {
   const endTimeParam = searchParams.get('endTime'); // e.g. "14:00"
   const daysParam = Math.max(1, parseInt(searchParams.get('days') ?? '1') || 1);
 
-  const { vibe, buildItinerary, buildFullItinerary, setItinerary, itinerary, perDayItineraries, setPerDayItineraries, removeStop, replaceStop, addStop, reorderStop, alternatives, activeTrip, journeyStart, pace, setPace } = useApp();
+  const { vibe, buildItinerary, buildFullItinerary, setItinerary, itinerary, perDayItineraries, setPerDayItineraries, perDayMeta, removeStop, replaceStop, addStop, reorderStop, alternatives, activeTrip, journeyStart, pace, setPace, destinations } = useApp();
   const paceParam = searchParams.get('pace');
   const { show } = useToast();
 
@@ -158,9 +167,17 @@ export default function GeneratePage() {
     }
   }, []); // eslint-disable-line
 
+  const loadingSteps = useMemo(() => {
+    const destNames = destinations.map((d) => d.name);
+    if (destinations.length > 1 || countDistinctRegions(destNames) >= 2) {
+      return STEPS_MULTI_CITY;
+    }
+    return STEPS_DEFAULT;
+  }, [destinations]);
+
   useEffect(() => {
     if (phase !== 'loading') return;
-    const t1 = setInterval(() => setStepIdx((s) => (s + 1) % STEPS.length), 700);
+    const t1 = setInterval(() => setStepIdx((s) => (s + 1) % loadingSteps.length), 700);
     const t2 = setTimeout(() => {
       setPhase('reveal');
       if (!isManualMode && !isEditMode && itinerary.length === 0) {
@@ -269,7 +286,7 @@ export default function GeneratePage() {
           <motion.div key="ai" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex flex-col overflow-hidden">
             <AnimatePresence mode="wait">
               {phase === 'loading' ? (
-                <LoadingState key="loading" stepIdx={stepIdx} />
+                <LoadingState key="loading" stepIdx={stepIdx} steps={loadingSteps} />
               ) : (
                 <motion.div
                   key="reveal"
@@ -332,13 +349,26 @@ export default function GeneratePage() {
                         </button>
                       </div>
                     ) : displayItinerary.length === 0 && isMultiDay ? (
-                      /* Empty day placeholder — arrival/departure/free */
-                      <EmptyDayCard
-                        dayIndex={activeDay}
-                        totalDays={perDayItineraries.length}
-                        arrivalTime={startTimeParam ?? journeyStart.time ?? '09:00'}
-                        departureTime={endTimeParam ?? journeyStart.endTime ?? '14:00'}
-                      />
+                      /* Empty day placeholder — arrival/departure/travel/free */
+                      (() => {
+                        const slot = perDayMeta[activeDay];
+                        const isTravel = slot?.kind === 'travel';
+                        const crossRegion = isTravel && !!slot?.fromCity && !!slot?.toCity
+                          && getRegion(slot.fromCity) !== getRegion(slot.toCity)
+                          && !!getRegion(slot.fromCity) && !!getRegion(slot.toCity);
+                        return (
+                          <EmptyDayCard
+                            dayIndex={activeDay}
+                            totalDays={perDayItineraries.length}
+                            arrivalTime={startTimeParam ?? journeyStart.time ?? '09:00'}
+                            departureTime={endTimeParam ?? journeyStart.endTime ?? '14:00'}
+                            kind={isTravel ? 'travel' : undefined}
+                            fromCity={slot?.fromCity}
+                            toCity={slot?.toCity}
+                            crossRegion={crossRegion}
+                          />
+                        );
+                      })()
                     ) : (<>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[11px] font-bold tracking-widest text-ink-500">ITINERARY · {displayItinerary.length} STOPS</span>
@@ -894,17 +924,54 @@ export default function GeneratePage() {
 
 /* ── Sub-components ─────────────────────────────── */
 
-function EmptyDayCard({ dayIndex, totalDays, arrivalTime, departureTime }: {
+const TRAVEL_DAY_IDEAS = [
+  '☕ Airport café & people-watch',
+  '🍜 Local dinner near your hotel',
+  '🚶 Easy evening walk around the neighborhood',
+  '🛎️ Check in, unpack, rest up',
+  '🛍️ Browse a local convenience store or market',
+];
+
+function EmptyDayCard({ dayIndex, totalDays, arrivalTime, departureTime, kind, fromCity, toCity, crossRegion }: {
   dayIndex: number; totalDays: number; arrivalTime: string; departureTime: string;
+  kind?: 'arrival' | 'departure' | 'travel' | 'free';
+  fromCity?: string; toCity?: string; crossRegion?: boolean;
 }) {
   const isFirst = dayIndex === 0;
   const isLast = dayIndex === totalDays - 1;
-  const emoji = isFirst ? '✈️' : isLast ? '🛫' : '🌤️';
-  const title = isFirst ? 'Arrival Day' : isLast ? 'Departure Day' : 'Free Day';
-  const time = isFirst ? arrivalTime : isLast ? departureTime : null;
-  const note = isFirst
+  const resolvedKind: 'arrival' | 'departure' | 'travel' | 'free' =
+    kind ?? (isFirst ? 'arrival' : isLast ? 'departure' : 'free');
+
+  if (resolvedKind === 'travel') {
+    const emoji = crossRegion ? '✈️' : '🚄';
+    const idea = TRAVEL_DAY_IDEAS[dayIndex % TRAVEL_DAY_IDEAS.length];
+    return (
+      <div className="flex flex-col items-center gap-4 py-10 text-center px-6">
+        <div className="text-5xl">{emoji}</div>
+        <div>
+          <div className="font-bold text-ink-900 text-lg font-display">Travel Day</div>
+          {(fromCity || toCity) && (
+            <div className="text-sm font-semibold text-brand-600 mt-1">
+              {fromCity ?? '—'} → {toCity ?? '—'}
+            </div>
+          )}
+          <div className="text-sm text-ink-500 mt-1.5 max-w-[260px] leading-relaxed">
+            Light day for the transfer. Check in, rest, grab a local meal.
+          </div>
+        </div>
+        <div className="inline-flex items-center gap-2 bg-brand-50 border border-brand-100 rounded-full px-3 py-1.5">
+          <span className="text-xs font-semibold text-brand-700">{idea}</span>
+        </div>
+      </div>
+    );
+  }
+
+  const emoji = resolvedKind === 'arrival' ? '✈️' : resolvedKind === 'departure' ? '🛫' : '🌤️';
+  const title = resolvedKind === 'arrival' ? 'Arrival Day' : resolvedKind === 'departure' ? 'Departure Day' : 'Free Day';
+  const time = resolvedKind === 'arrival' ? arrivalTime : resolvedKind === 'departure' ? departureTime : null;
+  const note = resolvedKind === 'arrival'
     ? `Arriving at ${time} — check in and settle in before tomorrow's adventures.`
-    : isLast
+    : resolvedKind === 'departure'
     ? `Departing at ${time} — pack up and head to the airport.`
     : 'No activities planned for this day — enjoy some rest or explore freely.';
 
@@ -928,7 +995,7 @@ function SummStat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function LoadingState({ stepIdx }: { stepIdx: number }) {
+function LoadingState({ stepIdx, steps }: { stepIdx: number; steps: string[] }) {
   return (
     <motion.div key="loading" initial={{ opacity: 1 }} exit={{ opacity: 0, y: -8 }} className="flex-1 px-5 pt-4 flex flex-col">
       <div className="flex items-center gap-2 text-brand-600 font-semibold">
@@ -937,7 +1004,7 @@ function LoadingState({ stepIdx }: { stepIdx: number }) {
         </motion.div>
         <AnimatePresence mode="wait">
           <motion.span key={stepIdx} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }} className="text-[15px]">
-            {STEPS[stepIdx]}
+            {steps[stepIdx]}
           </motion.span>
         </AnimatePresence>
       </div>
