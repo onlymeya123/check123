@@ -1,3 +1,27 @@
+/**
+ * Wallet data model.
+ *
+ * Entity relationship:
+ *
+ *     Trip 1 ─── many ─── Transaction
+ *
+ * A Trip owns its transactions (they live inside the `Trip.transactions` array,
+ * not in a global pool). The active trip is identified by `activeTripId` in
+ * AppContext. AppContext exposes "active trip proxies" (`tripBudget`,
+ * `totalSpent`, `transactions`, etc.) so callers don't have to walk the trips
+ * array themselves.
+ *
+ * A trip's lifecycle is independent of any itinerary plan — the wallet is a
+ * standalone tool. When a user generates an itinerary the wallet prompt offers
+ * to link the trip, but the wallet works without one (see WalletPage).
+ *
+ * Backend mapping (future):
+ *   GET    /trips                  → Trip[]
+ *   POST   /trips                  → Trip
+ *   GET    /trips/:id/transactions → Transaction[]
+ *   POST   /trips/:id/transactions → Transaction
+ */
+
 export type TxnTag = 'Great deal' | 'Over budget' | 'Saved' | 'Top up' | 'you owe' | 'owed to you' | 'settled';
 export type TxnCategory = 'Food & Drinks' | 'Attractions' | 'Transport' | 'Shopping' | 'Top up';
 

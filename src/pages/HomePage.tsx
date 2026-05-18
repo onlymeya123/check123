@@ -16,7 +16,10 @@ import { PLACES, type Category, type Vibe } from '../data/places';
 import type { Place } from '../data/places';
 import type { TripPace } from '../context/AppContext';
 import { formatCurrencyAmount } from '../data/wallet';
-import { getRegion, countDistinctRegions, suggestPrimaryRegion } from '../data/regions';
+import { COUNTRY_CITY_HINTS } from '../data/countryHints';
+import type { Region } from '../data/regions';
+import { computeIntentBanners, filterDestinationsByRegion, type MajorBannerKey, type SecondaryBannerKey } from '../lib/planValidation';
+import { tripDurationDays, isPastDate } from '../lib/dateUtils';
 
 const VIBES: { id: Vibe; label: string; icon: string; tint: string }[] = [
   { id: 'nature', label: 'Nature', icon: '🌿', tint: '#10B981' },
@@ -27,16 +30,6 @@ const VIBES: { id: Vibe; label: string; icon: string; tint: string }[] = [
 ];
 
 const CATEGORIES: Category[] = ['Cafe', 'Nature', 'Cultural', 'Historic', 'Foodie', 'Hidden Gem', 'Cozy'];
-
-const COUNTRY_CITY_HINTS: Record<string, string> = {
-  thailand: 'Bangkok', japan: 'Tokyo', france: 'Paris',
-  indonesia: 'Bali', spain: 'Barcelona', italy: 'Rome',
-  'united kingdom': 'London', england: 'London',
-  'united states': 'New York', america: 'New York', usa: 'New York',
-  australia: 'Sydney', 'south korea': 'Seoul', korea: 'Seoul',
-  vietnam: 'Hanoi', mexico: 'Mexico City', india: 'Mumbai', greece: 'Athens',
-  portugal: 'Lisbon', netherlands: 'Amsterdam', germany: 'Berlin',
-};
 
 const SOCIAL_MOCK: Record<string, { platform: string; name: string; category: string; desc: string; image: string; cost: number }> = {
   tiktok: {
@@ -301,9 +294,7 @@ export default function HomePage() {
     if (intentVibe) setVibe(intentVibe);
     if (intentBudget) setBudget(intentBudget);
     setPace(intentPace);
-    const days = intentEndDate
-      ? Math.max(1, Math.round((new Date(intentEndDate).getTime() - new Date(intentDate).getTime()) / 86400000) + 1)
-      : 1;
+    const days = intentEndDate ? tripDurationDays(intentDate, intentEndDate) : 1;
     setJourneyStart({ date: intentDate, time: intentStartTime, days, endTime: intentEndDate ? intentEndTime : undefined });
     const mode = intentSheet;
     setIntentSheet(null);
@@ -338,7 +329,7 @@ export default function HomePage() {
     if (intentDate && intentEndDate && !overlapAcknowledged
         && journeyStart.date && journeyStart.date !== 'today'
         && itinerary.length > 0) {
-      const newDays = Math.max(1, Math.round((new Date(intentEndDate).getTime() - new Date(intentDate).getTime()) / 86400000) + 1);
+      const newDays = tripDurationDays(intentDate, intentEndDate);
       if (tripsOverlap(intentDate, newDays, journeyStart.date, journeyStart.days)) {
         setShowOverlapWarning(activeTrip.name || 'your current plan');
         return;
@@ -1141,7 +1132,7 @@ export default function HomePage() {
                         </div>
                       )}
                       {/* Past-date soft hint */}
-                      {intentDate && !intentErrors.date && new Date(intentDate) < new Date(new Date().toDateString()) && (
+                      {intentDate && !intentErrors.date && isPastDate(intentDate) && (
                         <div className="flex items-center gap-1 text-xs text-amber-600 mt-1">
                           <AlertTriangle className="w-3 h-3 shrink-0" /> Start date is in the past
                         </div>
@@ -1162,7 +1153,7 @@ export default function HomePage() {
 
                   {/* Trip duration badge */}
                   {intentDate && intentEndDate && (() => {
-                    const d = Math.max(1, Math.round((new Date(intentEndDate).getTime() - new Date(intentDate).getTime()) / 86400000) + 1);
+                    const d = tripDurationDays(intentDate, intentEndDate);
                     return d > 1 ? (
                       <div className="mt-2">
                         <span className="inline-block bg-brand-50 text-brand-600 text-xs font-bold rounded-full px-3 py-1">✈️ {d}-day trip</span>
@@ -1258,161 +1249,18 @@ export default function HomePage() {
                   </div>
                 )}
 
-                {/* Priority-gated banner stack — max 1 major + 1 secondary.
+                {/* Priority-gated banner stack — rules live in src/lib/planValidation.ts.
+                    Returns at most one major + one secondary banner.
                     Field-attached errors (past date, country hint) and interactive
                     warnings (overlap, single-day) live elsewhere and don't count. */}
-                {(() => {
-                  if (!intentDate || !intentEndDate) return null;
-                  const d = Math.max(1, Math.round((new Date(intentEndDate).getTime() - new Date(intentDate).getTime()) / 86400000) + 1);
-                  const destNames = destinations.map((x) => x.name);
-                  const regions = countDistinctRegions(destNames);
-                  const primary = suggestPrimaryRegion(destNames);
-                  const ratio = destinations.length > 0 ? d / destinations.length : Infinity;
-
-                  type Banner = { key: string; tone: 'amber' | 'amberLight' | 'red'; body: React.ReactNode };
-                  const majors: Banner[] = [];
-                  const secondaries: Banner[] = [];
-
-                  // MAJOR — pick first match in priority order
-                  // 1. Regional chaos (most severe)
-                  if (regions >= 3 && d <= regions * 4) {
-                    majors.push({
-                      key: 'chaos-regions',
-                      tone: 'amber',
-                      body: (
-                        <div className="flex flex-col gap-2">
-                          <div className="text-xs font-semibold text-amber-800">
-                            ⚠️ This trip crosses {regions} regions in {d} day{d !== 1 ? 's' : ''}. We plan single-region trips much better — consider focusing on one area.
-                          </div>
-                          {primary && (
-                            <button
-                              onClick={() => {
-                                const next = destinations.filter((x) => getRegion(x.name) === primary);
-                                if (next.length > 0) setDestinations(next);
-                              }}
-                              className="self-start text-xs font-bold text-brand-700 bg-white border border-amber-300 px-3 py-1 rounded-full press"
-                            >
-                              Keep only {primary}
-                            </button>
-                          )}
-                        </div>
-                      ),
-                    });
-                  } else if (regions >= 2 && destinations.length >= 4 && ratio < 2) {
-                    majors.push({
-                      key: 'chaos-cities',
-                      tone: 'amber',
-                      body: (
-                        <div className="flex flex-col gap-2">
-                          <div className="text-xs font-semibold text-amber-800">
-                            ⚠️ {destinations.length} cities across multiple regions can feel chaotic. Trim your list or focus on {primary ?? 'one region'}.
-                          </div>
-                          {primary && (
-                            <button
-                              onClick={() => {
-                                const next = destinations.filter((x) => getRegion(x.name) === primary);
-                                if (next.length > 0) setDestinations(next);
-                              }}
-                              className="self-start text-xs font-bold text-brand-700 bg-white border border-amber-300 px-3 py-1 rounded-full press"
-                            >
-                              Keep only {primary}
-                            </button>
-                          )}
-                        </div>
-                      ),
-                    });
-                  }
-                  // 2. Duration tiers (only if no chaos shown)
-                  if (majors.length === 0) {
-                    if (d >= 46) {
-                      majors.push({
-                        key: 'dur-46',
-                        tone: 'red',
-                        body: (
-                          <div className="text-xs font-semibold text-red-700">
-                            ⚠️ Very long trip ({d} days). We recommend creating multiple shorter plans — generation may produce repetitive days.
-                          </div>
-                        ),
-                      });
-                    } else if (d >= 31) {
-                      majors.push({
-                        key: 'dur-31',
-                        tone: 'amber',
-                        body: (
-                          <div className="text-xs font-semibold text-amber-800">
-                            ⚠️ Trips beyond 30 days may feel rushed in our planner. Try splitting into two linked plans for better pacing.
-                          </div>
-                        ),
-                      });
-                    } else if (d >= 21) {
-                      majors.push({
-                        key: 'dur-21',
-                        tone: 'amber',
-                        body: (
-                          <div className="text-xs font-semibold text-amber-800">
-                            💡 This is a long trip. Our planner is tuned for trips up to ~30 days — beyond that, consider splitting.
-                          </div>
-                        ),
-                      });
-                    }
-                  }
-                  // 3. Multi-city ratio < 1 (rushed)
-                  if (majors.length === 0 && destinations.length > 1 && ratio < 1) {
-                    majors.push({
-                      key: 'ratio-1',
-                      tone: 'amber',
-                      body: (
-                        <div className="text-xs font-semibold text-amber-800">
-                          ⚠️ {destinations.length} cities in {d} day{d !== 1 ? 's' : ''} — most cities won't have a full day. Consider extending or removing cities.
-                        </div>
-                      ),
-                    });
-                  }
-
-                  // SECONDARY — pick one
-                  if (d >= 14 && d <= 20) {
-                    secondaries.push({
-                      key: 'dur-14',
-                      tone: 'amberLight',
-                      body: (
-                        <div className="text-xs text-amber-700">
-                          Heads up — longer trips work best when clustered by region. Aim for one country or area.
-                        </div>
-                      ),
-                    });
-                  } else if (destinations.length > 1 && ratio >= 1 && ratio < 2) {
-                    secondaries.push({
-                      key: 'ratio-2',
-                      tone: 'amberLight',
-                      body: (
-                        <div className="text-xs text-amber-700">
-                          Less than 2 days per city — your trip will feel a bit rushed.
-                        </div>
-                      ),
-                    });
-                  }
-
-                  const banners = [majors[0], secondaries[0]].filter(Boolean) as Banner[];
-                  if (banners.length === 0) return null;
-                  return (
-                    <>
-                      {banners.map((b) => (
-                        <div
-                          key={b.key}
-                          className={
-                            b.tone === 'red'
-                              ? 'bg-red-50 border border-red-200 rounded-xl px-3 py-2.5'
-                              : b.tone === 'amber'
-                              ? 'bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5'
-                              : 'bg-amber-50/60 border border-amber-100 rounded-xl px-3 py-2'
-                          }
-                        >
-                          {b.body}
-                        </div>
-                      ))}
-                    </>
-                  );
-                })()}
+                <IntentBanners
+                  durationDays={intentDate && intentEndDate ? tripDurationDays(intentDate, intentEndDate) : 0}
+                  destinationNames={destinations.map((x) => x.name)}
+                  onKeepOnlyRegion={(region) => {
+                    const next = filterDestinationsByRegion(destinations, region);
+                    if (next.length > 0) setDestinations(next);
+                  }}
+                />
 
                 {/* Overlapping trip warning */}
                 {showOverlapWarning && (
@@ -1908,4 +1756,93 @@ function InfoChip({ icon, label, value }: { icon: React.ReactNode; label: string
       <div className="text-xs font-bold text-ink-900 leading-snug">{value}</div>
     </div>
   );
+}
+
+/* ── Intent-sheet banners ─────────────────────────────────────────────
+   Renders the major+secondary banner stack returned by computeIntentBanners.
+   Pure presentation — all rule logic lives in src/lib/planValidation.ts.
+   ────────────────────────────────────────────────────────────────────── */
+
+function IntentBanners({
+  durationDays, destinationNames, onKeepOnlyRegion,
+}: {
+  durationDays: number;
+  destinationNames: string[];
+  onKeepOnlyRegion: (region: Region) => void;
+}) {
+  const { major, secondary } = computeIntentBanners({ durationDays, destinationNames });
+  if (!major && !secondary) return null;
+
+  return (
+    <>
+      {major && (
+        <BannerShell tone={major.key === 'duration-extreme' ? 'red' : 'amber'}>
+          <MajorBannerBody banner={major} onKeepOnlyRegion={onKeepOnlyRegion} />
+        </BannerShell>
+      )}
+      {secondary && (
+        <BannerShell tone="amberLight">
+          <SecondaryBannerBody banner={secondary} />
+        </BannerShell>
+      )}
+    </>
+  );
+}
+
+function BannerShell({ tone, children }: { tone: 'red' | 'amber' | 'amberLight'; children: React.ReactNode }) {
+  const cls =
+    tone === 'red' ? 'bg-red-50 border border-red-200 rounded-xl px-3 py-2.5'
+    : tone === 'amber' ? 'bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5'
+    : 'bg-amber-50/60 border border-amber-100 rounded-xl px-3 py-2';
+  return <div className={cls}>{children}</div>;
+}
+
+function MajorBannerBody({
+  banner, onKeepOnlyRegion,
+}: {
+  banner: NonNullable<ReturnType<typeof computeIntentBanners>['major']>;
+  onKeepOnlyRegion: (region: Region) => void;
+}) {
+  const { key, primaryRegion, vars } = banner;
+  const { days, cities, regions } = vars;
+  const dayWord = days !== 1 ? 's' : '';
+
+  const copy: Record<MajorBannerKey, string> = {
+    'chaos-regions': `⚠️ This trip crosses ${regions} regions in ${days} day${dayWord}. We plan single-region trips much better — consider focusing on one area.`,
+    'chaos-cities': `⚠️ ${cities} cities across multiple regions can feel chaotic. Trim your list or focus on ${primaryRegion ?? 'one region'}.`,
+    'duration-extreme': `⚠️ Very long trip (${days} days). We recommend creating multiple shorter plans — generation may produce repetitive days.`,
+    'duration-over-30': `⚠️ Trips beyond 30 days may feel rushed in our planner. Try splitting into two linked plans for better pacing.`,
+    'duration-over-20': `💡 This is a long trip. Our planner is tuned for trips up to ~30 days — beyond that, consider splitting.`,
+    'ratio-under-1': `⚠️ ${cities} cities in ${days} day${dayWord} — most cities won't have a full day. Consider extending or removing cities.`,
+  };
+  const isRed = key === 'duration-extreme';
+  const showKeepOnly = (key === 'chaos-regions' || key === 'chaos-cities') && primaryRegion;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className={isRed ? 'text-xs font-semibold text-red-700' : 'text-xs font-semibold text-amber-800'}>
+        {copy[key]}
+      </div>
+      {showKeepOnly && (
+        <button
+          onClick={() => onKeepOnlyRegion(primaryRegion!)}
+          className="self-start text-xs font-bold text-brand-700 bg-white border border-amber-300 px-3 py-1 rounded-full press"
+        >
+          Keep only {primaryRegion}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SecondaryBannerBody({
+  banner,
+}: {
+  banner: NonNullable<ReturnType<typeof computeIntentBanners>['secondary']>;
+}) {
+  const copy: Record<SecondaryBannerKey, string> = {
+    'duration-14-20': 'Heads up — longer trips work best when clustered by region. Aim for one country or area.',
+    'ratio-1-to-2': 'Less than 2 days per city — your trip will feel a bit rushed.',
+  };
+  return <div className="text-xs text-amber-700">{copy[banner.key]}</div>;
 }

@@ -1,82 +1,41 @@
+/**
+ * AppContext — central client-side state for the planner.
+ *
+ * State slices (each is a `useState` below):
+ *   - Auth: isAuthenticated, authUser, onboardingComplete
+ *   - Plan inputs: vibe, budget, pace, journeyStart, destinations, activeDestIdx
+ *   - Plan output: itinerary (flat), perDayItineraries (grouped), perDayMeta (day-kind labels)
+ *   - Wallet: trips[], activeTripId — transactions live INSIDE each Trip.
+ *     "Active trip proxies" (tripBudget/tripName/currency/etc.) read from
+ *     `trips.find(t => t.id === activeTripId)` so callers don't need to know
+ *     about the multi-trip structure.
+ *   - User behavior: savedPlaces, visited, placeRatings, visitedPlaceIds
+ *   - UI flags: isNavigating, buddyOpen, rainyDayMode
+ *
+ * Persistence: see `loadPersistedState` + the effect at the top of AppProvider —
+ * a single localStorage key (`pavey_state`) holds the JSON blob.
+ *
+ * Backend migration notes:
+ *   - Planning logic lives in src/lib/itinerary.ts. `buildFullItinerary` here
+ *     is just a thin state-binding wrapper; replacing it with a `POST /plan`
+ *     call is a one-file change.
+ *   - Validation rules live in src/lib/planValidation.ts.
+ *   - Wallet/trip shape is in src/data/wallet.ts.
+ */
+
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { PLACES, pickItinerary, pickDayItinerary, type Place, type Vibe } from '../data/places';
+import { PLACES, pickItinerary, type Place, type Vibe } from '../data/places';
 import { DEFAULT_TRIP, BUDGET_TOTAL, type Transaction, type Trip, type Currency, suggestCurrency } from '../data/wallet';
+import {
+  PACE_STOPS, allocateDays, generateItinerary,
+  type TripPace, type DayKind, type DayPlan,
+} from '../lib/itinerary';
+
+// Re-export planning types so existing imports from '../context/AppContext' keep working.
+export { PACE_STOPS, allocateDays };
+export type { TripPace, DayKind, DayPlan };
 
 export type TransitMode = 'flight' | 'train' | 'bus' | 'drive' | 'ferry';
-export type TripPace = 'relaxed' | 'balanced' | 'fast';
-export const PACE_STOPS: Record<TripPace, number> = { relaxed: 2, balanced: 3, fast: 4 };
-
-export type DayKind = 'normal' | 'travel' | 'arrival' | 'departure';
-export interface DayPlan {
-  destIdx: number;
-  kind: DayKind;
-  fromCity?: string;
-  toCity?: string;
-}
-
-// Allocate days across destinations with one travel day between adjacent cities.
-// Pure arithmetic — no APIs, no distance lookups.
-export function allocateDays(destinations: Destination[], totalDays: number): DayPlan[] {
-  if (destinations.length <= 1 || totalDays <= 0) {
-    return Array.from({ length: totalDays }, () => ({ destIdx: 0, kind: 'normal' as const }));
-  }
-
-  // Per-destination day weights — prefer arrive/depart spans if present, else 1 each
-  const weights = destinations.map((d) => {
-    if (d.arriveDate && d.departDate) {
-      const span = Math.max(1, Math.round(
-        (new Date(d.departDate).getTime() - new Date(d.arriveDate).getTime()) / 86400000,
-      ));
-      return span;
-    }
-    return Math.max(1, d.days || 1);
-  });
-
-  const travelDays = destinations.length - 1; // one per transition
-  const planDays = Math.max(destinations.length, totalDays - travelDays);
-  const wSum = weights.reduce((a, b) => a + b, 0);
-
-  // Distribute planDays proportionally with a floor of 1 per dest
-  const allocPerDest = weights.map((w) => Math.max(1, Math.round((w / wSum) * planDays)));
-  let allocSum = allocPerDest.reduce((a, b) => a + b, 0);
-  // Trim/grow to match planDays exactly
-  let i = 0;
-  while (allocSum > planDays) {
-    if (allocPerDest[i % destinations.length] > 1) {
-      allocPerDest[i % destinations.length] -= 1;
-      allocSum -= 1;
-    }
-    i += 1;
-    if (i > 1000) break;
-  }
-  while (allocSum < planDays) {
-    allocPerDest[i % destinations.length] += 1;
-    allocSum += 1;
-    i += 1;
-    if (i > 1000) break;
-  }
-
-  const plan: DayPlan[] = [];
-  for (let dIdx = 0; dIdx < destinations.length; dIdx++) {
-    // Travel day before this destination (except the first)
-    if (dIdx > 0 && plan.length < totalDays) {
-      plan.push({
-        destIdx: dIdx,
-        kind: 'travel',
-        fromCity: destinations[dIdx - 1].name.split(',')[0],
-        toCity: destinations[dIdx].name.split(',')[0],
-      });
-    }
-    for (let k = 0; k < allocPerDest[dIdx] && plan.length < totalDays; k++) {
-      plan.push({ destIdx: dIdx, kind: 'normal' });
-    }
-  }
-  // Pad if we under-filled (e.g. very short trips relative to dest count)
-  while (plan.length < totalDays) {
-    plan.push({ destIdx: destinations.length - 1, kind: 'normal' });
-  }
-  return plan.slice(0, totalDays);
-}
 
 export interface Destination {
   id: string;
@@ -452,52 +411,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     perDayItineraries,
     setPerDayItineraries,
     perDayMeta,
+    // Thin wrapper around the pure planning engine. When migrating to a backend,
+    // replace the `generateItinerary` call with `await api.plan(...)`.
     buildFullItinerary: (days: number, arrivalTime = '09:00', departureTime = '14:00') => {
-      const usedIds = new Set<string>();
-      const baseStops = PACE_STOPS[pace] + (vibe === 'activities' ? 1 : 0);
-      const allocation = allocateDays(destinations, days);
-      const singleCityFallback = destinations[activeDestIdx]?.name;
-      const result: Place[][] = [];
-      const meta: DayPlan[] = [];
-      for (let d = 0; d < days; d++) {
-        const slot = allocation[d] ?? { destIdx: activeDestIdx, kind: 'normal' as const };
-        const isTravel = slot.kind === 'travel';
-        const prevWasTravel = d > 0 && (allocation[d - 1]?.kind === 'travel');
-
-        let maxStops = baseStops;
-        if (d === 0) {
-          const arrHour = parseInt(arrivalTime.split(':')[0]);
-          if (arrHour >= 18) maxStops = 0;
-          else if (arrHour >= 15) maxStops = 1;
-          else if (arrHour >= 12) maxStops = 2;
-        }
-        if (d === days - 1 && days > 1) {
-          const depHour = parseInt(departureTime.split(':')[0]);
-          if (depHour <= 10) maxStops = 0;
-          else if (depHour <= 12) maxStops = 1;
-          else if (depHour <= 14) maxStops = 2;
-        }
-        // Recovery day: day right after a travel day gets one fewer stop
-        if (prevWasTravel && maxStops > 1) maxStops -= 1;
-
-        // Travel days have no scheduled stops — EmptyDayCard renders a light suggestion
-        if (isTravel) {
-          result.push([]);
-          meta.push(slot);
-          continue;
-        }
-
-        const cityForDay = destinations[slot.destIdx]?.name ?? singleCityFallback;
-        const dayStops = maxStops === 0
-          ? []
-          : pickDayItinerary(vibe, budget, d, usedIds, maxStops, rainyDayMode, cityForDay);
-        dayStops.forEach((p) => usedIds.add(p.id));
-        result.push(dayStops);
-        meta.push(slot);
-      }
-      setPerDayItineraries(result);
+      const { days: planDays, meta } = generateItinerary({
+        destinations,
+        activeDestIdx,
+        totalDays: days,
+        pace,
+        vibe,
+        budget,
+        rainyDayMode,
+        arrivalTime,
+        departureTime,
+      });
+      setPerDayItineraries(planDays);
       setPerDayMeta(meta);
-      setItinerary(result.flat());
+      setItinerary(planDays.flat());
     },
     reorderStop: (from, to) => {
       setItinerary((cur) => {
