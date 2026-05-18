@@ -2,12 +2,13 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   Bell, Plus, Scan, Clock, X, Check, Users, Receipt,
   Pencil, Trash2, Share2, ChevronRight, ChevronLeft, Wallet, CalendarDays,
-  TrendingDown, Globe, AlertTriangle, Search, Wand2,
+  TrendingDown, Globe, AlertTriangle, Search,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StatusBar from '../components/StatusBar';
 import PageHeader from '../components/PageHeader';
+import WalletOnboardingEmpty from '../components/WalletOnboardingEmpty';
 import { useApp } from '../context/AppContext';
 import {
   CATEGORY_COLORS, type Transaction, type TxnCategory,
@@ -24,7 +25,7 @@ export default function WalletPage() {
     tripName, setTripName,
     tripDays, tripDaysRemaining, setTripDaysRemaining,
     totalSpent, dailyAllowance,
-    trips, activeTripId, setActiveTripId, deleteTrip,
+    trips, activeTripId, setActiveTripId, deleteTrip, activeTrip,
     currency, setCurrency,
     isNavigating, tripCompleted,
     itinerary, perDayItineraries,
@@ -34,9 +35,20 @@ export default function WalletPage() {
 
   const hasItinerary = perDayItineraries.flat().length > 0 || itinerary.length > 0;
   const hasUserTrips = trips.some(t => t.id !== 'trip-default');
+  const showEmptyOnboarding = !hasItinerary && !hasUserTrips && transactions.length === 0;
+  const isLinkedTrip = !!activeTrip?.linkedToPlan;
+
   const [sheet, setSheet] = useState<null | 'editBudget' | 'addExpense' | 'scan' | 'history' | 'splitBill' | 'currencyPicker' | 'manageTrips'>(null);
   const [confirmDeleteTrip, setConfirmDeleteTrip] = useState<string | null>(null);
-  const [tipDismissed, setTipDismissed] = useState(false);
+  // First-visit explainer for auto-linked wallet — dismissed permanently via localStorage.
+  const [explainerDismissed, setExplainerDismissed] = useState(() => {
+    try { return localStorage.getItem('pavey_wallet_explained') === '1'; } catch { return false; }
+  });
+  const showLinkedExplainer = isLinkedTrip && !explainerDismissed;
+  const dismissExplainer = () => {
+    setExplainerDismissed(true);
+    try { localStorage.setItem('pavey_wallet_explained', '1'); } catch { /* ignore */ }
+  };
 
   const breakdown = useMemo(() => {
     const map = new Map<TxnCategory, number>();
@@ -80,26 +92,28 @@ export default function WalletPage() {
         }
       />
 
-      {/* Soft nudge: no plan linked yet */}
-      {!hasItinerary && !hasUserTrips && !tipDismissed && (
-        <div className="mx-5 mb-3 bg-brand-50 border border-brand-100 rounded-2xl px-4 py-3 flex items-start gap-3">
-          <span className="text-xl shrink-0 mt-0.5">✈️</span>
-          <div className="flex-1 min-w-0">
-            <div className="font-semibold text-brand-900 text-sm">Link a trip plan</div>
-            <div className="text-xs text-brand-700 mt-0.5 leading-snug">Generate a travel plan to auto-fill trip details and track spending by destination.</div>
-            <button
-              onClick={() => nav('/?newPlan=1')}
-              className="mt-2 text-xs font-bold text-brand-600 press flex items-center gap-1"
-            >
-              <Wand2 className="w-3 h-3" /> Create a trip plan →
-            </button>
+      {/* Empty onboarding state — no plan, no user trips, no expenses yet. */}
+      {showEmptyOnboarding && (
+        <WalletOnboardingEmpty
+          onCreatePlan={() => nav('/?newPlan=1')}
+          onLogQuickExpense={() => setSheet('addExpense')}
+        />
+      )}
+
+      {/* First-visit explainer for auto-linked trips. */}
+      {!showEmptyOnboarding && showLinkedExplainer && (
+        <div className="mx-5 mb-3 bg-brand-50/70 border border-brand-100 rounded-2xl px-3.5 py-2.5 flex items-start gap-2.5">
+          <span className="text-sm shrink-0 mt-0.5">ℹ️</span>
+          <div className="flex-1 text-[11px] text-brand-900 leading-relaxed">
+            This wallet was created from your trip plan. Track expenses, set budgets, or skip it anytime.
           </div>
-          <button onClick={() => setTipDismissed(true)} className="shrink-0 press mt-0.5">
-            <X className="w-4 h-4 text-brand-400" />
+          <button onClick={dismissExplainer} className="shrink-0 press mt-0.5">
+            <X className="w-3.5 h-3.5 text-brand-400" />
           </button>
         </div>
       )}
 
+      {!showEmptyOnboarding && (<>
       {/* Trip selector pills */}
       <div className="px-5 mb-3">
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
@@ -141,6 +155,11 @@ export default function WalletPage() {
             <div className="min-w-0">
               <div className="text-xs text-white/70">Current Trip</div>
               <div className="font-bold text-lg font-display truncate">{tripName}</div>
+              {isLinkedTrip && (
+                <div className="text-[10px] text-white/70 mt-0.5 flex items-center gap-1">
+                  <span>🔗</span> Linked from your trip plan
+                </div>
+              )}
               {(itinerary.length > 0 || destinations.length > 0) && (
                 <div className="text-[11px] text-white/70 mt-0.5 truncate">
                   {destinations.length > 0 ? `${destinations.length} ${destinations.length === 1 ? 'city' : 'cities'} · ` : ''}
@@ -342,6 +361,7 @@ export default function WalletPage() {
           </div>
         )}
       </div>
+      </>)}
 
       {/* Sheets */}
       <Sheet open={sheet === 'editBudget'} title="Edit Trip Budget" onClose={() => setSheet(null)}>

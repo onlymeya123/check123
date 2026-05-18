@@ -17,9 +17,18 @@ import type { Place } from '../data/places';
 import type { TripPace } from '../context/AppContext';
 import { formatCurrencyAmount } from '../data/wallet';
 import { COUNTRY_CITY_HINTS } from '../data/countryHints';
-import type { Region } from '../data/regions';
-import { computeIntentBanners, filterDestinationsByRegion, type MajorBannerKey, type SecondaryBannerKey } from '../lib/planValidation';
+import { countDistinctRegions } from '../data/regions';
+import {
+  computeIntentBanners, filterDestinationsByRegion, exceedsMaxDuration, isOverDense,
+  type MajorBannerKey,
+} from '../lib/planValidation';
+import { IntentBanners } from '../components/IntentBanners';
 import { tripDurationDays, isPastDate } from '../lib/dateUtils';
+import JourneyReviewModal, { type JourneySummary, type ReviewMode, type GuidanceAction } from '../components/JourneyReviewModal';
+import TripTooLongModal from '../components/TripTooLongModal';
+import { suggestCurrency, DEFAULT_TRIP } from '../data/wallet';
+
+const MAX_DESTINATIONS = 6;
 
 const VIBES: { id: Vibe; label: string; icon: string; tint: string }[] = [
   { id: 'nature', label: 'Nature', icon: '🌿', tint: '#10B981' },
@@ -67,6 +76,7 @@ export default function HomePage() {
     isNavigating, activeTrip, totalSpent, tripBudget, tripDaysRemaining, dailyAllowance,
     currency, setCurrency, journeyStart, setJourneyStart, perDayItineraries,
     pace, setPace,
+    trips, createTrip,
   } = useApp();
   const { show } = useToast();
 
@@ -102,6 +112,10 @@ export default function HomePage() {
   const [showOverlapWarning, setShowOverlapWarning] = useState<string | null>(null);
   const [overlapAcknowledged, setOverlapAcknowledged] = useState(false);
   const [scopeTipOpen, setScopeTipOpen] = useState(false);
+  // Review-step modal: shown after validation passes, before /generate nav.
+  const [reviewOpen, setReviewOpen] = useState(false);
+  // Strict 30-day cap modal.
+  const [tooLongOpen, setTooLongOpen] = useState(false);
   const [intentPace, setIntentPace] = useState<TripPace>('balanced');
   const endDateInputRef = useRef<HTMLInputElement>(null);
 
@@ -274,6 +288,10 @@ export default function HomePage() {
       setNewDestError(`${trimmed} is already in your trip`);
       return;
     }
+    if (destinations.length >= MAX_DESTINATIONS) {
+      setNewDestError(`Six is plenty — let's make it a great trip.`);
+      return;
+    }
     setNewDestError(null);
     const days = calcedDays ?? newDestDays;
     addDestination({
@@ -290,14 +308,41 @@ export default function HomePage() {
     show(`${trimmed} added to your trip`, 'success');
   };
 
+  // Compute the day count once; the review modal & nav both need it.
+  const intentDays = intentEndDate ? tripDurationDays(intentDate, intentEndDate) : 1;
+
+  // proceedIntent — final step: persist inputs, mint a wallet trip if needed, navigate to /generate.
+  // Called from the JourneyReviewModal's onConfirm.
   const proceedIntent = () => {
     if (intentVibe) setVibe(intentVibe);
     if (intentBudget) setBudget(intentBudget);
     setPace(intentPace);
-    const days = intentEndDate ? tripDurationDays(intentDate, intentEndDate) : 1;
+    const days = intentDays;
     setJourneyStart({ date: intentDate, time: intentStartTime, days, endTime: intentEndDate ? intentEndTime : undefined });
+
+    // Auto-mint a wallet trip on first plan confirmation. After that, the user creates trips manually.
+    const hasUserTrip = trips.some((t) => t.id !== DEFAULT_TRIP.id);
+    if (!hasUserTrip && intentSheet === 'ai') {
+      const cities = (destinations.length > 0 ? destinations.map((d) => d.name) : [intentDest]).filter(Boolean);
+      const firstCity = cities[0]?.split(',')[0] ?? intentDest;
+      const tripName = cities.length > 1 ? `${firstCity} + ${cities.length - 1} more` : `${firstCity} Trip`;
+      const dailyBudget = intentBudget || budget;
+      createTrip({
+        name: tripName,
+        destination: cities.join(' → '),
+        currency: suggestCurrency(cities[0] ?? intentDest),
+        budget: dailyBudget * Math.max(1, days),
+        daysTotal: days,
+        daysRemaining: days,
+        linkedToPlan: true,
+      });
+      // Surface the connection — see Change 8a.
+      setTimeout(() => show(`💼 Wallet trip created for ${tripName}`, 'success'), 600);
+    }
+
     const mode = intentSheet;
     setIntentSheet(null);
+    setReviewOpen(false);
     setShowOverlapWarning(null);
     const params = new URLSearchParams();
     if (mode === 'manual') params.set('mode', 'manual');
@@ -308,11 +353,12 @@ export default function HomePage() {
     nav(`/generate?${params}`);
   };
 
+  // handleIntentConfirm — entry from the bottom CTA. Runs field/inline validation,
+  // checks the hard 30-day cap, then opens the review modal (never navs directly).
   const handleIntentConfirm = () => {
     const errs: { dest?: string; date?: string } = {};
     if (!intentDest.trim()) errs.dest = 'Please enter your destination to continue';
     if (!intentDate) errs.date = 'Please pick a start date to continue';
-    // End-date-before-start-date validation (hard inline error)
     if (intentEndDate && intentDate && new Date(intentEndDate) < new Date(intentDate)) {
       errs.date = 'End date must be after start date';
     }
@@ -325,18 +371,24 @@ export default function HomePage() {
       return;
     }
 
-    // Overlapping trip check (soft warning): compare new dates to current plan
+    // STRICT 30-day cap — hard block with a friendly explanation.
+    if (intentEndDate && exceedsMaxDuration(intentDays)) {
+      setTooLongOpen(true);
+      return;
+    }
+
+    // Overlapping trip check (soft warning)
     if (intentDate && intentEndDate && !overlapAcknowledged
         && journeyStart.date && journeyStart.date !== 'today'
         && itinerary.length > 0) {
-      const newDays = tripDurationDays(intentDate, intentEndDate);
-      if (tripsOverlap(intentDate, newDays, journeyStart.date, journeyStart.days)) {
+      if (tripsOverlap(intentDate, intentDays, journeyStart.date, journeyStart.days)) {
         setShowOverlapWarning(activeTrip.name || 'your current plan');
         return;
       }
     }
 
-    proceedIntent();
+    // All validation passed — open the review step.
+    setReviewOpen(true);
   };
 
   const handleQuickPlan = () => {
@@ -345,6 +397,70 @@ export default function HomePage() {
     setItinerary(trimmed.length > 0 ? trimmed : itinerary.slice(0, 1));
     setQuickPlanSheet(false);
     nav('/map');
+  };
+
+  /* ── Review-modal derived inputs ──────────────────────────────────
+     Driven by the intent-sheet state. Three modes:
+       - 'confirm'  : everything clean, brand button.
+       - 'friction' : a soft major banner is firing — amber button + note.
+       - 'guidance' : input is non-viable (cities > days) — show fix chips.
+     ──────────────────────────────────────────────────────────────── */
+  const journeyCities: string[] = destinations.length > 0
+    ? destinations.map((d) => d.name)
+    : (intentDest ? [intentDest] : []);
+  const reviewBanners = computeIntentBanners({
+    durationDays: intentEndDate ? intentDays : 0,
+    destinationNames: journeyCities,
+  });
+  const overDense = isOverDense(journeyCities.length, intentDays);
+  const reviewMode: ReviewMode = overDense
+    ? 'guidance'
+    : reviewBanners.major ? 'friction' : 'confirm';
+
+  const frictionCopy: Partial<Record<MajorBannerKey, string>> = {
+    'chaos-regions': `⚠ This trip crosses multiple regions in a short window. Plan anyway?`,
+    'chaos-cities': `⚠ Many cities across regions can feel chaotic. Plan anyway?`,
+    'duration-over-20': `⚠ Long trip — near our 30-day sweet spot. Plan anyway?`,
+    'ratio-under-1': `⚠ Cities outnumber days. Plan anyway?`,
+  };
+  const frictionNote: string | undefined = reviewBanners.major
+    ? frictionCopy[reviewBanners.major.key]
+    : undefined;
+
+  const guidance: { headline: string; actions: GuidanceAction[] } | undefined = overDense
+    ? {
+        headline: `A bit packed — ${journeyCities.length} cit${journeyCities.length === 1 ? 'y' : 'ies'} in ${intentDays} day${intentDays !== 1 ? 's' : ''}. Let's give each one some room.`,
+        actions: [
+          {
+            label: 'Add more days',
+            onClick: () => { setReviewOpen(false); setTimeout(() => endDateInputRef.current?.focus(), 50); },
+          },
+          ...(destinations.length > 0
+            ? [{
+                label: `Remove last city`,
+                onClick: () => {
+                  const last = destinations[destinations.length - 1];
+                  if (last) removeDestination(last.id);
+                  setReviewOpen(false);
+                },
+              }]
+            : []),
+        ],
+      }
+    : undefined;
+
+  const journeySummary: JourneySummary = {
+    destinations: journeyCities,
+    startDate: intentDate,
+    endDate: intentEndDate || undefined,
+    days: intentDays,
+    paceLabel: intentPace === 'relaxed' ? 'Relaxed' : intentPace === 'fast' ? 'Fast-paced' : 'Balanced',
+    paceIcon: intentPace === 'relaxed' ? '🌿' : intentPace === 'fast' ? '⚡' : '⚖️',
+    vibeLabel: VIBES.find((v) => v.id === (intentVibe ?? vibe))?.label ?? 'Balanced',
+    vibeIcon: VIBES.find((v) => v.id === (intentVibe ?? vibe))?.icon ?? '⚖️',
+    budgetPerDay: formatCost(intentBudget || budget, activeTrip.currency),
+    arrivalTime: showFlightTimes ? intentStartTime : undefined,
+    departureTime: (showFlightTimes && intentEndDate) ? intentEndTime : undefined,
   };
 
   return (
@@ -476,12 +592,18 @@ export default function HomePage() {
                 )}
               </div>
             ))}
-            <button
-              onClick={() => setAddDestSheet(true)}
-              className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-full border border-dashed border-brand-300 text-brand-500 text-xs font-semibold press"
-            >
-              <Plus className="w-3 h-3" />
-            </button>
+            {destinations.length < MAX_DESTINATIONS ? (
+              <button
+                onClick={() => setAddDestSheet(true)}
+                className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-full border border-dashed border-brand-300 text-brand-500 text-xs font-semibold press"
+              >
+                <Plus className="w-3 h-3" />
+              </button>
+            ) : (
+              <span className="shrink-0 text-[10px] text-ink-400 italic self-center px-1">
+                Six is plenty
+              </span>
+            )}
           </div>
         </div>
       )}
@@ -1037,7 +1159,7 @@ export default function HomePage() {
                       onClick={() => setScopeTipOpen((v) => !v)}
                       className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-brand-700 bg-brand-50 border border-brand-100 rounded-full px-3 py-1.5 press"
                     >
-                      <span>✨ Best for 1-city, short multi-city, or regional trips up to 30 days.</span>
+                      <span>✨ Curated for 1-city, short multi-city, or regional trips. Up to 30 days.</span>
                     </button>
                     {scopeTipOpen && (
                       <div className="mt-1.5 text-[11px] text-ink-500 px-1 leading-relaxed">
@@ -1313,6 +1435,27 @@ export default function HomePage() {
           </>
         )}
       </AnimatePresence>
+
+      {/* ── Journey review (confirmation) modal ── */}
+      <JourneyReviewModal
+        open={reviewOpen}
+        mode={reviewMode}
+        journey={journeySummary}
+        frictionNote={frictionNote}
+        guidance={guidance}
+        onEdit={() => setReviewOpen(false)}
+        onConfirm={proceedIntent}
+      />
+
+      {/* ── Trip-too-long modal (strict 30-day cap) ── */}
+      <TripTooLongModal
+        open={tooLongOpen}
+        days={intentDays}
+        regionsCount={countDistinctRegions(destinations.map((d) => d.name))}
+        onClose={() => setTooLongOpen(false)}
+        onFocusDates={() => endDateInputRef.current?.focus()}
+        onFocusDestinations={() => setAddDestSheet(true)}
+      />
 
       {/* ── Add Destination Sheet ── */}
       <AnimatePresence>
@@ -1758,91 +1901,3 @@ function InfoChip({ icon, label, value }: { icon: React.ReactNode; label: string
   );
 }
 
-/* ── Intent-sheet banners ─────────────────────────────────────────────
-   Renders the major+secondary banner stack returned by computeIntentBanners.
-   Pure presentation — all rule logic lives in src/lib/planValidation.ts.
-   ────────────────────────────────────────────────────────────────────── */
-
-function IntentBanners({
-  durationDays, destinationNames, onKeepOnlyRegion,
-}: {
-  durationDays: number;
-  destinationNames: string[];
-  onKeepOnlyRegion: (region: Region) => void;
-}) {
-  const { major, secondary } = computeIntentBanners({ durationDays, destinationNames });
-  if (!major && !secondary) return null;
-
-  return (
-    <>
-      {major && (
-        <BannerShell tone={major.key === 'duration-extreme' ? 'red' : 'amber'}>
-          <MajorBannerBody banner={major} onKeepOnlyRegion={onKeepOnlyRegion} />
-        </BannerShell>
-      )}
-      {secondary && (
-        <BannerShell tone="amberLight">
-          <SecondaryBannerBody banner={secondary} />
-        </BannerShell>
-      )}
-    </>
-  );
-}
-
-function BannerShell({ tone, children }: { tone: 'red' | 'amber' | 'amberLight'; children: React.ReactNode }) {
-  const cls =
-    tone === 'red' ? 'bg-red-50 border border-red-200 rounded-xl px-3 py-2.5'
-    : tone === 'amber' ? 'bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5'
-    : 'bg-amber-50/60 border border-amber-100 rounded-xl px-3 py-2';
-  return <div className={cls}>{children}</div>;
-}
-
-function MajorBannerBody({
-  banner, onKeepOnlyRegion,
-}: {
-  banner: NonNullable<ReturnType<typeof computeIntentBanners>['major']>;
-  onKeepOnlyRegion: (region: Region) => void;
-}) {
-  const { key, primaryRegion, vars } = banner;
-  const { days, cities, regions } = vars;
-  const dayWord = days !== 1 ? 's' : '';
-
-  const copy: Record<MajorBannerKey, string> = {
-    'chaos-regions': `⚠️ This trip crosses ${regions} regions in ${days} day${dayWord}. We plan single-region trips much better — consider focusing on one area.`,
-    'chaos-cities': `⚠️ ${cities} cities across multiple regions can feel chaotic. Trim your list or focus on ${primaryRegion ?? 'one region'}.`,
-    'duration-extreme': `⚠️ Very long trip (${days} days). We recommend creating multiple shorter plans — generation may produce repetitive days.`,
-    'duration-over-30': `⚠️ Trips beyond 30 days may feel rushed in our planner. Try splitting into two linked plans for better pacing.`,
-    'duration-over-20': `💡 This is a long trip. Our planner is tuned for trips up to ~30 days — beyond that, consider splitting.`,
-    'ratio-under-1': `⚠️ ${cities} cities in ${days} day${dayWord} — most cities won't have a full day. Consider extending or removing cities.`,
-  };
-  const isRed = key === 'duration-extreme';
-  const showKeepOnly = (key === 'chaos-regions' || key === 'chaos-cities') && primaryRegion;
-
-  return (
-    <div className="flex flex-col gap-2">
-      <div className={isRed ? 'text-xs font-semibold text-red-700' : 'text-xs font-semibold text-amber-800'}>
-        {copy[key]}
-      </div>
-      {showKeepOnly && (
-        <button
-          onClick={() => onKeepOnlyRegion(primaryRegion!)}
-          className="self-start text-xs font-bold text-brand-700 bg-white border border-amber-300 px-3 py-1 rounded-full press"
-        >
-          Keep only {primaryRegion}
-        </button>
-      )}
-    </div>
-  );
-}
-
-function SecondaryBannerBody({
-  banner,
-}: {
-  banner: NonNullable<ReturnType<typeof computeIntentBanners>['secondary']>;
-}) {
-  const copy: Record<SecondaryBannerKey, string> = {
-    'duration-14-20': 'Heads up — longer trips work best when clustered by region. Aim for one country or area.',
-    'ratio-1-to-2': 'Less than 2 days per city — your trip will feel a bit rushed.',
-  };
-  return <div className="text-xs text-amber-700">{copy[banner.key]}</div>;
-}

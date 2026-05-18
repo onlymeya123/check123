@@ -92,6 +92,9 @@ export interface Trip {
   daysRemaining: number;
   transactions: Transaction[];
   createdAt: string;
+  /** True when this trip was auto-minted from a confirmed itinerary plan.
+   *  Used by the wallet to render the "Linked from your trip plan" subtitle. */
+  linkedToPlan?: boolean;
 }
 
 export const SEED_TXNS: Transaction[] = [

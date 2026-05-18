@@ -10,6 +10,7 @@ import { useApp, PACE_STOPS } from '../context/AppContext';
 import type { Place } from '../data/places';
 import { PLACES } from '../data/places';
 import { getRegion, countDistinctRegions } from '../data/regions';
+import { MAX_TRIP_DAYS, exceedsMaxDuration } from '../lib/planValidation';
 import { formatCost } from '../lib/format';
 import { useToast } from '../components/Toast';
 import { getCulturalIntel, type CulturalIntel } from '../data/cultural';
@@ -153,6 +154,12 @@ export default function GeneratePage() {
   const [showCustomForm, setShowCustomForm] = useState(false);
 
   useEffect(() => {
+    // URL safety net — HomePage is the primary defense against >30-day trips.
+    if (exceedsMaxDuration(daysParam)) {
+      show(`Let's keep trips to ${MAX_TRIP_DAYS} days for the best plan`, 'info');
+      nav('/', { replace: true });
+      return;
+    }
     // Apply pace from URL param if it differs from current state
     if (paceParam === 'relaxed' || paceParam === 'balanced' || paceParam === 'fast') {
       if (pace !== paceParam) setPace(paceParam);

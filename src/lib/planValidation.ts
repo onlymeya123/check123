@@ -28,11 +28,26 @@
 
 import { countDistinctRegions, getRegion, suggestPrimaryRegion, type Region } from '../data/regions';
 
+/**
+ * Strict maximum trip duration. Trips beyond this are hard-blocked at the
+ * generate button — `TripTooLongModal` explains why and offers next steps.
+ * Backend should mirror this cap on the /plan endpoint.
+ */
+export const MAX_TRIP_DAYS = 30;
+
+/** Returns true when a trip exceeds the supported planning window. */
+export function exceedsMaxDuration(days: number): boolean {
+  return days > MAX_TRIP_DAYS;
+}
+
+/** Returns true when more cities than days — generation produces an unusable plan. */
+export function isOverDense(citiesCount: number, days: number): boolean {
+  return citiesCount > 1 && citiesCount > days;
+}
+
 export type MajorBannerKey =
   | 'chaos-regions'
   | 'chaos-cities'
-  | 'duration-extreme'
-  | 'duration-over-30'
   | 'duration-over-20'
   | 'ratio-under-1';
 
@@ -76,15 +91,13 @@ export function computeIntentBanners(input: IntentBannerInput): IntentBanners {
   const ratio = cities > 0 ? days / cities : Infinity;
 
   // ── Major (pick first match in priority order) ─────
+  // Note: durations > MAX_TRIP_DAYS are hard-blocked at the button level
+  // (see TripTooLongModal). They never appear as soft banners.
   if (regions >= 3 && days <= regions * 4) {
     out.major = { key: 'chaos-regions', primaryRegion: primary, vars: { days, cities, regions } };
   } else if (regions >= 2 && cities >= 4 && ratio < 2) {
     out.major = { key: 'chaos-cities', primaryRegion: primary, vars: { days, cities, regions } };
-  } else if (days >= 46) {
-    out.major = { key: 'duration-extreme', vars: { days, cities, regions } };
-  } else if (days >= 31) {
-    out.major = { key: 'duration-over-30', vars: { days, cities, regions } };
-  } else if (days >= 21) {
+  } else if (days >= 21 && days <= MAX_TRIP_DAYS) {
     out.major = { key: 'duration-over-20', vars: { days, cities, regions } };
   } else if (cities > 1 && ratio < 1) {
     out.major = { key: 'ratio-under-1', vars: { days, cities, regions } };
